@@ -1,23 +1,37 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FileType, DownloadCloud, ArrowDownCircle } from "lucide-react";
 
 interface ImageStats {
-  width: number
-  height: number
-  size: number
-  format: string
+  width: number;
+  height: number;
+  size: number;
+  format: string;
 }
 
-interface ImageStatsProps {
-  originalStats: ImageStats | null
-  newStats: ImageStats | null
-  dataSavings: number
-  hasEdited: boolean
-  fileName: string
-  format: string
-  fileType: string
+interface ImageStatsDisplayProps {
+  originalStats: ImageStats | null;
+  newStats: ImageStats | null;
+  dataSavings: number;
+  hasEdited: boolean;
+  fileName: string;
+  format: string;
+  fileType: string;
 }
+
+// Format bytes to human-readable format
+const formatBytes = (bytes: number, decimals = 2) => {
+  if (bytes === 0) return "0 Bytes";
+
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return (
+    parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + " " + sizes[i]
+  );
+};
 
 export default function ImageStatsDisplay({
   originalStats,
@@ -27,116 +41,124 @@ export default function ImageStatsDisplay({
   fileName,
   format,
   fileType,
-}: ImageStatsProps) {
-  // Calculate estimated page speed score improvement
-  const getPageSpeedImprovement = () => {
-    if (!dataSavings || dataSavings <= 0) return "No change"
-    if (dataSavings < 20) return "Minor improvement"
-    if (dataSavings < 50) return "Moderate improvement"
-    return "Significant improvement"
-  }
+}: ImageStatsDisplayProps) {
+  // Original image stats
+  const originalFormatted = originalStats
+    ? {
+        dimensions: `${originalStats.width} × ${originalStats.height}`,
+        size: formatBytes(originalStats.size),
+        format: originalStats.format.toUpperCase(),
+      }
+    : null;
 
-  // Safe file name handling
-  const safeFileName = fileName || "image.png"
-  const safeFileType = fileType || "image/png"
-
-  // Safe format extraction
-  const getFileExtension = () => {
-    if (format === "webp") return "webp"
-    if (format === "jpeg") return "jpg"
-    if (safeFileType && typeof safeFileType === "string" && safeFileType.includes("/")) {
-      return safeFileType.split("/")[1]
-    }
-    return "png"
-  }
+  // New image stats
+  const newFormatted = newStats
+    ? {
+        dimensions: `${newStats.width} × ${newStats.height}`,
+        size: formatBytes(newStats.size),
+        format: newStats.format.toUpperCase(),
+      }
+    : null;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {originalStats && (
-        <Card className="bg-gray-800 text-white border-gray-700">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Original Image</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm mb-2">File name: {safeFileName}</p>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <p className="text-sm font-medium">Dimensions</p>
-                <p className="text-sm">
-                  {originalStats.width} × {originalStats.height}px
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">File type</p>
-                <p className="text-sm">{safeFileType}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">File size</p>
-                <p className="text-sm">{(originalStats.size / 1024).toFixed(2)} KB</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {hasEdited && newStats && (
-        <Card className="bg-gray-800 text-white border-gray-700">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Edited Image</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm mb-2">
-              File name: {safeFileName.split(".")[0]}_edited.{getFileExtension()}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center">
+            <FileType className="mr-2 h-5 w-5 text-blue-500" />
+            Original Image
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm">
+            <p className="mb-1">
+              <span className="font-medium">File:</span> {fileName}
             </p>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <p className="text-sm font-medium">Dimensions</p>
-                <p className="text-sm">
-                  {newStats.width} × {newStats.height}px
+            {originalFormatted && (
+              <>
+                <p className="mb-1">
+                  <span className="font-medium">Dimensions:</span>{" "}
+                  {originalFormatted.dimensions}
+                </p>
+                <p className="mb-1">
+                  <span className="font-medium">Size:</span>{" "}
+                  {originalFormatted.size}
+                </p>
+                <p>
+                  <span className="font-medium">Format:</span>{" "}
+                  {originalFormatted.format}
+                </p>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {hasEdited && newFormatted && (
+        <>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center">
+                <DownloadCloud className="mr-2 h-5 w-5 text-green-500" />
+                Edited Image
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm">
+                <p className="mb-1">
+                  <span className="font-medium">Dimensions:</span>{" "}
+                  {newFormatted.dimensions}
+                </p>
+                <p className="mb-1">
+                  <span className="font-medium">Size:</span> {newFormatted.size}
+                </p>
+                <p>
+                  <span className="font-medium">Format:</span>{" "}
+                  {format.toUpperCase()}
                 </p>
               </div>
-              <div>
-                <p className="text-sm font-medium">File type</p>
-                <p className="text-sm">
-                  {format === "webp" ? "image/webp" : format === "jpeg" ? "image/jpeg" : safeFileType}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center">
+                <ArrowDownCircle className="mr-2 h-5 w-5 text-purple-500" />
+                Compression Results
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm">
+                <p className="mb-1">
+                  <span className="font-medium">Size Reduction:</span>{" "}
+                  {dataSavings > 0
+                    ? `${Math.round(dataSavings)}%`
+                    : "No reduction"}
                 </p>
+                {originalStats && newStats && (
+                  <p className="mb-1">
+                    <span className="font-medium">Space Saved:</span>{" "}
+                    {formatBytes(originalStats.size - newStats.size)}
+                  </p>
+                )}
+                {originalStats && newStats && (
+                  <p className="mb-1">
+                    <span className="font-medium">Dimensions Change:</span>{" "}
+                    {newStats.width === originalStats.width &&
+                    newStats.height === originalStats.height
+                      ? "Unchanged"
+                      : `${Math.round(
+                          (newStats.width / originalStats.width) * 100
+                        )}% width, ${Math.round(
+                          (newStats.height / originalStats.height) * 100
+                        )}% height`}
+                  </p>
+                )}
               </div>
-              <div>
-                <p className="text-sm font-medium">File size</p>
-                <p className="text-sm">{(newStats.size / 1024).toFixed(2)} KB</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {hasEdited && dataSavings > 0 && (
-        <Card className="bg-gray-800 text-white border-gray-700">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Performance Impact</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <p className="text-sm">Data savings:</p>
-              <div className="w-full bg-gray-700 rounded-full h-4">
-                <div
-                  className="bg-green-500 h-4 rounded-full"
-                  style={{ width: `${Math.min(dataSavings, 100)}%` }}
-                ></div>
-              </div>
-              <p className="text-sm text-right">{dataSavings.toFixed(1)}%</p>
-
-              <p className="text-sm mt-4">Estimated page speed impact:</p>
-              <p className="text-sm font-medium text-green-400">{getPageSpeedImprovement()}</p>
-              <p className="text-xs mt-2 text-gray-400">
-                {dataSavings > 50
-                  ? "This optimization could significantly improve your Core Web Vitals scores."
-                  : "Further optimizations may be needed for maximum performance."}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
-  )
+  );
 }

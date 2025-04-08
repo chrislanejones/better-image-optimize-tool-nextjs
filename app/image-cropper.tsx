@@ -1,23 +1,24 @@
 "use client";
 
-import type React from "react";
-
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Slider } from "@/components/ui/slider";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
-import ReactCrop, {
-  type Crop as CropType,
-  type PixelCrop,
-} from "react-image-crop";
+import { type PixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import ImageControls from "./components/image-controls";
+import ImageStats from "./components/image-stats"; // Using the existing image-stats.tsx
+import CroppingTool from "./components/cropping-tool";
 import BlurTool from "./components/blur-tool";
 import PaintTool from "./components/paint-tool";
-import ImageStatsDisplay from "./components/image-stats";
-import { updateImage } from "@/app/utils/indexedDB";
-import { Maximize2, Minus, Plus, MousePointer } from "lucide-react";
+import ImageResizer from "./components/image-resizer";
+import ImageZoomView from "./components/image-zoom-view";
+import BlurControls from "./components/second-controls/blur-controls";
+import PaintControls from "./components/second-controls/paint-controls";
+import {
+  cropImage,
+  resizeImage,
+  safeRevokeURL,
+} from "./utils/image-transformations";
+import { getMimeType, getFileFormat } from "./utils/image-utils";
+import { updateImage } from "./utils/indexedDB";
 
 interface ImageFile {
   id: string;
@@ -31,7 +32,7 @@ interface ImageCropperProps {
   onRemoveAll: () => void;
   onBackToGallery?: () => void;
   isStandalone?: boolean;
-  onEditModeChange?: (isEditing: boolean) => void; // Added this prop
+  onEditModeChange?: (isEditing: boolean) => void;
 }
 
 interface ImageStats {
@@ -39,11 +40,6 @@ interface ImageStats {
   height: number;
   size: number;
   format: string;
-}
-
-interface MousePosition {
-  x: number;
-  y: number;
 }
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
@@ -54,42 +50,36 @@ export default function ImageCropper({
   onRemoveAll,
   onBackToGallery,
   isStandalone = false,
-  onEditModeChange, // Added this prop
+  onEditModeChange,
 }: ImageCropperProps) {
-  const [crop, setCrop] = useState<CropType>({
-    unit: "%",
-    width: 100,
-    height: 100,
-    x: 0,
-    y: 0,
-  });
-  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
+  // Basic state
   const [width, setWidth] = useState<number>(0);
   const [height, setHeight] = useState<number>(0);
   const [format, setFormat] = useState<string>("jpeg");
+  const [previewUrl, setPreviewUrl] = useState<string>(PLACEHOLDER_IMAGE);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [zoom, setZoom] = useState<number>(1);
+
+  // Editing mode states
+  const [isEditMode, setIsEditMode] = useState<boolean>(isStandalone);
   const [isCropping, setIsCropping] = useState<boolean>(false);
   const [isBlurring, setIsBlurring] = useState<boolean>(false);
   const [isPainting, setIsPainting] = useState<boolean>(false);
-  const [previewUrl, setPreviewUrl] = useState<string>(PLACEHOLDER_IMAGE);
-  const [zoom, setZoom] = useState<number>(1);
-  const [keepAspectRatio, setKeepAspectRatio] = useState<boolean>(true);
-  const [aspectRatio, setAspectRatio] = useState<number>(1);
+
+  // Tool states
+  const [blurAmount, setBlurAmount] = useState<number>(5);
+  const [brushSize, setBrushSize] = useState<number>(10);
+  const [brushColor, setBrushColor] = useState<string>("#ff0000");
+  const [isEraser, setIsEraser] = useState<boolean>(false);
+
+  // Stats states
   const [originalStats, setOriginalStats] = useState<ImageStats | null>(null);
   const [newStats, setNewStats] = useState<ImageStats | null>(null);
   const [dataSavings, setDataSavings] = useState<number>(0);
   const [hasEdited, setHasEdited] = useState<boolean>(false);
-  const [mousePosition, setMousePosition] = useState<MousePosition | null>(
-    null
-  );
-  const [isHovering, setIsHovering] = useState<boolean>(false);
-  const [magnifierZoom, setMagnifierZoom] = useState<number>(3);
-  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
-  const [isEditMode, setIsEditMode] = useState<boolean>(isStandalone);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [isMounted, setIsMounted] = useState<boolean>(false);
-  const [resizeDebounceTimer, setResizeDebounceTimer] =
-    useState<NodeJS.Timeout | null>(null);
 
+  // Refs
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -106,21 +96,6 @@ export default function ImageCropper({
     }
   }, [isEditMode, onEditModeChange]);
 
-  // Safe function to get file format
-  const getFileFormat = (fileType: string | undefined): string => {
-    if (!fileType || typeof fileType !== "string") return "unknown";
-    const parts = fileType.split("/");
-    return parts.length > 1 ? parts[1] : "unknown";
-  };
-
-  // Safe function to get MIME type
-  const getMimeType = (format: string): string => {
-    if (format === "webp") return "image/webp";
-    if (format === "jpeg") return "image/jpeg";
-    if (format === "png") return "image/png";
-    return "image/png"; // Default fallback
-  };
-
   // Initialize image when component mounts or image changes
   useEffect(() => {
     if (!isMounted) return;
@@ -132,14 +107,6 @@ export default function ImageCropper({
         : PLACEHOLDER_IMAGE;
 
     setPreviewUrl(safeUrl);
-
-    setCrop({
-      unit: "%",
-      width: 100,
-      height: 100,
-      x: 0,
-      y: 0,
-    });
 
     // For standalone mode, always start in edit mode
     if (!isStandalone) {
@@ -158,8 +125,6 @@ export default function ImageCropper({
     img.onload = () => {
       setWidth(img.width);
       setHeight(img.height);
-      setAspectRatio(img.width / img.height);
-      setImageSize({ width: img.width, height: img.height });
 
       // Set original stats with safe values
       setOriginalStats({
@@ -181,7 +146,7 @@ export default function ImageCropper({
         image?.url &&
         previewUrl !== image.url
       ) {
-        URL.revokeObjectURL(previewUrl);
+        safeRevokeURL(previewUrl);
       }
     };
   }, [image, isStandalone, isMounted]);
@@ -193,17 +158,7 @@ export default function ImageCropper({
     }
   }, [isCropping, isBlurring, isPainting, isEditMode]);
 
-  // Handle back to gallery
-  // Handle back to gallery
-  const handleBackToGallery = useCallback(() => {
-    if (onBackToGallery) {
-      onBackToGallery();
-    } else {
-      // If no handler provided, just go back to upload state
-      onUploadNew();
-    }
-  }, [onBackToGallery, onUploadNew]);
-
+  // Toggle functions
   const toggleEditMode = useCallback(() => {
     if (!isStandalone) {
       setIsEditMode((prev) => !prev);
@@ -241,6 +196,7 @@ export default function ImageCropper({
     setIsBlurring(false);
   }, [isEditMode, isStandalone]);
 
+  // Cancel functions
   const cancelBlur = useCallback(() => {
     setIsBlurring(false);
   }, []);
@@ -263,168 +219,265 @@ export default function ImageCropper({
     }
   }, [isStandalone]);
 
-  // Debounced resize function to prevent excessive renders
-  const debouncedResize = useCallback(
-    (applyOnly = false) => {
-      if (resizeDebounceTimer) {
-        clearTimeout(resizeDebounceTimer);
-      }
+  // Handle back to gallery
+  const handleBackToGallery = useCallback(() => {
+    if (onBackToGallery) {
+      onBackToGallery();
+    } else {
+      // If no handler provided, just go back to upload state
+      onUploadNew();
+    }
+  }, [onBackToGallery, onUploadNew]);
 
-      const timer = setTimeout(() => {
-        handleResize(applyOnly);
-      }, 300);
-
-      setResizeDebounceTimer(timer);
-    },
-    [resizeDebounceTimer]
-  );
-
+  // Image editing handlers
   const handleResize = useCallback(
-    (applyOnly = false) => {
-      if (!imgRef.current || !canvasRef.current) return;
+    async (newWidth: number, newHeight: number) => {
+      if (!imgRef.current) return;
 
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      const img = imgRef.current;
-
-      // Set canvas dimensions to desired resize values
-      canvas.width = width;
-      canvas.height = height;
-
-      // Draw the image with new dimensions
-      ctx.drawImage(img, 0, 0, width, height);
-
-      // Only update the preview URL if we're applying the changes
-      if (applyOnly) {
-        // Convert to blob and create URL
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              // Revoke previous URL to prevent memory leaks
-              if (
-                previewUrl &&
-                previewUrl !== PLACEHOLDER_IMAGE &&
-                image?.url &&
-                previewUrl !== image.url
-              ) {
-                URL.revokeObjectURL(previewUrl);
-              }
-              const url = URL.createObjectURL(blob);
-              setPreviewUrl(url);
-              setHasEdited(true);
-
-              // Update new stats
-              setNewStats({
-                width: width,
-                height: height,
-                size: blob.size,
-                format: format || "unknown",
-              });
-
-              // Calculate data savings
-              if (originalStats) {
-                const savings = 100 - (blob.size / originalStats.size) * 100;
-                setDataSavings(savings);
-              }
-
-              // Update the stored image if in standalone mode
-              if (isStandalone) {
-                saveEditedImage(url, blob);
-              }
-            }
-          },
-          getMimeType(format),
-          0.9
-        );
-      }
+      // We just set the dimensions, but don't apply them yet
+      setWidth(newWidth);
+      setHeight(newHeight);
     },
-    [width, height, format, previewUrl, image, originalStats, isStandalone]
+    []
   );
 
-  const handleCrop = useCallback(() => {
-    if (!imgRef.current || !canvasRef.current || !completedCrop) return;
+  const applyResize = useCallback(async () => {
+    if (!imgRef.current) return;
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    try {
+      // Get the current image URL
+      const oldPreviewUrl = previewUrl;
 
-    const img = imgRef.current;
-    const scaleX = img.naturalWidth / img.width;
-    const scaleY = img.naturalHeight / img.height;
+      // Resize the image
+      const resizedUrl = await resizeImage(
+        imgRef.current,
+        width,
+        height,
+        format
+      );
 
-    canvas.width = completedCrop.width;
-    canvas.height = completedCrop.height;
+      // Update the preview
+      setPreviewUrl(resizedUrl);
+      setHasEdited(true);
 
-    ctx.drawImage(
-      img,
-      completedCrop.x * scaleX,
-      completedCrop.y * scaleY,
-      completedCrop.width * scaleX,
-      completedCrop.height * scaleY,
-      0,
-      0,
-      completedCrop.width,
-      completedCrop.height
-    );
+      // Fetch the blob to calculate size
+      const blob = await fetch(resizedUrl).then((r) => r.blob());
 
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          // Revoke previous URL to prevent memory leaks
-          if (
-            previewUrl &&
-            previewUrl !== PLACEHOLDER_IMAGE &&
-            image?.url &&
-            previewUrl !== image.url
-          ) {
-            URL.revokeObjectURL(previewUrl);
-          }
-          const url = URL.createObjectURL(blob);
-          setPreviewUrl(url);
-          setIsCropping(false);
-          setHasEdited(true);
+      // Update stats
+      setNewStats({
+        width,
+        height,
+        size: blob.size,
+        format: format || "unknown",
+      });
 
-          // Update dimensions after crop
-          setWidth(completedCrop.width);
-          setHeight(completedCrop.height);
+      // Calculate data savings
+      if (originalStats) {
+        const savings = 100 - (blob.size / originalStats.size) * 100;
+        setDataSavings(savings);
+      }
 
-          // Update new stats
-          setNewStats({
-            width: completedCrop.width,
-            height: completedCrop.height,
-            size: blob.size,
-            format: format || "unknown",
-          });
+      // Update the stored image if in standalone mode
+      if (isStandalone) {
+        await saveEditedImage(resizedUrl, blob);
+      }
 
-          // Calculate data savings
-          if (originalStats) {
-            const savings = 100 - (blob.size / originalStats.size) * 100;
-            setDataSavings(savings);
-          }
-
-          // Update the stored image if in standalone mode
-          if (isStandalone) {
-            saveEditedImage(url, blob);
-          }
-        }
-      },
-      getMimeType(format),
-      0.9
-    );
+      // Clean up old URL if needed
+      if (oldPreviewUrl !== PLACEHOLDER_IMAGE && oldPreviewUrl !== image?.url) {
+        safeRevokeURL(oldPreviewUrl);
+      }
+    } catch (error) {
+      console.error("Error applying resize:", error);
+    }
   }, [
     imgRef,
-    canvasRef,
-    completedCrop,
-    previewUrl,
-    image,
+    width,
+    height,
     format,
+    previewUrl,
     originalStats,
     isStandalone,
+    image?.url,
   ]);
 
-  // Helper function to save edited image to IndexedDB
+  const handleCropComplete = useCallback(
+    async (crop: PixelCrop, imgElement: HTMLImageElement) => {
+      try {
+        // Get the current image URL
+        const oldPreviewUrl = previewUrl;
+
+        // Apply the crop
+        const croppedUrl = await cropImage(imgElement, crop, format);
+
+        // Update dimensions after crop
+        setWidth(crop.width);
+        setHeight(crop.height);
+
+        // Update the preview
+        setPreviewUrl(croppedUrl);
+        setIsCropping(false);
+        setHasEdited(true);
+
+        // Fetch the blob to calculate size
+        const blob = await fetch(croppedUrl).then((r) => r.blob());
+
+        // Update stats
+        setNewStats({
+          width: crop.width,
+          height: crop.height,
+          size: blob.size,
+          format: format || "unknown",
+        });
+
+        // Calculate data savings
+        if (originalStats) {
+          const savings = 100 - (blob.size / originalStats.size) * 100;
+          setDataSavings(savings);
+        }
+
+        // Update the stored image if in standalone mode
+        if (isStandalone) {
+          await saveEditedImage(croppedUrl, blob);
+        }
+
+        // Clean up old URL if needed
+        if (
+          oldPreviewUrl !== PLACEHOLDER_IMAGE &&
+          oldPreviewUrl !== image?.url
+        ) {
+          safeRevokeURL(oldPreviewUrl);
+        }
+      } catch (error) {
+        console.error("Error applying crop:", error);
+      }
+    },
+    [previewUrl, format, originalStats, isStandalone, image?.url]
+  );
+
+  const handleBlurApply = useCallback(
+    async (blurredImageUrl: string) => {
+      if (!blurredImageUrl || typeof blurredImageUrl !== "string") return;
+
+      try {
+        // Get the current image URL
+        const oldPreviewUrl = previewUrl;
+
+        setPreviewUrl(blurredImageUrl);
+        setIsBlurring(false);
+        setHasEdited(true);
+
+        // Fetch the blob to calculate size
+        const blob = await fetch(blurredImageUrl).then((r) => r.blob());
+
+        // Get image dimensions
+        const img = new Image();
+        img.src = blurredImageUrl;
+
+        await new Promise<void>((resolve) => {
+          img.onload = () => {
+            // Update stats
+            setNewStats({
+              width: img.naturalWidth,
+              height: img.naturalHeight,
+              size: blob.size,
+              format: format || "unknown",
+            });
+            resolve();
+          };
+        });
+
+        // Calculate data savings
+        if (originalStats) {
+          const savings = 100 - (blob.size / originalStats.size) * 100;
+          setDataSavings(savings);
+        }
+
+        // Update the stored image if in standalone mode
+        if (isStandalone) {
+          await saveEditedImage(blurredImageUrl, blob);
+        }
+
+        // Clean up old URL if needed
+        if (
+          oldPreviewUrl !== PLACEHOLDER_IMAGE &&
+          oldPreviewUrl !== image?.url
+        ) {
+          safeRevokeURL(oldPreviewUrl);
+        }
+      } catch (error) {
+        console.error("Error applying blur:", error);
+      }
+    },
+    [previewUrl, format, originalStats, isStandalone, image?.url]
+  );
+
+  const handlePaintApply = useCallback(
+    async (paintedImageUrl: string) => {
+      if (!paintedImageUrl || typeof paintedImageUrl !== "string") return;
+
+      try {
+        // Get the current image URL
+        const oldPreviewUrl = previewUrl;
+
+        setPreviewUrl(paintedImageUrl);
+        setIsPainting(false);
+        setHasEdited(true);
+
+        // Fetch the blob to calculate size
+        const blob = await fetch(paintedImageUrl).then((r) => r.blob());
+
+        // Get image dimensions
+        const img = new Image();
+        img.src = paintedImageUrl;
+
+        await new Promise<void>((resolve) => {
+          img.onload = () => {
+            // Update stats
+            setNewStats({
+              width: img.naturalWidth,
+              height: img.naturalHeight,
+              size: blob.size,
+              format: format || "unknown",
+            });
+            resolve();
+          };
+        });
+
+        // Calculate data savings
+        if (originalStats) {
+          const savings = 100 - (blob.size / originalStats.size) * 100;
+          setDataSavings(savings);
+        }
+
+        // Update the stored image if in standalone mode
+        if (isStandalone) {
+          await saveEditedImage(paintedImageUrl, blob);
+        }
+
+        // Clean up old URL if needed
+        if (
+          oldPreviewUrl !== PLACEHOLDER_IMAGE &&
+          oldPreviewUrl !== image?.url
+        ) {
+          safeRevokeURL(oldPreviewUrl);
+        }
+      } catch (error) {
+        console.error("Error applying paint:", error);
+      }
+    },
+    [previewUrl, format, originalStats, isStandalone, image?.url]
+  );
+
+  // Zoom in/out functions
+  const zoomIn = useCallback(() => {
+    setZoom((prev) => Math.min(prev + 0.1, 3));
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    setZoom((prev) => Math.max(prev - 0.1, 0.5));
+  }, []);
+
+  // Save edited image to IndexedDB
   const saveEditedImage = useCallback(
     async (url: string, blob: Blob) => {
       if (!image?.id || !image?.file?.name) return;
@@ -462,103 +515,23 @@ export default function ImageCropper({
     [image, format, width, height]
   );
 
-  const handleBlurApply = useCallback(
-    (blurredImageUrl: string) => {
-      if (!blurredImageUrl || typeof blurredImageUrl !== "string") return;
-
-      setPreviewUrl(blurredImageUrl);
-      setIsBlurring(false);
-      setHasEdited(true);
-
-      // Get the blob from the URL to calculate size
-      fetch(blurredImageUrl)
-        .then((response) => response.blob())
-        .then((blob) => {
-          // Update new stats
-          if (imgRef.current) {
-            setNewStats({
-              width: imgRef.current.naturalWidth,
-              height: imgRef.current.naturalHeight,
-              size: blob.size,
-              format: format || "unknown",
-            });
-
-            // Calculate data savings
-            if (originalStats) {
-              const savings = 100 - (blob.size / originalStats.size) * 100;
-              setDataSavings(savings);
-            }
-
-            // Update the stored image if in standalone mode
-            if (isStandalone) {
-              saveEditedImage(blurredImageUrl, blob);
-            }
-          }
-        })
-        .catch((error) => {
-          console.error("Error fetching blob:", error);
-        });
-    },
-    [format, originalStats, isStandalone, saveEditedImage]
-  );
-
-  const handlePaintApply = useCallback(
-    (paintedImageUrl: string) => {
-      if (!paintedImageUrl || typeof paintedImageUrl !== "string") return;
-
-      setPreviewUrl(paintedImageUrl);
-      setIsPainting(false);
-      setHasEdited(true);
-
-      // Get the blob from the URL to calculate size
-      fetch(paintedImageUrl)
-        .then((response) => response.blob())
-        .then((blob) => {
-          // Update new stats
-          if (imgRef.current) {
-            setNewStats({
-              width: imgRef.current.naturalWidth,
-              height: imgRef.current.naturalHeight,
-              size: blob.size,
-              format: format || "unknown",
-            });
-
-            // Calculate data savings
-            if (originalStats) {
-              const savings = 100 - (blob.size / originalStats.size) * 100;
-              setDataSavings(savings);
-            }
-
-            // Update the stored image if in standalone mode
-            if (isStandalone) {
-              saveEditedImage(paintedImageUrl, blob);
-            }
-          }
-        })
-        .catch((error) => {
-          console.error("Error fetching blob:", error);
-        });
-    },
-    [format, originalStats, isStandalone, saveEditedImage]
-  );
-
+  // Download current image
   const downloadImage = useCallback(() => {
     if (!canvasRef.current || !image?.file?.name) return;
 
     const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
 
-    // If we haven't done any edits yet, draw the current image to canvas
-    if (previewUrl === (image?.url || PLACEHOLDER_IMAGE)) {
-      const ctx = canvas.getContext("2d");
-      if (!ctx || !imgRef.current) return;
+    if (!ctx || !imgRef.current) return;
 
-      canvas.width = imgRef.current.naturalWidth;
-      canvas.height = imgRef.current.naturalHeight;
+    // Set canvas dimensions to match current image
+    canvas.width = imgRef.current.naturalWidth;
+    canvas.height = imgRef.current.naturalHeight;
 
-      ctx.drawImage(imgRef.current, 0, 0);
-    }
+    // Draw the current image to canvas
+    ctx.drawImage(imgRef.current, 0, 0);
 
-    // Convert to the selected format
+    // Convert to the selected format and download
     canvas.toBlob(
       (blob) => {
         if (blob) {
@@ -576,8 +549,9 @@ export default function ImageCropper({
       getMimeType(format),
       0.9
     );
-  }, [canvasRef, imgRef, previewUrl, image, format]);
+  }, [imgRef, canvasRef, image, format]);
 
+  // Reset image to original
   const resetImage = useCallback(() => {
     // Revoke previous URL to prevent memory leaks
     if (
@@ -586,7 +560,7 @@ export default function ImageCropper({
       image?.url &&
       previewUrl !== image.url
     ) {
-      URL.revokeObjectURL(previewUrl);
+      safeRevokeURL(previewUrl);
     }
 
     // Set a safe image source
@@ -615,65 +589,6 @@ export default function ImageCropper({
     img.src = safeUrl;
   }, [previewUrl, image]);
 
-  const zoomIn = useCallback(() => {
-    setZoom((prev) => Math.min(prev + 0.1, 3));
-  }, []);
-
-  const zoomOut = useCallback(() => {
-    setZoom((prev) => Math.max(prev - 0.1, 0.5));
-  }, []);
-
-  // Handle mouse movement for the magnifier
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!imageContainerRef.current || isCropping) return;
-
-      const rect = imageContainerRef.current.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top) / rect.height;
-
-      setMousePosition({ x, y });
-    },
-    [isCropping]
-  );
-
-  const handleMouseEnter = useCallback(() => {
-    if (!isCropping && !isBlurring && !isPainting) {
-      setIsHovering(true);
-    }
-  }, [isCropping, isBlurring, isPainting]);
-
-  const handleMouseLeave = useCallback(() => {
-    setIsHovering(false);
-  }, []);
-
-  // Increase magnifier zoom
-  const increaseMagnifierZoom = useCallback(() => {
-    setMagnifierZoom((prev) => Math.min(prev + 0.5, 6));
-  }, []);
-
-  // Decrease magnifier zoom
-  const decreaseMagnifierZoom = useCallback(() => {
-    setMagnifierZoom((prev) => Math.max(prev - 0.5, 1.5));
-  }, []);
-
-  // Get background position for the magnifier
-  const getBackgroundPosition = useCallback(() => {
-    if (isHovering && mousePosition) {
-      // When hovering, use mouse position
-      return `${mousePosition.x * 100}% ${mousePosition.y * 100}%`;
-    } else {
-      // Default to center when not hovering
-      return "50% 50%";
-    }
-  }, [isHovering, mousePosition]);
-
-  // Safe image URL for display
-  const safeImageUrl = useCallback((url: string | undefined): string => {
-    if (!url || typeof url !== "string") return PLACEHOLDER_IMAGE;
-    return url;
-  }, []);
-
   // Don't render until client-side to prevent hydration errors
   if (!isMounted) {
     return (
@@ -700,13 +615,15 @@ export default function ImageCropper({
         isCropping={isCropping}
         isBlurring={isBlurring}
         isPainting={isPainting}
+        isEraser={isEraser} // Add this prop
         format={format}
         onFormatChange={setFormat}
         onToggleEditMode={toggleEditMode}
         onToggleCropping={toggleCropping}
         onToggleBlurring={toggleBlurring}
         onTogglePainting={togglePainting}
-        onApplyCrop={handleCrop}
+        onToggleEraser={() => setIsEraser(!isEraser)} // Add this handler
+        onApplyCrop={() => {}}
         onApplyBlur={handleBlurApply}
         onApplyPaint={handlePaintApply}
         onZoomIn={zoomIn}
@@ -719,9 +636,26 @@ export default function ImageCropper({
         onCancelCrop={cancelCrop}
         onCancelPaint={cancelPaint}
         onBackToGallery={handleBackToGallery}
-        onExitEditMode={exitEditMode} // Added this prop
+        onExitEditMode={exitEditMode}
         isStandalone={isStandalone}
       />
+
+      {/* Display appropriate tool controls based on active tool */}
+      {isBlurring && (
+        <BlurControls
+          blurAmount={blurAmount}
+          onBlurAmountChange={setBlurAmount}
+        />
+      )}
+
+      {isPainting && (
+        <PaintControls
+          brushSize={brushSize}
+          brushColor={brushColor}
+          onBrushSizeChange={setBrushSize}
+          onBrushColorChange={setBrushColor}
+        />
+      )}
 
       <div className="flex flex-col gap-6">
         <div
@@ -734,24 +668,13 @@ export default function ImageCropper({
               <div
                 className="relative border rounded-lg overflow-hidden"
                 ref={imageContainerRef}
-                onMouseMove={handleMouseMove}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
               >
                 {isCropping ? (
-                  <ReactCrop
-                    crop={crop}
-                    onChange={(c) => setCrop(c)}
-                    onComplete={(c) => setCompletedCrop(c)}
-                    aspect={undefined}
-                  >
-                    <img
-                      ref={imgRef}
-                      src={safeImageUrl(image?.url) || "/placeholder.svg"}
-                      alt="Original image for cropping"
-                      className="max-w-full"
-                    />
-                  </ReactCrop>
+                  <CroppingTool
+                    imageUrl={previewUrl}
+                    onApplyCrop={handleCropComplete}
+                    onCancel={cancelCrop}
+                  />
                 ) : isBlurring ? (
                   <BlurTool
                     imageUrl={previewUrl}
@@ -763,6 +686,8 @@ export default function ImageCropper({
                     imageUrl={previewUrl}
                     onApplyPaint={handlePaintApply}
                     onCancel={cancelPaint}
+                    onToggleEraser={() => setIsEraser(!isEraser)}
+                    isEraser={isEraser}
                   />
                 ) : (
                   <div
@@ -774,7 +699,7 @@ export default function ImageCropper({
                   >
                     <img
                       ref={imgRef}
-                      src={safeImageUrl(previewUrl) || "/placeholder.svg"}
+                      src={previewUrl || PLACEHOLDER_IMAGE}
                       alt="Edited image"
                       className="max-w-full transform origin-top-left"
                       style={{ transform: `scale(${zoom})` }}
@@ -787,155 +712,23 @@ export default function ImageCropper({
 
           {!isEditMode && !isBlurring && !isPainting && (
             <aside className="md:col-span-1 space-y-6">
-              <Card className="bg-gray-800 text-white border-gray-700">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Resize</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <label htmlFor="width" className="text-sm font-medium">
-                        Width: {width}px
-                      </label>
-                    </div>
-                    <Slider
-                      id="width"
-                      min={10}
-                      max={imgRef.current?.naturalWidth || 1000}
-                      step={1}
-                      value={[width]}
-                      className="[&>.slider-track]:bg-gray-500"
-                      onValueChange={(value) => {
-                        const newWidth = value[0];
-                        setWidth(newWidth);
+              <ImageResizer
+                width={width}
+                height={height}
+                maxWidth={imgRef.current?.naturalWidth || 1000}
+                maxHeight={imgRef.current?.naturalHeight || 1000}
+                onResize={handleResize}
+                onApplyResize={applyResize}
+              />
 
-                        if (keepAspectRatio) {
-                          const newHeight = Math.round(newWidth / aspectRatio);
-                          setHeight(newHeight);
-                        }
-
-                        handleResize();
-                      }}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <label htmlFor="height" className="text-sm font-medium">
-                        Height: {height}px
-                      </label>
-                    </div>
-                    <Slider
-                      id="height"
-                      min={10}
-                      max={imgRef.current?.naturalHeight || 1000}
-                      step={1}
-                      value={[height]}
-                      className="[&>.slider-track]:bg-gray-500"
-                      onValueChange={(value) => {
-                        const newHeight = value[0];
-                        setHeight(newHeight);
-
-                        if (keepAspectRatio) {
-                          const newWidth = Math.round(newHeight * aspectRatio);
-                          setWidth(newWidth);
-                        }
-
-                        handleResize();
-                      }}
-                    />
-                  </div>
-
-                  <div className="flex items-center space-x-2 mt-2">
-                    <Checkbox
-                      id="keep-aspect-ratio"
-                      checked={keepAspectRatio}
-                      onCheckedChange={setKeepAspectRatio}
-                    />
-                    <label
-                      htmlFor="keep-aspect-ratio"
-                      className="text-sm font-medium"
-                    >
-                      Keep aspect ratio
-                    </label>
-                  </div>
-
-                  <Button onClick={() => handleResize(true)} className="w-full">
-                    <Maximize2 className="h-4 w-4 mr-2" />
-                    Apply Resize
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {hasEdited && !isBlurring && !isCropping && !isPainting && (
-                <Card className="bg-gray-800 text-white border-gray-700">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="text-base">Zoom View</span>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          onClick={decreaseMagnifierZoom}
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                        >
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                        <span className="text-xs">
-                          {magnifierZoom.toFixed(1)}x
-                        </span>
-                        <Button
-                          onClick={increaseMagnifierZoom}
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="relative w-full aspect-video rounded-lg overflow-hidden border-2 border-gray-700 shadow-lg">
-                      <div
-                        className="w-full h-full"
-                        style={{
-                          backgroundImage: `url(${safeImageUrl(previewUrl)})`,
-                          backgroundPosition: getBackgroundPosition(),
-                          backgroundSize: `${magnifierZoom * 100}%`,
-                          backgroundRepeat: "no-repeat",
-                        }}
-                      >
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="relative">
-                            {/* Crosshair */}
-                            <div className="absolute w-[1px] h-16 bg-red-500 left-1/2 -translate-x-1/2"></div>
-                            <div className="absolute h-[1px] w-16 bg-red-500 top-1/2 -translate-y-1/2"></div>
-                            <div className="w-16 h-16 rounded-sm border border-red-500 flex items-center justify-center">
-                              <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                            </div>
-                          </div>
-                        </div>
-                        {!isHovering && (
-                          <div className="absolute bottom-2 left-0 right-0 text-center">
-                            <p className="text-xs text-white bg-black bg-opacity-50 py-1 px-2 rounded-md inline-block">
-                              <MousePointer className="h-3 w-3 inline mr-1" />
-                              Mouse over image to navigate
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {hasEdited && <ImageZoomView imageUrl={previewUrl} />}
             </aside>
           )}
         </div>
 
         {/* Image Information Cards */}
         {!isEditMode && !isBlurring && !isPainting && (
-          <ImageStatsDisplay
+          <ImageStats
             originalStats={originalStats}
             newStats={newStats}
             dataSavings={dataSavings}

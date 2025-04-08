@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -21,6 +20,7 @@ import {
   ChevronLeft,
   Minus,
   Plus,
+  Eraser,
 } from "lucide-react";
 
 interface ImageControlsProps {
@@ -28,12 +28,14 @@ interface ImageControlsProps {
   isCropping: boolean;
   isBlurring: boolean;
   isPainting: boolean;
+  isEraser: boolean;
   format: string;
   onFormatChange: (format: string) => void;
   onToggleEditMode: () => void;
   onToggleCropping: () => void;
   onToggleBlurring: () => void;
   onTogglePainting: () => void;
+  onToggleEraser: () => void;
   onApplyCrop: () => void;
   onApplyBlur: (url: string) => void;
   onApplyPaint: (url: string) => void;
@@ -47,6 +49,7 @@ interface ImageControlsProps {
   onCancelCrop: () => void;
   onCancelPaint: () => void;
   onBackToGallery?: () => void;
+  onExitEditMode: () => void;
   isStandalone?: boolean;
 }
 
@@ -55,12 +58,14 @@ export default function ImageControls({
   isCropping,
   isBlurring,
   isPainting,
+  isEraser,
   format,
   onFormatChange,
   onToggleEditMode,
   onToggleCropping,
   onToggleBlurring,
   onTogglePainting,
+  onToggleEraser,
   onApplyCrop,
   onApplyBlur,
   onApplyPaint,
@@ -74,6 +79,7 @@ export default function ImageControls({
   onCancelCrop,
   onCancelPaint,
   onBackToGallery,
+  onExitEditMode,
   isStandalone = false,
 }: ImageControlsProps) {
   return (
@@ -182,12 +188,21 @@ export default function ImageControls({
               </Button>
             )}
             {isPainting && (
-              <Button onClick={onCancelPaint} variant="outline">
-                <X className="mr-2 h-4 w-4" />
-                Cancel Paint
-              </Button>
+              <>
+                <Button
+                  onClick={onToggleEraser}
+                  variant={isEraser ? "default" : "outline"}
+                >
+                  <Eraser className="mr-2 h-4 w-4" />
+                  {isEraser ? "Brush" : "Eraser"}
+                </Button>
+                <Button onClick={onCancelPaint} variant="outline">
+                  <X className="mr-2 h-4 w-4" />
+                  Cancel Paint
+                </Button>
+              </>
             )}
-            <Button onClick={onToggleEditMode} variant="default">
+            <Button onClick={onExitEditMode} variant="default">
               <X className="mr-2 h-4 w-4" />
               Exit Edit Mode
             </Button>
