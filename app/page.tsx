@@ -8,9 +8,10 @@ import {
   type DragEvent,
   useEffect,
   type ClipboardEvent,
+  useCallback,
 } from "react";
 import Image from "next/image";
-import { X, Upload, ImageIcon, Info, Edit2 } from "lucide-react";
+import { X, Maximize2, Upload, ImageIcon, Info, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,15 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useRouter } from "next/navigation";
-import {
-  getAllImages,
-  saveImage,
-  deleteImage,
-  deleteAllImages,
-  fileToBase64,
-  createFileFromBase64,
-} from "./utils/indexedDB";
+import ImageCropper from "./image-cropper";
 
 interface ImageFile {
   id: string;
@@ -38,116 +31,20 @@ interface ImageFile {
 export default function ImageUploader() {
   const [images, setImages] = useState<ImageFile[]>([]);
   const [uploadComplete, setUploadComplete] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<ImageFile | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [newImageAdded, setNewImageAdded] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMounted, setIsMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
+  const [isGalleryMinimized, setIsGalleryMinimized] = useState(false);
 
-  // Set mounted state to prevent hydration mismatch
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  // Load images from IndexedDB on component mount
-  useEffect(() => {
-    const loadImages = async () => {
-      try {
-        setIsLoading(true);
-        const storedImages = await getAllImages();
-
-        if (storedImages && storedImages.length > 0) {
-          // Convert stored images back to ImageFile objects
-          const loadedImages = storedImages.map((img) => {
-            // Create a new File object from the stored data
-            const file = createFileFromBase64(
-              img.fileData.includes("base64,")
-                ? img.fileData
-                : `data:${img.type};base64,${img.fileData}`,
-              img.name,
-              img.type
-            );
-
-            // Create object URL for display
-            const objectUrl = URL.createObjectURL(file);
-
-            return {
-              id: img.id,
-              file: file,
-              url: objectUrl,
-            };
-          });
-
-          setImages(loadedImages);
-          setUploadComplete(true);
-        } else {
-          setUploadComplete(false);
-        }
-      } catch (error) {
-        console.error("Error loading images:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (isMounted) {
-      loadImages();
-    }
-
-    // Clean up object URLs on unmount
-    return () => {
-      images.forEach((image) => {
-        if (image.url) {
-          URL.revokeObjectURL(image.url);
-        }
-      });
-    };
-  }, [isMounted]);
-
-  // Save images to IndexedDB whenever they change
-  useEffect(() => {
-    const saveImages = async () => {
-      if (images.length > 0) {
-        try {
-          // Save each image to IndexedDB
-          await Promise.all(
-            images.map(async (img) => {
-              // Convert File to base64
-              const fileData = await fileToBase64(img.file);
-
-              // Save to IndexedDB
-              await saveImage({
-                id: img.id,
-                name: img.file.name,
-                type: img.file.type,
-                fileData: fileData, // Include the full data URL
-                url: img.url,
-                width: img.file.size > 0 ? undefined : 0, // Add metadata
-                height: img.file.size > 0 ? undefined : 0,
-                lastModified: img.file.lastModified,
-              });
-            })
-          );
-        } catch (error) {
-          console.error("Error saving images:", error);
-        }
-      }
-    };
-
-    // Only save if not in initial loading state and component is mounted
-    if (!isLoading && isMounted) {
-      saveImages();
-    }
-  }, [images, isLoading, isMounted]);
-
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
     addFiles(files);
-  };
+  }, []);
 
-  const addFiles = (files: FileList) => {
+  const addFiles = useCallback((files: FileList) => {
     const newImages: ImageFile[] = [];
 
     // Process all files
@@ -167,100 +64,83 @@ export default function ImageUploader() {
       setUploadComplete(true);
       setNewImageAdded(true);
     }
-  };
+  }, []);
 
   // Reset the new image added flag after animation completes
   useEffect(() => {
-    if (newImageAdded && isMounted) {
+    if (newImageAdded) {
       const timer = setTimeout(() => {
         setNewImageAdded(false);
       }, 800); // Match this to the animation duration
       return () => clearTimeout(timer);
     }
-  }, [newImageAdded, isMounted]);
+  }, [newImageAdded]);
 
-  const handleUploadClick = () => {
+  const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
-  };
+  }, []);
 
-  const removeImage = async (id: string) => {
-    // Find the image to get its URL for cleanup
-    const imageToRemove = images.find((image) => image.id === id);
-    if (imageToRemove && imageToRemove.url) {
-      // Revoke the object URL to prevent memory leaks
-      URL.revokeObjectURL(imageToRemove.url);
-    }
+  const removeImage = useCallback(
+    (id: string) => {
+      setImages((prev) => prev.filter((image) => image.id !== id));
+      setSelectedImage((prev) => (prev?.id === id ? null : prev));
+      setUploadComplete((prev) => (images.length <= 1 ? false : prev));
+    },
+    [images.length]
+  );
 
-    // Remove from state
-    setImages(images.filter((image) => image.id !== id));
+  const expandImage = useCallback((image: ImageFile) => {
+    setSelectedImage(image);
+  }, []);
 
-    // Remove from IndexedDB
-    try {
-      await deleteImage(id);
-    } catch (error) {
-      console.error("Error deleting image from database:", error);
-    }
-
-    if (images.length <= 1) {
-      setUploadComplete(false);
-    }
-  };
-
-  const editImage = (image: ImageFile) => {
-    router.push(`/image-editor/${image.id}`);
-  };
-
-  const resetUpload = async () => {
+  const resetUpload = useCallback(() => {
     // Revoke all object URLs to prevent memory leaks
     images.forEach((image) => {
       URL.revokeObjectURL(image.url);
     });
 
-    // Clear state
     setImages([]);
     setUploadComplete(false);
+    setSelectedImage(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-
-    // Clear IndexedDB
-    try {
-      await deleteAllImages();
-    } catch (error) {
-      console.error("Error clearing image database:", error);
-    }
-  };
+  }, [images]);
 
   // Drag and drop handlers
-  const [isDragging, setIsDragging] = useState(false);
-
-  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
+  const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
-  };
+  }, []);
 
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isDragging) setIsDragging(true);
-  };
+  const handleDragOver = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isDragging) setIsDragging(true);
+    },
+    [isDragging]
+  );
 
-  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+  }, []);
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      addFiles(e.dataTransfer.files);
-    }
-  };
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        addFiles(e.dataTransfer.files);
+      }
+    },
+    [addFiles]
+  );
 
   // Add useEffect to listen for paste events globally
   useEffect(() => {
@@ -290,45 +170,21 @@ export default function ImageUploader() {
       }
     };
 
-    // Only add the listener when the component is mounted
-    if (isMounted) {
-      document.addEventListener(
+    // Add the event listener to the document
+    document.addEventListener("paste", handlePaste as unknown as EventListener);
+
+    // Clean up
+    return () => {
+      document.removeEventListener(
         "paste",
         handlePaste as unknown as EventListener
       );
+    };
+  }, [addFiles]); // Add addFiles to dependency array
 
-      // Clean up
-      return () => {
-        document.removeEventListener(
-          "paste",
-          handlePaste as unknown as EventListener
-        );
-      };
-    }
-  }, [isMounted]); // Include isMounted in the dependency array
-
-  // Prevent rendering content that might cause hydration mismatch until client-side
-  if (!isMounted) {
-    return (
-      <div className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-center">
-          <div className="h-12 w-48 bg-gray-300 rounded mb-6 mx-auto"></div>
-          <div className="h-64 w-full max-w-md bg-gray-300 rounded"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="container mx-auto px-4 py-8 min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-center">
-          <div className="h-12 w-48 bg-gray-300 rounded mb-6 mx-auto"></div>
-          <div className="h-64 w-full max-w-md bg-gray-300 rounded"></div>
-        </div>
-      </div>
-    );
-  }
+  const toggleGalleryMinimized = useCallback((minimized: boolean) => {
+    setIsGalleryMinimized(minimized);
+  }, []);
 
   return (
     <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col">
@@ -381,80 +237,80 @@ export default function ImageUploader() {
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">Image Gallery</h1>
-            <div className="flex gap-2">
-              <Button onClick={handleUploadClick} variant="outline">
-                <Upload className="mr-2 h-4 w-4" />
-                Upload More
-              </Button>
-              <Button onClick={resetUpload} variant="destructive">
-                <X className="mr-2 h-4 w-4" />
-                Clear All
-              </Button>
-            </div>
-          </div>
-
           <div
-            className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 ${
+            className={`grid grid-cols-5 md:grid-cols-10 gap-2 p-2 bg-gray-800 rounded-lg ${
               newImageAdded ? "animate-pulse-once" : ""
+            } ${
+              isGalleryMinimized
+                ? "opacity-50 max-h-12 overflow-hidden transition-all duration-300 scale-90 transform origin-top"
+                : "transition-all duration-300"
             }`}
           >
+            {isGalleryMinimized && (
+              <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                <Lock className="h-6 w-6 text-white opacity-70" />
+                <span className="ml-2 text-white text-sm opacity-70">
+                  Editing Mode Active
+                </span>
+              </div>
+            )}
             {images.map((image, index) => (
               <div
                 key={image.id}
-                className="relative group aspect-square animate-fade-scale-in rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800 shadow-sm"
+                className="relative group aspect-square animate-fade-scale-in"
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
                 <Image
                   src={image.url || "/placeholder.svg"}
-                  alt={`Uploaded image ${index + 1}`}
+                  alt="Uploaded image"
                   fill
-                  className="object-cover"
+                  className="object-cover rounded-md"
                 />
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                  <Button
-                    onClick={() => editImage(image)}
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <button
+                    onClick={() => expandImage(image)}
                     className="p-2 bg-blue-500 text-white rounded-full transform transition-transform group-hover:scale-110"
-                    aria-label="Edit image"
-                    size="icon"
+                    aria-label="Expand image"
+                    disabled={isGalleryMinimized}
                   >
-                    <Edit2 size={20} />
-                  </Button>
+                    <Maximize2 size={20} />
+                  </button>
                 </div>
-                <Button
+                <button
                   onClick={() => removeImage(image.id)}
-                  className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                   aria-label="Remove image"
-                  size="icon"
-                  variant="destructive"
+                  disabled={isGalleryMinimized}
                 >
                   <X size={16} />
-                </Button>
-                <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent">
-                  <p className="text-xs text-white truncate">
-                    {image.file.name}
-                  </p>
-                </div>
+                </button>
               </div>
             ))}
           </div>
 
-          {images.length === 0 && (
+          {!selectedImage && (
             <div className="flex items-center justify-center p-12 text-center">
               <div className="max-w-md">
                 <Info className="h-12 w-12 text-primary mx-auto mb-4" />
                 <h3 className="text-xl font-medium mb-2">
-                  No images in your gallery
+                  Click on an image to compress and edit
                 </h3>
-                <p className="text-muted-foreground mb-4">
-                  Upload images to start editing, resizing, or converting them.
+                <p className="text-muted-foreground">
+                  Select any image from the gallery above to start editing,
+                  resizing, or converting it.
                 </p>
-                <Button onClick={handleUploadClick}>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload Images
-                </Button>
               </div>
+            </div>
+          )}
+
+          {selectedImage && (
+            <div className="mt-8">
+              <ImageCropper
+                image={selectedImage}
+                onUploadNew={handleUploadClick}
+                onRemoveAll={resetUpload}
+                onBackToGallery={() => setSelectedImage(null)}
+              />
             </div>
           )}
 
