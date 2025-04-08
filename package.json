@@ -1,6 +1,6 @@
 {
   "name": "better-image-optimize-tool-nextjs",
-  "version": "0.0.4",
+  "version": "0.6.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

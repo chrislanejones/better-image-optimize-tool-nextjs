@@ -1,171 +1,219 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useRef, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Crop, Download, RefreshCw, Upload, Trash2, Droplets } from "lucide-react"
-import ReactCrop, { type Crop as CropType, type PixelCrop } from "react-image-crop"
-import "react-image-crop/dist/ReactCrop.css"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useRef, useEffect } from "react";
+import { Slider } from "@/components/ui/slider";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import ReactCrop, {
+  type Crop as CropType,
+  type PixelCrop,
+} from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
+import ImageControls from "./components/image-controls";
+import BlurTool from "./components/blur-tool";
+import PaintTool from "./components/paint-tool";
+import ImageStatsDisplay from "./components/image-stats";
 
 interface ImageFile {
-  id: string
-  file: File
-  url: string
+  id: string;
+  file: File;
+  url: string;
 }
 
 interface ImageCropperProps {
-  image: ImageFile
-  onUploadNew: () => void
-  onRemoveAll: () => void
+  image: ImageFile;
+  onUploadNew: () => void;
+  onRemoveAll: () => void;
+  onEditModeChange?: (isEditMode: boolean) => void;
 }
 
 interface ImageStats {
-  width: number
-  height: number
-  size: number
-  format: string
+  width: number;
+  height: number;
+  size: number;
+  format: string;
 }
 
 interface MousePosition {
-  x: number
-  y: number
+  x: number;
+  y: number;
 }
 
-interface Point {
-  x: number
-  y: number
-}
-
-export default function ImageCropper({ image, onUploadNew, onRemoveAll }: ImageCropperProps) {
+export default function ImageCropper({
+  image,
+  onUploadNew,
+  onRemoveAll,
+  onEditModeChange,
+}: ImageCropperProps) {
   const [crop, setCrop] = useState<CropType>({
     unit: "%",
     width: 100,
     height: 100,
     x: 0,
     y: 0,
-  })
-  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null)
-  const [width, setWidth] = useState<number>(0)
-  const [height, setHeight] = useState<number>(0)
-  const [format, setFormat] = useState<string>("jpeg")
-  const [isCropping, setIsCropping] = useState<boolean>(false)
-  const [isBlurring, setIsBlurring] = useState<boolean>(false)
-  const [blurAmount, setBlurAmount] = useState<number>(10)
-  const [brushSize, setBrushSize] = useState<number>(30)
-  const [previewUrl, setPreviewUrl] = useState<string>(image.url)
-  const [zoom, setZoom] = useState<number>(1)
-  const [keepAspectRatio, setKeepAspectRatio] = useState<boolean>(true)
-  const [aspectRatio, setAspectRatio] = useState<number>(1)
-  const [originalStats, setOriginalStats] = useState<ImageStats | null>(null)
-  const [newStats, setNewStats] = useState<ImageStats | null>(null)
-  const [dataSavings, setDataSavings] = useState<number>(0)
-  const [hasEdited, setHasEdited] = useState<boolean>(false)
-  const [mousePosition, setMousePosition] = useState<MousePosition | null>(null)
-  const [isHovering, setIsHovering] = useState<boolean>(false)
-  const [magnifierZoom, setMagnifierZoom] = useState<number>(3)
-  const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
-  const [isDrawing, setIsDrawing] = useState<boolean>(false)
-  const [blurPoints, setBlurPoints] = useState<Point[]>([])
-  const [tempCanvas, setTempCanvas] = useState<HTMLCanvasElement | null>(null)
+  });
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
+  const [width, setWidth] = useState<number>(0);
+  const [height, setHeight] = useState<number>(0);
+  const [format, setFormat] = useState<string>("jpeg");
+  const [isCropping, setIsCropping] = useState<boolean>(false);
+  const [isBlurring, setIsBlurring] = useState<boolean>(false);
+  const [isPainting, setIsPainting] = useState<boolean>(false);
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [zoom, setZoom] = useState<number>(1);
+  const [keepAspectRatio, setKeepAspectRatio] = useState<boolean>(true);
+  const [aspectRatio, setAspectRatio] = useState<number>(1);
+  const [originalStats, setOriginalStats] = useState<ImageStats | null>(null);
+  const [newStats, setNewStats] = useState<ImageStats | null>(null);
+  const [dataSavings, setDataSavings] = useState<number>(0);
+  const [hasEdited, setHasEdited] = useState<boolean>(false);
+  const [mousePosition, setMousePosition] = useState<MousePosition | null>(
+    null
+  );
+  const [isHovering, setIsHovering] = useState<boolean>(false);
+  const [magnifierZoom, setMagnifierZoom] = useState<number>(3);
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [isEditMode, setIsEditMode] = useState<boolean>(false);
 
-  const imgRef = useRef<HTMLImageElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const blurCanvasRef = useRef<HTMLCanvasElement>(null)
-  const imageContainerRef = useRef<HTMLDivElement>(null)
+  const imgRef = useRef<HTMLImageElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+
+  // Safe function to get file format
+  const getFileFormat = (fileType: string | undefined): string => {
+    if (!fileType || typeof fileType !== "string") return "unknown";
+    const parts = fileType.split("/");
+    return parts.length > 1 ? parts[1] : "unknown";
+  };
+
+  // Safe function to get MIME type
+  const getMimeType = (format: string): string => {
+    if (format === "webp") return "image/webp";
+    if (format === "jpeg") return "image/jpeg";
+    if (format === "png") return "image/png";
+    return "image/png"; // Default fallback
+  };
 
   useEffect(() => {
-    // Reset state when image changes
-    setPreviewUrl(image.url)
+    // Initialize with a safe URL
+    if (image && image.url && typeof image.url === "string") {
+      setPreviewUrl(image.url);
+    } else {
+      setPreviewUrl("/placeholder.svg");
+    }
+
     setCrop({
       unit: "%",
       width: 100,
       height: 100,
       x: 0,
       y: 0,
-    })
-    setIsCropping(false)
-    setIsBlurring(false)
-    setZoom(1)
-    setHasEdited(false)
-    setNewStats(null)
-    setBlurPoints([])
+    });
+    setIsCropping(false);
+    setIsBlurring(false);
+    setIsPainting(false);
+    setZoom(1);
+    setHasEdited(false);
+    setNewStats(null);
 
     // Get image dimensions
-    const img = new Image()
-    img.crossOrigin = "anonymous"
+    const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
-      setWidth(img.width)
-      setHeight(img.height)
-      setAspectRatio(img.width / img.height)
-      setImageSize({ width: img.width, height: img.height })
+      setWidth(img.width);
+      setHeight(img.height);
+      setAspectRatio(img.width / img.height);
+      setImageSize({ width: img.width, height: img.height });
 
-      // Set original stats
+      // Set original stats with safe values
       setOriginalStats({
         width: img.width,
         height: img.height,
-        size: image.file.size,
-        format: image.file.type.split("/")[1],
-      })
+        size: image && image.file ? image.file.size : 0,
+        format:
+          image && image.file && image.file.type
+            ? getFileFormat(image.file.type)
+            : "unknown",
+      });
+    };
+
+    // Set a safe image source
+    if (image && image.url && typeof image.url === "string") {
+      img.src = image.url;
+    } else {
+      img.src = "/placeholder.svg";
     }
-    img.src = image.url
-  }, [image])
+  }, [image]);
 
-  // Initialize blur canvas when entering blur mode
-  useEffect(() => {
-    if (isBlurring && imgRef.current && blurCanvasRef.current) {
-      const canvas = blurCanvasRef.current
-      const ctx = canvas.getContext("2d")
-      if (!ctx) return
-
-      // Set canvas dimensions to match the image
-      canvas.width = imgRef.current.naturalWidth
-      canvas.height = imgRef.current.naturalHeight
-
-      // Create a temporary canvas for the blur effect
-      const tempCanvas = document.createElement("canvas")
-      tempCanvas.width = canvas.width
-      tempCanvas.height = canvas.height
-      const tempCtx = tempCanvas.getContext("2d")
-      if (!tempCtx) return
-
-      // Draw the original image on the temporary canvas
-      tempCtx.drawImage(imgRef.current, 0, 0)
-      setTempCanvas(tempCanvas)
-
-      // Draw the original image on the visible canvas
-      ctx.drawImage(imgRef.current, 0, 0)
+  const toggleEditMode = () => {
+    setIsEditMode(!isEditMode);
+    if (isBlurring) {
+      setIsBlurring(false);
     }
-  }, [isBlurring])
+    if (isCropping) {
+      setIsCropping(false);
+    }
+    if (isPainting) {
+      setIsPainting(false);
+    }
+  };
 
   const toggleCropping = () => {
-    setIsCropping(!isCropping)
-    if (isBlurring) setIsBlurring(false)
-  }
+    if (!isEditMode) {
+      setIsEditMode(true);
+    }
+    setIsCropping(!isCropping);
+    if (isBlurring) setIsBlurring(false);
+    if (isPainting) setIsPainting(false);
+  };
 
   const toggleBlurring = () => {
-    setIsBlurring(!isBlurring)
-    if (isCropping) setIsCropping(false)
-  }
+    if (!isEditMode) {
+      setIsEditMode(true);
+    }
+    setIsBlurring(!isBlurring);
+    if (isCropping) setIsCropping(false);
+    if (isPainting) setIsPainting(false);
+  };
+
+  const togglePainting = () => {
+    if (!isEditMode) {
+      setIsEditMode(true);
+    }
+    setIsPainting(!isPainting);
+    if (isCropping) setIsCropping(false);
+    if (isBlurring) setIsBlurring(false);
+  };
+
+  const cancelBlur = () => {
+    setIsBlurring(false);
+  };
+
+  const cancelCrop = () => {
+    setIsCropping(false);
+  };
+
+  const cancelPaint = () => {
+    setIsPainting(false);
+  };
 
   const handleResize = (applyOnly = false) => {
-    if (!imgRef.current || !canvasRef.current) return
+    if (!imgRef.current || !canvasRef.current) return;
 
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    const img = imgRef.current
+    const img = imgRef.current;
 
     // Set canvas dimensions to desired resize values
-    canvas.width = width
-    canvas.height = height
+    canvas.width = width;
+    canvas.height = height;
 
     // Draw the image with new dimensions
-    ctx.drawImage(img, 0, 0, width, height)
+    ctx.drawImage(img, 0, 0, width, height);
 
     // Only update the preview URL if we're applying the changes
     if (applyOnly) {
@@ -174,46 +222,53 @@ export default function ImageCropper({ image, onUploadNew, onRemoveAll }: ImageC
         (blob) => {
           if (blob) {
             // Revoke previous URL to prevent memory leaks
-            if (previewUrl !== image.url) {
-              URL.revokeObjectURL(previewUrl)
+            if (
+              previewUrl &&
+              previewUrl !== "/placeholder.svg" &&
+              image &&
+              image.url &&
+              previewUrl !== image.url
+            ) {
+              URL.revokeObjectURL(previewUrl);
             }
-            const url = URL.createObjectURL(blob)
-            setPreviewUrl(url)
-            setHasEdited(true)
+            const url = URL.createObjectURL(blob);
+            setPreviewUrl(url);
+            setHasEdited(true);
 
             // Update new stats
             setNewStats({
               width: width,
               height: height,
               size: blob.size,
-              format: format === "webp" ? "webp" : format === "jpeg" ? "jpeg" : image.file.type.split("/")[1],
-            })
+              format: format || "unknown",
+            });
 
             // Calculate data savings
             if (originalStats) {
-              const savings = 100 - (blob.size / originalStats.size) * 100
-              setDataSavings(savings)
+              const savings = 100 - (blob.size / originalStats.size) * 100;
+              setDataSavings(savings);
             }
           }
         },
-        format === "webp" ? "image/webp" : format === "jpeg" ? "image/jpeg" : image.file.type,
-      )
+        getMimeType(format),
+        0.9
+      );
     }
-  }
+  };
 
   const handleCrop = () => {
-    if (!imgRef.current || !canvasRef.current || !completedCrop) return
+    if (!imgRef.current || !canvasRef.current || !completedCrop) return;
 
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    const img = imgRef.current
-    const scaleX = img.naturalWidth / img.width
-    const scaleY = img.naturalHeight / img.height
+    const img = imgRef.current;
+    const scaleX = img.naturalWidth / img.width;
+    const scaleY = img.naturalHeight / img.height;
 
-    canvas.width = completedCrop.width
-    canvas.height = completedCrop.height
+    canvas.width = completedCrop.width;
+    canvas.height = completedCrop.height;
 
     ctx.drawImage(
       img,
@@ -224,383 +279,305 @@ export default function ImageCropper({ image, onUploadNew, onRemoveAll }: ImageC
       0,
       0,
       completedCrop.width,
-      completedCrop.height,
-    )
+      completedCrop.height
+    );
 
     canvas.toBlob(
       (blob) => {
         if (blob) {
           // Revoke previous URL to prevent memory leaks
-          if (previewUrl !== image.url) {
-            URL.revokeObjectURL(previewUrl)
+          if (
+            previewUrl &&
+            previewUrl !== "/placeholder.svg" &&
+            image &&
+            image.url &&
+            previewUrl !== image.url
+          ) {
+            URL.revokeObjectURL(previewUrl);
           }
-          const url = URL.createObjectURL(blob)
-          setPreviewUrl(url)
-          setIsCropping(false)
-          setHasEdited(true)
+          const url = URL.createObjectURL(blob);
+          setPreviewUrl(url);
+          setIsCropping(false);
+          setHasEdited(true);
 
           // Update dimensions after crop
-          setWidth(completedCrop.width)
-          setHeight(completedCrop.height)
+          setWidth(completedCrop.width);
+          setHeight(completedCrop.height);
 
           // Update new stats
           setNewStats({
             width: completedCrop.width,
             height: completedCrop.height,
             size: blob.size,
-            format: format === "webp" ? "webp" : format === "jpeg" ? "jpeg" : image.file.type.split("/")[1],
-          })
+            format: format || "unknown",
+          });
 
           // Calculate data savings
           if (originalStats) {
-            const savings = 100 - (blob.size / originalStats.size) * 100
-            setDataSavings(savings)
+            const savings = 100 - (blob.size / originalStats.size) * 100;
+            setDataSavings(savings);
           }
         }
       },
-      format === "webp" ? "image/webp" : format === "jpeg" ? "image/jpeg" : image.file.type,
-    )
-  }
+      getMimeType(format),
+      0.9
+    );
+  };
 
-  const applyBlur = () => {
-    if (!blurCanvasRef.current || !canvasRef.current || !imgRef.current) return
+  const handleBlurApply = (blurredImageUrl: string) => {
+    if (!blurredImageUrl || typeof blurredImageUrl !== "string") return;
 
-    const canvas = canvasRef.current
-    const blurCanvas = blurCanvasRef.current
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
+    setPreviewUrl(blurredImageUrl);
+    setIsBlurring(false);
+    setHasEdited(true);
 
-    // Set canvas dimensions to match the image
-    canvas.width = imgRef.current.naturalWidth
-    canvas.height = imgRef.current.naturalHeight
-
-    // Draw the blur canvas onto the main canvas
-    ctx.drawImage(blurCanvas, 0, 0)
-
-    // Convert to blob and create URL
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          // Revoke previous URL to prevent memory leaks
-          if (previewUrl !== image.url) {
-            URL.revokeObjectURL(previewUrl)
-          }
-          const url = URL.createObjectURL(blob)
-          setPreviewUrl(url)
-          setIsBlurring(false)
-          setHasEdited(true)
-          setBlurPoints([])
-
-          // Update new stats
+    // Get the blob from the URL to calculate size
+    fetch(blurredImageUrl)
+      .then((response) => response.blob())
+      .then((blob) => {
+        // Update new stats
+        if (imgRef.current) {
           setNewStats({
-            width: canvas.width,
-            height: canvas.height,
+            width: imgRef.current.naturalWidth,
+            height: imgRef.current.naturalHeight,
             size: blob.size,
-            format: format === "webp" ? "webp" : format === "jpeg" ? "jpeg" : image.file.type.split("/")[1],
-          })
+            format: format || "unknown",
+          });
 
           // Calculate data savings
           if (originalStats) {
-            const savings = 100 - (blob.size / originalStats.size) * 100
-            setDataSavings(savings)
+            const savings = 100 - (blob.size / originalStats.size) * 100;
+            setDataSavings(savings);
           }
         }
-      },
-      format === "webp" ? "image/webp" : format === "jpeg" ? "image/jpeg" : image.file.type,
-    )
-  }
+      })
+      .catch((error) => {
+        console.error("Error fetching blob:", error);
+      });
+  };
+
+  const handlePaintApply = (paintedImageUrl: string) => {
+    if (!paintedImageUrl || typeof paintedImageUrl !== "string") return;
+
+    setPreviewUrl(paintedImageUrl);
+    setIsPainting(false);
+    setHasEdited(true);
+
+    // Get the blob from the URL to calculate size
+    fetch(paintedImageUrl)
+      .then((response) => response.blob())
+      .then((blob) => {
+        // Update new stats
+        if (imgRef.current) {
+          setNewStats({
+            width: imgRef.current.naturalWidth,
+            height: imgRef.current.naturalHeight,
+            size: blob.size,
+            format: format || "unknown",
+          });
+
+          // Calculate data savings
+          if (originalStats) {
+            const savings = 100 - (blob.size / originalStats.size) * 100;
+            setDataSavings(savings);
+          }
+        }
+      })
+      .catch((error) => {
+        console.error("Error fetching blob:", error);
+      });
+  };
 
   const downloadImage = () => {
-    if (!canvasRef.current) return
+    if (!canvasRef.current) return;
 
-    const canvas = canvasRef.current
+    const canvas = canvasRef.current;
 
     // If we haven't done any edits yet, draw the current image to canvas
-    if (previewUrl === image.url) {
-      const ctx = canvas.getContext("2d")
-      if (!ctx || !imgRef.current) return
+    if (previewUrl === (image?.url || "/placeholder.svg")) {
+      const ctx = canvas.getContext("2d");
+      if (!ctx || !imgRef.current) return;
 
-      canvas.width = imgRef.current.naturalWidth
-      canvas.height = imgRef.current.naturalHeight
+      canvas.width = imgRef.current.naturalWidth;
+      canvas.height = imgRef.current.naturalHeight;
 
-      ctx.drawImage(imgRef.current, 0, 0)
+      ctx.drawImage(imgRef.current, 0, 0);
     }
 
     // Convert to the selected format
     canvas.toBlob(
       (blob) => {
         if (blob) {
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement("a")
-          a.href = url
-          a.download = `image-${format === "webp" ? "webp" : format === "jpeg" ? "jpg" : image.file.type.split("/")[1]}`
-          a.click()
-          URL.revokeObjectURL(url)
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `image-${
+            format === "webp" ? "webp" : format === "jpeg" ? "jpg" : "png"
+          }`;
+          a.click();
+          URL.revokeObjectURL(url);
         }
       },
-      format === "webp" ? "image/webp" : format === "jpeg" ? "image/jpeg" : image.file.type,
-    )
-  }
+      getMimeType(format),
+      0.9
+    );
+  };
 
   const resetImage = () => {
     // Revoke previous URL to prevent memory leaks
-    if (previewUrl !== image.url) {
-      URL.revokeObjectURL(previewUrl)
+    if (
+      previewUrl &&
+      previewUrl !== "/placeholder.svg" &&
+      image &&
+      image.url &&
+      previewUrl !== image.url
+    ) {
+      URL.revokeObjectURL(previewUrl);
     }
-    setPreviewUrl(image.url)
-    setIsCropping(false)
-    setIsBlurring(false)
-    setHasEdited(false)
-    setNewStats(null)
-    setBlurPoints([])
+
+    // Set a safe image source
+    if (image && image.url && typeof image.url === "string") {
+      setPreviewUrl(image.url);
+    } else {
+      setPreviewUrl("/placeholder.svg");
+    }
+
+    setIsCropping(false);
+    setIsBlurring(false);
+    setIsPainting(false);
+    setHasEdited(false);
+    setNewStats(null);
 
     // Reset dimensions to original
-    const img = new Image()
-    img.crossOrigin = "anonymous"
+    const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
-      setWidth(img.width)
-      setHeight(img.height)
+      setWidth(img.width);
+      setHeight(img.height);
+    };
+
+    // Set a safe image source
+    if (image && image.url && typeof image.url === "string") {
+      img.src = image.url;
+    } else {
+      img.src = "/placeholder.svg";
     }
-    img.src = image.url
-  }
+  };
 
   const zoomIn = () => {
-    setZoom((prev) => Math.min(prev + 0.1, 3))
-  }
+    setZoom((prev) => Math.min(prev + 0.1, 3));
+  };
 
   const zoomOut = () => {
-    setZoom((prev) => Math.max(prev - 0.1, 0.5))
-  }
+    setZoom((prev) => Math.max(prev - 0.1, 0.5));
+  };
 
-  // Calculate estimated page speed score improvement
-  const getPageSpeedImprovement = () => {
-    if (!dataSavings || dataSavings <= 0) return "No change"
-    if (dataSavings < 20) return "Minor improvement"
-    if (dataSavings < 50) return "Moderate improvement"
-    return "Significant improvement"
-  }
-
-  // Handle mouse movement for the magnifier and blur tool
+  // Handle mouse movement for the magnifier
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!imageContainerRef.current) return
+    if (!imageContainerRef.current || isCropping) return;
 
-    const rect = imageContainerRef.current.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / rect.width
-    const y = (e.clientY - rect.top) / rect.height
+    const rect = imageContainerRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
 
-    setMousePosition({ x, y })
-
-    // Handle blur drawing
-    if (isBlurring && isDrawing && blurCanvasRef.current && imgRef.current) {
-      const canvas = blurCanvasRef.current
-      const ctx = canvas.getContext("2d")
-      if (!ctx || !tempCanvas) return
-
-      // Calculate actual position on the image
-      const imageX = x * imgRef.current.naturalWidth
-      const imageY = y * imgRef.current.naturalHeight
-
-      // Add point to blur points
-      setBlurPoints((prev) => [...prev, { x: imageX, y: imageY }])
-
-      // Clear the canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-      // Draw the original image
-      ctx.drawImage(imgRef.current, 0, 0)
-
-      // Apply blur to each point
-      const tempCtx = tempCanvas.getContext("2d")
-      if (!tempCtx) return
-
-      // Create a temporary canvas with blur filter
-      const blurredCanvas = document.createElement("canvas")
-      blurredCanvas.width = canvas.width
-      blurredCanvas.height = canvas.height
-      const blurredCtx = blurredCanvas.getContext("2d")
-      if (!blurredCtx) return
-
-      // Draw the original image on the blurred canvas
-      blurredCtx.drawImage(tempCanvas, 0, 0)
-
-      // Apply blur filter
-      blurredCtx.filter = `blur(${blurAmount}px)`
-
-      // For each blur point, draw a circle from the blurred canvas onto the main canvas
-      blurPoints.forEach((point) => {
-        ctx.save()
-        ctx.beginPath()
-        ctx.arc(point.x, point.y, brushSize / 2, 0, Math.PI * 2)
-        ctx.closePath()
-        ctx.clip()
-        ctx.drawImage(blurredCanvas, 0, 0)
-        ctx.restore()
-      })
-    }
-
-    // Draw brush preview
-    if (isBlurring && !isDrawing && blurCanvasRef.current && imgRef.current) {
-      const canvas = blurCanvasRef.current
-      const ctx = canvas.getContext("2d")
-      if (!ctx) return
-
-      // Calculate actual position on the image
-      const imageX = x * imgRef.current.naturalWidth
-      const imageY = y * imgRef.current.naturalHeight
-
-      // Redraw the canvas with existing blur points
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(imgRef.current, 0, 0)
-
-      // Apply existing blur points
-      if (tempCanvas) {
-        const blurredCanvas = document.createElement("canvas")
-        blurredCanvas.width = canvas.width
-        blurredCanvas.height = canvas.height
-        const blurredCtx = blurredCanvas.getContext("2d")
-        if (!blurredCtx) return
-
-        blurredCtx.drawImage(tempCanvas, 0, 0)
-        blurredCtx.filter = `blur(${blurAmount}px)`
-
-        blurPoints.forEach((point) => {
-          ctx.save()
-          ctx.beginPath()
-          ctx.arc(point.x, point.y, brushSize / 2, 0, Math.PI * 2)
-          ctx.closePath()
-          ctx.clip()
-          ctx.drawImage(blurredCanvas, 0, 0)
-          ctx.restore()
-        })
-      }
-
-      // Draw brush preview
-      ctx.beginPath()
-      ctx.arc(imageX, imageY, brushSize / 2, 0, Math.PI * 2)
-      ctx.strokeStyle = "white"
-      ctx.lineWidth = 2
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.arc(imageX, imageY, brushSize / 2, 0, Math.PI * 2)
-      ctx.strokeStyle = "black"
-      ctx.lineWidth = 1
-      ctx.stroke()
-    }
-  }
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isBlurring) {
-      setIsDrawing(true)
-    }
-  }
-
-  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isBlurring) {
-      setIsDrawing(false)
-    }
-  }
+    setMousePosition({ x, y });
+  };
 
   const handleMouseEnter = () => {
-    if (!isCropping && !isBlurring) {
-      setIsHovering(true)
+    if (!isCropping && !isBlurring && !isPainting) {
+      setIsHovering(true);
     }
-  }
+  };
 
   const handleMouseLeave = () => {
-    setIsHovering(false)
-    setIsDrawing(false)
-  }
+    setIsHovering(false);
+  };
 
   // Increase magnifier zoom
   const increaseMagnifierZoom = () => {
-    setMagnifierZoom((prev) => Math.min(prev + 0.5, 6))
-  }
+    setMagnifierZoom((prev) => Math.min(prev + 0.5, 6));
+  };
 
   // Decrease magnifier zoom
   const decreaseMagnifierZoom = () => {
-    setMagnifierZoom((prev) => Math.max(prev - 0.5, 1.5))
-  }
+    setMagnifierZoom((prev) => Math.max(prev - 0.5, 1.5));
+  };
 
   // Get background position for the magnifier
   const getBackgroundPosition = () => {
     if (isHovering && mousePosition) {
       // When hovering, use mouse position
-      return `${mousePosition.x * 100}% ${mousePosition.y * 100}%`
+      return `${mousePosition.x * 100}% ${mousePosition.y * 100}%`;
     } else {
       // Default to center when not hovering
-      return "50% 50%"
+      return "50% 50%";
     }
-  }
+  };
+
+  useEffect(() => {
+    if (isCropping || isBlurring || isPainting) {
+      setIsEditMode(true);
+    }
+  }, [isCropping, isBlurring, isPainting]);
+
+  useEffect(() => {
+    if (onEditModeChange) {
+      onEditModeChange(isEditMode);
+    }
+  }, [isEditMode, onEditModeChange]);
+
+  // Ensure edit mode is properly set when tools are activated
+  useEffect(() => {
+    if (isCropping || isBlurring || isPainting) {
+      setIsEditMode(true);
+    }
+  }, [isCropping, isBlurring, isPainting]);
+
+  // Safe image URL for display
+  const safeImageUrl = (url: string | undefined): string => {
+    if (!url || typeof url !== "string") return "/placeholder.svg";
+    return url;
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-4 mb-4 bg-gray-700 p-2 rounded-lg">
-        <Button onClick={isCropping ? handleCrop : toggleCropping} variant={isCropping ? "default" : "outline"}>
-          <Crop className="mr-2 h-4 w-4" />
-          {isCropping ? "Apply Crop" : "Crop Image"}
-        </Button>
-
-        <Button onClick={isBlurring ? applyBlur : toggleBlurring} variant={isBlurring ? "default" : "outline"}>
-          <Droplets className="mr-2 h-4 w-4" />
-          {isBlurring ? "Apply Blur" : "Blur Tool"}
-        </Button>
-
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Format:</span>
-          <Select value={format} onValueChange={setFormat}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Select format" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="original">Original</SelectItem>
-              <SelectItem value="jpeg">JPEG</SelectItem>
-              <SelectItem value="webp">WebP</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Button onClick={downloadImage} variant="outline">
-          <Download className="mr-2 h-4 w-4" />
-          Download
-        </Button>
-
-        <Button onClick={resetImage} variant="outline">
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Reset
-        </Button>
-
-        <div className="flex items-center gap-1">
-          <Button onClick={zoomOut} variant="outline">
-            <span className="text-lg">-</span>
-          </Button>
-          <Button onClick={zoomIn} variant="outline">
-            <span className="text-lg">+</span>
-          </Button>
-        </div>
-
-        <div className="ml-auto flex items-center gap-2">
-          <Button onClick={onUploadNew} variant="outline">
-            <Upload className="mr-2 h-4 w-4" />
-            Upload New Images
-          </Button>
-
-          <Button onClick={onRemoveAll} variant="destructive">
-            <Trash2 className="mr-2 h-4 w-4" />
-            Remove All Images
-          </Button>
-        </div>
-      </div>
+      <ImageControls
+        isEditMode={isEditMode}
+        isCropping={isCropping}
+        isBlurring={isBlurring}
+        isPainting={isPainting}
+        format={format}
+        onFormatChange={setFormat}
+        onToggleEditMode={toggleEditMode}
+        onToggleCropping={toggleCropping}
+        onToggleBlurring={toggleBlurring}
+        onTogglePainting={togglePainting}
+        onApplyCrop={handleCrop}
+        onApplyBlur={handleBlurApply}
+        onApplyPaint={handlePaintApply}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+        onReset={resetImage}
+        onDownload={downloadImage}
+        onUploadNew={onUploadNew}
+        onRemoveAll={onRemoveAll}
+        onCancelBlur={cancelBlur}
+        onCancelCrop={cancelCrop}
+        onCancelPaint={cancelPaint}
+      />
 
       <div className="flex flex-col gap-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <section className="md:col-span-3">
+        <div
+          className={`grid grid-cols-1 ${
+            isEditMode ? "md:grid-cols-1" : "md:grid-cols-4"
+          } gap-6`}
+        >
+          <section className={isEditMode ? "col-span-1" : "md:col-span-3"}>
             <div className="space-y-2">
               <div
                 className="relative border rounded-lg overflow-hidden"
                 ref={imageContainerRef}
                 onMouseMove={handleMouseMove}
-                onMouseDown={handleMouseDown}
-                onMouseUp={handleMouseUp}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
               >
@@ -613,28 +590,34 @@ export default function ImageCropper({ image, onUploadNew, onRemoveAll }: ImageC
                   >
                     <img
                       ref={imgRef}
-                      src={image.url || "/placeholder.svg"}
+                      src={safeImageUrl(image?.url) || "/placeholder.svg"}
                       alt="Original image for cropping"
                       className="max-w-full"
                     />
                   </ReactCrop>
                 ) : isBlurring ? (
-                  <div className="overflow-auto" style={{ maxHeight: "700px", height: "70vh" }}>
-                    <div className="relative">
-                      <canvas ref={blurCanvasRef} className="max-w-full" style={{ cursor: "crosshair" }} />
-                      <img
-                        ref={imgRef}
-                        src={previewUrl || "/placeholder.svg"}
-                        alt="Image for blurring"
-                        className="hidden" // Hidden but used as reference
-                      />
-                    </div>
-                  </div>
+                  <BlurTool
+                    imageUrl={previewUrl}
+                    onApplyBlur={handleBlurApply}
+                    onCancel={cancelBlur}
+                  />
+                ) : isPainting ? (
+                  <PaintTool
+                    imageUrl={previewUrl}
+                    onApplyPaint={handlePaintApply}
+                    onCancel={cancelPaint}
+                  />
                 ) : (
-                  <div className="overflow-auto" style={{ maxHeight: "700px", height: "70vh" }}>
+                  <div
+                    className="overflow-auto"
+                    style={{
+                      maxHeight: isEditMode ? "85vh" : "700px",
+                      height: isEditMode ? "85vh" : "70vh",
+                    }}
+                  >
                     <img
                       ref={imgRef}
-                      src={previewUrl || "/placeholder.svg"}
+                      src={safeImageUrl(previewUrl) || "/placeholder.svg"}
                       alt="Edited image"
                       className="max-w-full transform origin-top-left"
                       style={{ transform: `scale(${zoom})` }}
@@ -645,276 +628,170 @@ export default function ImageCropper({ image, onUploadNew, onRemoveAll }: ImageC
             </div>
           </section>
 
-          <aside className="md:col-span-1 space-y-6">
-            {isBlurring && (
+          {!isEditMode && !isBlurring && !isPainting && (
+            <aside className="md:col-span-1 space-y-6">
               <Card className="bg-gray-800 text-white border-gray-700">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Blur Brush</CardTitle>
+                  <CardTitle className="text-base">Resize</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <label htmlFor="brush-size" className="text-sm font-medium">
-                        Brush Size: {brushSize}px
+                      <label htmlFor="width" className="text-sm font-medium">
+                        Width: {width}px
                       </label>
                     </div>
                     <Slider
-                      id="brush-size"
-                      min={5}
-                      max={100}
+                      id="width"
+                      min={10}
+                      max={imgRef.current?.naturalWidth || 1000}
                       step={1}
-                      value={[brushSize]}
+                      value={[width]}
                       className="[&>.slider-track]:bg-gray-500"
-                      onValueChange={(value) => setBrushSize(value[0])}
+                      onValueChange={(value) => {
+                        const newWidth = value[0];
+                        setWidth(newWidth);
+
+                        if (keepAspectRatio) {
+                          const newHeight = Math.round(newWidth / aspectRatio);
+                          setHeight(newHeight);
+                        }
+
+                        handleResize();
+                      }}
                     />
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <label htmlFor="blur-amount" className="text-sm font-medium">
-                        Blur Amount: {blurAmount}px
+                      <label htmlFor="height" className="text-sm font-medium">
+                        Height: {height}px
                       </label>
                     </div>
                     <Slider
-                      id="blur-amount"
-                      min={1}
-                      max={20}
+                      id="height"
+                      min={10}
+                      max={imgRef.current?.naturalHeight || 1000}
                       step={1}
-                      value={[blurAmount]}
+                      value={[height]}
                       className="[&>.slider-track]:bg-gray-500"
-                      onValueChange={(value) => setBlurAmount(value[0])}
+                      onValueChange={(value) => {
+                        const newHeight = value[0];
+                        setHeight(newHeight);
+
+                        if (keepAspectRatio) {
+                          const newWidth = Math.round(newHeight * aspectRatio);
+                          setWidth(newWidth);
+                        }
+
+                        handleResize();
+                      }}
                     />
                   </div>
 
-                  <div className="text-xs text-gray-400 mt-2">Click and drag on the image to apply blur</div>
-                </CardContent>
-              </Card>
-            )}
-
-            <Card className="bg-gray-800 text-white border-gray-700">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Resize</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <label htmlFor="width" className="text-sm font-medium">
-                      Width: {width}px
-                    </label>
-                  </div>
-                  <Slider
-                    id="width"
-                    min={10}
-                    max={imgRef.current?.naturalWidth || 1000}
-                    step={1}
-                    value={[width]}
-                    className="[&>.slider-track]:bg-gray-500"
-                    onValueChange={(value) => {
-                      const newWidth = value[0]
-                      setWidth(newWidth)
-
-                      if (keepAspectRatio) {
-                        const newHeight = Math.round(newWidth / aspectRatio)
-                        setHeight(newHeight)
-                      }
-
-                      handleResize()
-                    }}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <label htmlFor="height" className="text-sm font-medium">
-                      Height: {height}px
-                    </label>
-                  </div>
-                  <Slider
-                    id="height"
-                    min={10}
-                    max={imgRef.current?.naturalHeight || 1000}
-                    step={1}
-                    value={[height]}
-                    className="[&>.slider-track]:bg-gray-500"
-                    onValueChange={(value) => {
-                      const newHeight = value[0]
-                      setHeight(newHeight)
-
-                      if (keepAspectRatio) {
-                        const newWidth = Math.round(newHeight * aspectRatio)
-                        setWidth(newWidth)
-                      }
-
-                      handleResize()
-                    }}
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2 mt-2">
-                  <input
-                    type="checkbox"
-                    id="keep-aspect-ratio"
-                    checked={keepAspectRatio}
-                    onChange={(e) => setKeepAspectRatio(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <label htmlFor="keep-aspect-ratio" className="text-sm font-medium">
-                    Keep aspect ratio
-                  </label>
-                </div>
-
-                <Button onClick={() => handleResize(true)} className="w-full">
-                  Apply Resize
-                </Button>
-              </CardContent>
-            </Card>
-
-            {hasEdited && dataSavings > 0 && (
-              <Card className="bg-gray-800 text-white border-gray-700">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Performance Impact</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <p className="text-sm">Data savings:</p>
-                    <div className="w-full bg-gray-700 rounded-full h-4">
-                      <div
-                        className="bg-green-500 h-4 rounded-full"
-                        style={{ width: `${Math.min(dataSavings, 100)}%` }}
-                      ></div>
-                    </div>
-                    <p className="text-sm text-right">{dataSavings.toFixed(1)}%</p>
-
-                    <p className="text-sm mt-4">Estimated page speed impact:</p>
-                    <p className="text-sm font-medium text-green-400">{getPageSpeedImprovement()}</p>
-                    <p className="text-xs mt-2 text-gray-400">
-                      {dataSavings > 50
-                        ? "This optimization could significantly improve your Core Web Vitals scores."
-                        : "Further optimizations may be needed for maximum performance."}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {hasEdited && !isBlurring && !isCropping && (
-              <Card className="bg-gray-800 text-white border-gray-700">
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="text-base">Zoom View</span>
-                    <div className="flex items-center gap-1">
-                      <Button onClick={decreaseMagnifierZoom} variant="ghost" size="sm" className="h-6 w-6 p-0">
-                        <span className="text-sm">-</span>
-                      </Button>
-                      <span className="text-xs">{magnifierZoom.toFixed(1)}x</span>
-                      <Button onClick={increaseMagnifierZoom} variant="ghost" size="sm" className="h-6 w-6 p-0">
-                        <span className="text-sm">+</span>
-                      </Button>
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="relative w-full aspect-video rounded-lg overflow-hidden border-2 border-gray-700 shadow-lg">
-                    <div
-                      className="w-full h-full"
-                      style={{
-                        backgroundImage: `url(${previewUrl})`,
-                        backgroundPosition: getBackgroundPosition(),
-                        backgroundSize: `${magnifierZoom * 100}%`,
-                        backgroundRepeat: "no-repeat",
-                      }}
+                  <div className="flex items-center space-x-2 mt-2">
+                    <input
+                      type="checkbox"
+                      id="keep-aspect-ratio"
+                      checked={keepAspectRatio}
+                      onChange={(e) => setKeepAspectRatio(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <label
+                      htmlFor="keep-aspect-ratio"
+                      className="text-sm font-medium"
                     >
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="relative">
-                          {/* Crosshair */}
-                          <div className="absolute w-[1px] h-16 bg-red-500 left-1/2 -translate-x-1/2"></div>
-                          <div className="absolute h-[1px] w-16 bg-red-500 top-1/2 -translate-y-1/2"></div>
-                          <div className="w-16 h-16 rounded-sm border border-red-500 flex items-center justify-center">
-                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                      Keep aspect ratio
+                    </label>
+                  </div>
+
+                  <Button onClick={() => handleResize(true)} className="w-full">
+                    Apply Resize
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {hasEdited && !isBlurring && !isCropping && !isPainting && (
+                <Card className="bg-gray-800 text-white border-gray-700">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="text-base">Zoom View</span>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          onClick={decreaseMagnifierZoom}
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                        >
+                          <span className="text-sm">-</span>
+                        </Button>
+                        <span className="text-xs">
+                          {magnifierZoom.toFixed(1)}x
+                        </span>
+                        <Button
+                          onClick={increaseMagnifierZoom}
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                        >
+                          <span className="text-sm">+</span>
+                        </Button>
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="relative w-full aspect-video rounded-lg overflow-hidden border-2 border-gray-700 shadow-lg">
+                      <div
+                        className="w-full h-full"
+                        style={{
+                          backgroundImage: `url(${safeImageUrl(previewUrl)})`,
+                          backgroundPosition: getBackgroundPosition(),
+                          backgroundSize: `${magnifierZoom * 100}%`,
+                          backgroundRepeat: "no-repeat",
+                        }}
+                      >
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="relative">
+                            {/* Crosshair */}
+                            <div className="absolute w-[1px] h-16 bg-red-500 left-1/2 -translate-x-1/2"></div>
+                            <div className="absolute h-[1px] w-16 bg-red-500 top-1/2 -translate-y-1/2"></div>
+                            <div className="w-16 h-16 rounded-sm border border-red-500 flex items-center justify-center">
+                              <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                            </div>
                           </div>
                         </div>
+                        {!isHovering && (
+                          <div className="absolute bottom-2 left-0 right-0 text-center">
+                            <p className="text-xs text-white bg-black bg-opacity-50 py-1 px-2 rounded-md inline-block">
+                              Mouse over image to navigate
+                            </p>
+                          </div>
+                        )}
                       </div>
-                      {!isHovering && (
-                        <div className="absolute bottom-2 left-0 right-0 text-center">
-                          <p className="text-xs text-white bg-black bg-opacity-50 py-1 px-2 rounded-md inline-block">
-                            Mouse over image to navigate
-                          </p>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </aside>
+                  </CardContent>
+                </Card>
+              )}
+            </aside>
+          )}
         </div>
 
         {/* Image Information Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {originalStats && (
-            <Card className="bg-gray-800 text-white border-gray-700">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Original Image</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm mb-2">File name: {image.file.name}</p>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm font-medium">Dimensions</p>
-                    <p className="text-sm">
-                      {originalStats.width} × {originalStats.height}px
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">File type</p>
-                    <p className="text-sm">{image.file.type}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">File size</p>
-                    <p className="text-sm">{(originalStats.size / 1024).toFixed(2)} KB</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {hasEdited && newStats && (
-            <Card className="bg-gray-800 text-white border-gray-700">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Edited Image</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm mb-2">
-                  File name: {image.file.name.split(".")[0]}_edited.
-                  {format === "webp" ? "webp" : format === "jpeg" ? "jpg" : image.file.type.split("/")[1]}
-                </p>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm font-medium">Dimensions</p>
-                    <p className="text-sm">
-                      {newStats.width} × {newStats.height}px
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">File type</p>
-                    <p className="text-sm">
-                      {format === "webp" ? "image/webp" : format === "jpeg" ? "image/jpeg" : image.file.type}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">File size</p>
-                    <p className="text-sm">{(newStats.size / 1024).toFixed(2)} KB</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        {!isEditMode && !isBlurring && !isPainting && (
+          <ImageStatsDisplay
+            originalStats={originalStats}
+            newStats={newStats}
+            dataSavings={dataSavings}
+            hasEdited={hasEdited}
+            fileName={image?.file?.name || "image.png"}
+            format={format}
+            fileType={image?.file?.type || "image/png"}
+          />
+        )}
       </div>
 
       {/* Hidden canvas for image processing */}
       <canvas ref={canvasRef} className="hidden" />
     </div>
-  )
+  );
 }
-

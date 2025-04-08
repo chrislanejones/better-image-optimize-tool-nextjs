@@ -1,125 +1,185 @@
-"use client"
+"use client";
 
-import { useState, useRef, type ChangeEvent, type DragEvent, useEffect } from "react"
-import Image from "next/image"
-import { X, Maximize2, Upload, ImageIcon, Info } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import ImageCropper from "./image-cropper"
+import { CardFooter } from "@/components/ui/card";
+
+import {
+  useState,
+  useRef,
+  type ChangeEvent,
+  type DragEvent,
+  useEffect,
+  type ClipboardEvent,
+} from "react";
+import Image from "next/image";
+import { X, Maximize2, Upload, ImageIcon, Info, Lock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import ImageCropper from "./image-cropper";
 
 interface ImageFile {
-  id: string
-  file: File
-  url: string
+  id: string;
+  file: File;
+  url: string;
 }
 
 export default function ImageUploader() {
-  const [images, setImages] = useState<ImageFile[]>([])
-  const [uploadComplete, setUploadComplete] = useState(false)
-  const [selectedImage, setSelectedImage] = useState<ImageFile | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [newImageAdded, setNewImageAdded] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [images, setImages] = useState<ImageFile[]>([]);
+  const [uploadComplete, setUploadComplete] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<ImageFile | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [newImageAdded, setNewImageAdded] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isGalleryMinimized, setIsGalleryMinimized] = useState(false);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files) return
+    const files = e.target.files;
+    if (!files) return;
 
-    addFiles(files)
-  }
+    addFiles(files);
+  };
 
   const addFiles = (files: FileList) => {
-    const newImages: ImageFile[] = []
+    const newImages: ImageFile[] = [];
 
     // Process all files
     for (let i = 0; i < files.length; i++) {
-      const file = files[i]
+      const file = files[i];
       if (file.type.startsWith("image/")) {
         newImages.push({
           id: crypto.randomUUID(),
           file,
           url: URL.createObjectURL(file),
-        })
+        });
       }
     }
 
-    setImages((prev) => [...prev, ...newImages])
+    setImages((prev) => [...prev, ...newImages]);
     if (newImages.length > 0) {
-      setUploadComplete(true)
-      setNewImageAdded(true)
+      setUploadComplete(true);
+      setNewImageAdded(true);
     }
-  }
+  };
 
   // Reset the new image added flag after animation completes
   useEffect(() => {
     if (newImageAdded) {
       const timer = setTimeout(() => {
-        setNewImageAdded(false)
-      }, 800) // Match this to the animation duration
-      return () => clearTimeout(timer)
+        setNewImageAdded(false);
+      }, 800); // Match this to the animation duration
+      return () => clearTimeout(timer);
     }
-  }, [newImageAdded])
+  }, [newImageAdded]);
 
   const handleUploadClick = () => {
-    fileInputRef.current?.click()
-  }
+    fileInputRef.current?.click();
+  };
 
   const removeImage = (id: string) => {
-    setImages(images.filter((image) => image.id !== id))
+    setImages(images.filter((image) => image.id !== id));
     if (selectedImage?.id === id) {
-      setSelectedImage(null)
+      setSelectedImage(null);
     }
     if (images.length <= 1) {
-      setUploadComplete(false)
+      setUploadComplete(false);
     }
-  }
+  };
 
   const expandImage = (image: ImageFile) => {
-    setSelectedImage(image)
-  }
+    setSelectedImage(image);
+  };
 
   const resetUpload = () => {
     // Revoke all object URLs to prevent memory leaks
     images.forEach((image) => {
-      URL.revokeObjectURL(image.url)
-    })
+      URL.revokeObjectURL(image.url);
+    });
 
-    setImages([])
-    setUploadComplete(false)
-    setSelectedImage(null)
+    setImages([]);
+    setUploadComplete(false);
+    setSelectedImage(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+      fileInputRef.current.value = "";
     }
-  }
+  };
 
   // Drag and drop handlers
   const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(true)
-  }
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (!isDragging) setIsDragging(true)
-  }
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  };
 
   const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-  }
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      addFiles(e.dataTransfer.files)
+      addFiles(e.dataTransfer.files);
     }
-  }
+  };
+
+  // Add useEffect to listen for paste events globally
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (e.clipboardData && e.clipboardData.files.length > 0) {
+        e.preventDefault();
+        addFiles(e.clipboardData.files);
+      } else if (e.clipboardData && e.clipboardData.items) {
+        const items = e.clipboardData.items;
+        const imageItems = [];
+
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf("image") !== -1) {
+            const blob = items[i].getAsFile();
+            if (blob) {
+              imageItems.push(blob);
+            }
+          }
+        }
+
+        if (imageItems.length > 0) {
+          e.preventDefault();
+          const fileList = new DataTransfer();
+          imageItems.forEach((file) => fileList.items.add(file));
+          addFiles(fileList.files);
+        }
+      }
+    };
+
+    // Add the event listener to the document
+    document.addEventListener("paste", handlePaste as unknown as EventListener);
+
+    // Clean up
+    return () => {
+      document.removeEventListener(
+        "paste",
+        handlePaste as unknown as EventListener
+      );
+    };
+  }, []); // Empty dependency array means this runs once on mount
+
+  const toggleGalleryMinimized = (minimized: boolean) => {
+    setIsGalleryMinimized(minimized);
+  };
 
   return (
     <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col">
@@ -131,11 +191,17 @@ export default function ImageUploader() {
                 <ImageIcon className="h-8 w-8 text-primary" />
               </div>
               <CardTitle className="text-2xl">Upload Images</CardTitle>
-              <CardDescription>Upload multiple images for editing and compression</CardDescription>
+              <CardDescription>
+                Upload multiple images for editing and compression
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div
-                className={`flex flex-col items-center justify-center p-8 border-2 border-dashed ${isDragging ? "border-primary bg-primary/10" : "border-primary/20 bg-primary/5"} rounded-lg hover:bg-primary/10 transition-colors cursor-pointer`}
+                className={`flex flex-col items-center justify-center p-8 border-2 border-dashed ${
+                  isDragging
+                    ? "border-primary bg-primary/10"
+                    : "border-primary/20 bg-primary/5"
+                } rounded-lg hover:bg-primary/10 transition-colors cursor-pointer`}
                 onClick={handleUploadClick}
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
@@ -144,7 +210,8 @@ export default function ImageUploader() {
               >
                 <Upload className="h-10 w-10 text-primary/60 mb-4" />
                 <p className="text-sm text-muted-foreground text-center">
-                  Drag and drop your images here, or click to browse
+                  Drag and drop your images here, click to browse, or paste from
+                  clipboard
                 </p>
               </div>
               <input
@@ -166,10 +233,28 @@ export default function ImageUploader() {
       ) : (
         <div className="space-y-6">
           <div
-            className={`grid grid-cols-5 md:grid-cols-10 gap-2 p-2 bg-gray-800 rounded-lg ${newImageAdded ? "animate-pulse-once" : ""}`}
+            className={`grid grid-cols-5 md:grid-cols-10 gap-2 p-2 bg-gray-800 rounded-lg ${
+              newImageAdded ? "animate-pulse-once" : ""
+            } ${
+              isGalleryMinimized
+                ? "opacity-50 max-h-12 overflow-hidden transition-all duration-300 scale-90 transform origin-top"
+                : "transition-all duration-300"
+            }`}
           >
-            {images.map((image) => (
-              <div key={image.id} className="relative group aspect-square">
+            {isGalleryMinimized && (
+              <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                <Lock className="h-6 w-6 text-white opacity-70" />
+                <span className="ml-2 text-white text-sm opacity-70">
+                  Editing Mode Active
+                </span>
+              </div>
+            )}
+            {images.map((image, index) => (
+              <div
+                key={image.id}
+                className="relative group aspect-square animate-fade-scale-in"
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
                 <Image
                   src={image.url || "/placeholder.svg"}
                   alt="Uploaded image"
@@ -181,6 +266,7 @@ export default function ImageUploader() {
                     onClick={() => expandImage(image)}
                     className="p-2 bg-blue-500 text-white rounded-full transform transition-transform group-hover:scale-110"
                     aria-label="Expand image"
+                    disabled={isGalleryMinimized}
                   >
                     <Maximize2 size={20} />
                   </button>
@@ -189,6 +275,7 @@ export default function ImageUploader() {
                   onClick={() => removeImage(image.id)}
                   className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                   aria-label="Remove image"
+                  disabled={isGalleryMinimized}
                 >
                   <X size={16} />
                 </button>
@@ -200,9 +287,12 @@ export default function ImageUploader() {
             <div className="flex items-center justify-center p-12 text-center">
               <div className="max-w-md">
                 <Info className="h-12 w-12 text-primary mx-auto mb-4" />
-                <h3 className="text-xl font-medium mb-2">Click on an image to compress and edit</h3>
+                <h3 className="text-xl font-medium mb-2">
+                  Click on an image to compress and edit
+                </h3>
                 <p className="text-muted-foreground">
-                  Select any image from the gallery above to start editing, resizing, or converting it.
+                  Select any image from the gallery above to start editing,
+                  resizing, or converting it.
                 </p>
               </div>
             </div>
@@ -210,7 +300,12 @@ export default function ImageUploader() {
 
           {selectedImage && (
             <div className="mt-8">
-              <ImageCropper image={selectedImage} onUploadNew={handleUploadClick} onRemoveAll={resetUpload} />
+              <ImageCropper
+                image={selectedImage}
+                onUploadNew={handleUploadClick}
+                onRemoveAll={resetUpload}
+                onEditModeChange={toggleGalleryMinimized}
+              />
             </div>
           )}
 
@@ -225,6 +320,5 @@ export default function ImageUploader() {
         </div>
       )}
     </div>
-  )
+  );
 }
-
