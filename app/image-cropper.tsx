@@ -15,6 +15,7 @@ import ImageControls from "./components/image-controls";
 import BlurTool from "./components/blur-tool";
 import PaintTool from "./components/paint-tool";
 import ImageStatsDisplay from "./components/image-stats";
+import { updateImage, fileToBase64 } from "@/app/utils/indexedDB";
 
 interface ImageFile {
   id: string;
@@ -26,7 +27,8 @@ interface ImageCropperProps {
   image: ImageFile;
   onUploadNew: () => void;
   onRemoveAll: () => void;
-  onEditModeChange?: (isEditMode: boolean) => void;
+  onBackToGallery?: () => void;
+  isStandalone?: boolean;
 }
 
 interface ImageStats {
@@ -45,7 +47,8 @@ export default function ImageCropper({
   image,
   onUploadNew,
   onRemoveAll,
-  onEditModeChange,
+  onBackToGallery,
+  isStandalone = false,
 }: ImageCropperProps) {
   const [crop, setCrop] = useState<CropType>({
     unit: "%",
@@ -75,11 +78,18 @@ export default function ImageCropper({
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const [magnifierZoom, setMagnifierZoom] = useState<number>(3);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
-  const [isEditMode, setIsEditMode] = useState<boolean>(false);
+  const [isEditMode, setIsEditMode] = useState<boolean>(isStandalone);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
+
+  // Set mounted state to prevent hydration mismatch
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Safe function to get file format
   const getFileFormat = (fileType: string | undefined): string => {
@@ -97,6 +107,8 @@ export default function ImageCropper({
   };
 
   useEffect(() => {
+    if (!isMounted) return;
+
     // Initialize with a safe URL
     if (image && image.url && typeof image.url === "string") {
       setPreviewUrl(image.url);
@@ -111,9 +123,14 @@ export default function ImageCropper({
       x: 0,
       y: 0,
     });
-    setIsCropping(false);
-    setIsBlurring(false);
-    setIsPainting(false);
+
+    // For standalone mode, always start in edit mode
+    if (!isStandalone) {
+      setIsCropping(false);
+      setIsBlurring(false);
+      setIsPainting(false);
+    }
+
     setZoom(1);
     setHasEdited(false);
     setNewStats(null);
@@ -145,10 +162,35 @@ export default function ImageCropper({
     } else {
       img.src = "/placeholder.svg";
     }
-  }, [image]);
+
+    // Clean up object URL on unmount if we created one
+    return () => {
+      if (
+        previewUrl &&
+        previewUrl !== "/placeholder.svg" &&
+        image?.url &&
+        previewUrl !== image.url
+      ) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [image, isStandalone, isMounted]);
+
+  // Handle back to gallery
+  const handleBackToGallery = () => {
+    if (onBackToGallery) {
+      onBackToGallery();
+    } else {
+      // If no handler provided, just go back to upload state
+      onUploadNew();
+    }
+  };
 
   const toggleEditMode = () => {
-    setIsEditMode(!isEditMode);
+    if (!isStandalone) {
+      setIsEditMode(!isEditMode);
+    }
+
     if (isBlurring) {
       setIsBlurring(false);
     }
@@ -161,7 +203,7 @@ export default function ImageCropper({
   };
 
   const toggleCropping = () => {
-    if (!isEditMode) {
+    if (!isEditMode && !isStandalone) {
       setIsEditMode(true);
     }
     setIsCropping(!isCropping);
@@ -170,7 +212,7 @@ export default function ImageCropper({
   };
 
   const toggleBlurring = () => {
-    if (!isEditMode) {
+    if (!isEditMode && !isStandalone) {
       setIsEditMode(true);
     }
     setIsBlurring(!isBlurring);
@@ -179,7 +221,7 @@ export default function ImageCropper({
   };
 
   const togglePainting = () => {
-    if (!isEditMode) {
+    if (!isEditMode && !isStandalone) {
       setIsEditMode(true);
     }
     setIsPainting(!isPainting);
@@ -247,6 +289,11 @@ export default function ImageCropper({
             if (originalStats) {
               const savings = 100 - (blob.size / originalStats.size) * 100;
               setDataSavings(savings);
+            }
+
+            // Update the stored image if in standalone mode
+            if (isStandalone) {
+              saveEditedImage(url, blob);
             }
           }
         },
@@ -317,11 +364,49 @@ export default function ImageCropper({
             const savings = 100 - (blob.size / originalStats.size) * 100;
             setDataSavings(savings);
           }
+
+          // Update the stored image if in standalone mode
+          if (isStandalone) {
+            saveEditedImage(url, blob);
+          }
         }
       },
       getMimeType(format),
       0.9
     );
+  };
+
+  // Helper function to save edited image to IndexedDB
+  const saveEditedImage = async (url: string, blob: Blob) => {
+    try {
+      setIsSaving(true);
+      // Create a file from the blob
+      const fileName = image.file.name;
+      const fileType = getMimeType(format);
+
+      // Convert the blob to base64
+      const base64Data = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = () => {
+          resolve(reader.result as string);
+        };
+      });
+
+      // Update in IndexedDB
+      await updateImage(image.id, {
+        fileData: base64Data,
+        type: fileType,
+        width: width || 0,
+        height: height || 0,
+        lastModified: new Date().getTime(),
+      });
+
+      setIsSaving(false);
+    } catch (error) {
+      console.error("Error saving edited image:", error);
+      setIsSaving(false);
+    }
   };
 
   const handleBlurApply = (blurredImageUrl: string) => {
@@ -348,6 +433,11 @@ export default function ImageCropper({
           if (originalStats) {
             const savings = 100 - (blob.size / originalStats.size) * 100;
             setDataSavings(savings);
+          }
+
+          // Update the stored image if in standalone mode
+          if (isStandalone) {
+            saveEditedImage(blurredImageUrl, blob);
           }
         }
       })
@@ -381,6 +471,11 @@ export default function ImageCropper({
             const savings = 100 - (blob.size / originalStats.size) * 100;
             setDataSavings(savings);
           }
+
+          // Update the stored image if in standalone mode
+          if (isStandalone) {
+            saveEditedImage(paintedImageUrl, blob);
+          }
         }
       })
       .catch((error) => {
@@ -411,7 +506,8 @@ export default function ImageCropper({
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = `image-${
+          const fileName = image.file.name.split(".")[0] || "image";
+          a.download = `${fileName}-edited.${
             format === "webp" ? "webp" : format === "jpeg" ? "jpg" : "png"
           }`;
           a.click();
@@ -520,27 +616,33 @@ export default function ImageCropper({
     }
   }, [isCropping, isBlurring, isPainting]);
 
-  useEffect(() => {
-    if (onEditModeChange) {
-      onEditModeChange(isEditMode);
-    }
-  }, [isEditMode, onEditModeChange]);
-
-  // Ensure edit mode is properly set when tools are activated
-  useEffect(() => {
-    if (isCropping || isBlurring || isPainting) {
-      setIsEditMode(true);
-    }
-  }, [isCropping, isBlurring, isPainting]);
-
   // Safe image URL for display
-  const safeImageUrl = (url: string | undefined): string => {
-    if (!url || typeof url !== "string") return "/placeholder.svg";
+  const safeImageUrl = (url: string | undefined): string | null => {
+    if (!url || typeof url !== "string") return null;
     return url;
   };
 
+  // Don't render until client-side to prevent hydration errors
+  if (!isMounted) {
+    return (
+      <div className="animate-pulse">
+        <div className="h-6 w-24 bg-gray-300 rounded mb-4"></div>
+        <div className="h-64 w-full bg-gray-300 rounded"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {isSaving && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <p className="text-center">Saving changes...</p>
+          </div>
+        </div>
+      )}
+
       <ImageControls
         isEditMode={isEditMode}
         isCropping={isCropping}
@@ -564,6 +666,8 @@ export default function ImageCropper({
         onCancelBlur={cancelBlur}
         onCancelCrop={cancelCrop}
         onCancelPaint={cancelPaint}
+        onBackToGallery={handleBackToGallery}
+        isStandalone={isStandalone}
       />
 
       <div className="flex flex-col gap-6">

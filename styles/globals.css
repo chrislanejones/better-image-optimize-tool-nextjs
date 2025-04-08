@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import placeholder styles */
+@import "./styles/placeholders.css";
+
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -91,4 +94,52 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Custom slider styling */
+.slider-track {
+  height: 100%;
+  position: absolute;
+  border-radius: 9999px;
+}
+
+/* Override the default slider track styling */
+.slider > span[data-orientation="horizontal"] {
+  background-color: rgb(107, 114, 128) !important; /* gray-500 */
+}
+
+/* Add a more noticeable animation for new images */
+@keyframes pulse-once {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0.3);
+    transform: scale(1.03);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    transform: scale(1);
+  }
+}
+
+.animate-pulse-once {
+  animation: pulse-once 0.8s ease-in-out;
+}
+
+/* Add animation for individual images */
+@keyframes fade-scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-scale-in {
+  animation: fade-scale-in 0.4s ease-out forwards;
 }
