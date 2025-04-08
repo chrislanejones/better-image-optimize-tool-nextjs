@@ -1,6 +1,7 @@
 "use client";
 
 import { CardFooter } from "@/components/ui/card";
+
 import {
   useState,
   useRef,
@@ -8,7 +9,6 @@ import {
   type DragEvent,
   useEffect,
   type ClipboardEvent,
-  useCallback,
 } from "react";
 import Image from "next/image";
 import { X, Maximize2, Upload, ImageIcon, Info, Lock } from "lucide-react";
@@ -37,14 +37,14 @@ export default function ImageUploader() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isGalleryMinimized, setIsGalleryMinimized] = useState(false);
 
-  const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
     addFiles(files);
-  }, []);
+  };
 
-  const addFiles = useCallback((files: FileList) => {
+  const addFiles = (files: FileList) => {
     const newImages: ImageFile[] = [];
 
     // Process all files
@@ -64,7 +64,7 @@ export default function ImageUploader() {
       setUploadComplete(true);
       setNewImageAdded(true);
     }
-  }, []);
+  };
 
   // Reset the new image added flag after animation completes
   useEffect(() => {
@@ -76,24 +76,25 @@ export default function ImageUploader() {
     }
   }, [newImageAdded]);
 
-  const handleUploadClick = useCallback(() => {
+  const handleUploadClick = () => {
     fileInputRef.current?.click();
-  }, []);
+  };
 
-  const removeImage = useCallback(
-    (id: string) => {
-      setImages((prev) => prev.filter((image) => image.id !== id));
-      setSelectedImage((prev) => (prev?.id === id ? null : prev));
-      setUploadComplete((prev) => (images.length <= 1 ? false : prev));
-    },
-    [images.length]
-  );
+  const removeImage = (id: string) => {
+    setImages(images.filter((image) => image.id !== id));
+    if (selectedImage?.id === id) {
+      setSelectedImage(null);
+    }
+    if (images.length <= 1) {
+      setUploadComplete(false);
+    }
+  };
 
-  const expandImage = useCallback((image: ImageFile) => {
+  const expandImage = (image: ImageFile) => {
     setSelectedImage(image);
-  }, []);
+  };
 
-  const resetUpload = useCallback(() => {
+  const resetUpload = () => {
     // Revoke all object URLs to prevent memory leaks
     images.forEach((image) => {
       URL.revokeObjectURL(image.url);
@@ -105,42 +106,36 @@ export default function ImageUploader() {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  }, [images]);
+  };
 
   // Drag and drop handlers
-  const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
+  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
-  }, []);
+  };
 
-  const handleDragOver = useCallback(
-    (e: DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!isDragging) setIsDragging(true);
-    },
-    [isDragging]
-  );
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  };
 
-  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-  }, []);
+  };
 
-  const handleDrop = useCallback(
-    (e: DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
 
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        addFiles(e.dataTransfer.files);
-      }
-    },
-    [addFiles]
-  );
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      addFiles(e.dataTransfer.files);
+    }
+  };
 
   // Add useEffect to listen for paste events globally
   useEffect(() => {
@@ -180,11 +175,11 @@ export default function ImageUploader() {
         handlePaste as unknown as EventListener
       );
     };
-  }, [addFiles]); // Add addFiles to dependency array
+  }, []); // Empty dependency array means this runs once on mount
 
-  const toggleGalleryMinimized = useCallback((minimized: boolean) => {
+  const toggleGalleryMinimized = (minimized: boolean) => {
     setIsGalleryMinimized(minimized);
-  }, []);
+  };
 
   return (
     <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col">
@@ -309,7 +304,7 @@ export default function ImageUploader() {
                 image={selectedImage}
                 onUploadNew={handleUploadClick}
                 onRemoveAll={resetUpload}
-                onBackToGallery={() => setSelectedImage(null)}
+                onEditModeChange={toggleGalleryMinimized}
               />
             </div>
           )}

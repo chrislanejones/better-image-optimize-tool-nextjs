@@ -9,7 +9,20 @@ import {
   type ClipboardEvent,
 } from "react";
 import Image from "next/image";
-import { X, Upload, ImageIcon, Info, Edit2 } from "lucide-react";
+import {
+  X,
+  Upload,
+  ImageIcon,
+  Info,
+  Edit2,
+  Lock,
+  Maximize2,
+  Crop,
+  Droplets,
+  Paintbrush,
+  Minus,
+  Plus,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -45,6 +58,7 @@ interface ImageFile {
   id: string;
   file: File;
   url: string;
+  isNew?: boolean;
 }
 
 interface ImageGalleryProps {
@@ -71,7 +85,13 @@ export default function ImageGallery({
   const [isDragging, setIsDragging] = useState(false);
   const [selectedImage, setSelectedImage] = useState<ImageFile | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [isCropping, setIsCropping] = useState(false);
+  const [isBlurring, setIsBlurring] = useState(false);
+  const [isPainting, setIsPainting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -174,6 +194,7 @@ export default function ImageGallery({
           id: crypto.randomUUID(),
           file,
           url: URL.createObjectURL(file),
+          isNew: true,
         });
       }
     }
@@ -181,6 +202,13 @@ export default function ImageGallery({
     if (newImages.length > 0) {
       setUploadComplete(true);
       setNewImageAdded(true);
+
+      // Remove the isNew flag after animation completes
+      setTimeout(() => {
+        setImages((prevImages) =>
+          prevImages.map((img) => ({ ...img, isNew: false }))
+        );
+      }, 1500); // Match with animation duration
     }
   };
 
@@ -210,6 +238,7 @@ export default function ImageGallery({
       onSelectImage(image);
     } else {
       setSelectedImage(image);
+      setIsEditMode(true);
     }
   };
 
@@ -272,29 +301,41 @@ export default function ImageGallery({
     }
   }, [isMounted]);
 
-  // Image Cropper Component Logic
-  const handleBackToGallery = () => {
+  // Image Editor Controls
+  const handleZoomIn = () => {
+    setZoomLevel((prev) => Math.min(prev + 0.1, 3));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel((prev) => Math.max(prev - 0.1, 0.5));
+  };
+
+  const handleToggleCropping = () => {
+    setIsCropping((prev) => !prev);
+    setIsBlurring(false);
+    setPainting(false);
+  };
+
+  const handleToggleBlurring = () => {
+    setIsBlurring((prev) => !prev);
+    setIsCropping(false);
+    setPainting(false);
+  };
+
+  const handleTogglePainting = () => {
+    setPainting((prev) => !prev);
+    setIsCropping(false);
+    setIsBlurring(false);
+  };
+
+  const handleExitEditMode = () => {
+    setIsEditMode(false);
     setSelectedImage(null);
+    setZoomLevel(1);
+    setIsCropping(false);
+    setIsBlurring(false);
+    setPainting(false);
   };
-
-  const handleUploadNew = () => {
-    handleUploadClick();
-  };
-
-  if (selectedImage) {
-    return (
-      <div className="p-4">
-        <div className="mb-4">
-          <Button onClick={() => setSelectedImage(null)}>
-            ← Back to Gallery
-          </Button>
-        </div>
-        <div className="border rounded-lg overflow-hidden shadow-md">
-          <p className="text-center p-4">Image editor will go here...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (!isMounted || isLoading) {
     return (
@@ -365,12 +406,134 @@ export default function ImageGallery({
     );
   }
 
+  if (isEditMode && selectedImage) {
+    return (
+      <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col">
+        <div className="space-y-6">
+          {/* Thumbnail strip with editing mode indicator */}
+          <div className="grid grid-cols-5 md:grid-cols-10 gap-2 p-2 bg-gray-800 rounded-lg opacity-50 max-h-12 overflow-hidden transition-all duration-300 scale-90 transform origin-top">
+            <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+              <Lock className="h-6 w-6 text-white opacity-70" />
+              <span className="ml-2 text-white text-sm opacity-70">
+                Editing Mode Active
+              </span>
+            </div>
+
+            {images.map((image, index) => (
+              <div
+                key={image.id}
+                className="relative group aspect-square animate-fade-scale-in"
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
+                <Image
+                  src={image.url}
+                  alt="Uploaded image"
+                  fill
+                  className="object-cover rounded-md"
+                />
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <button
+                    className="p-2 bg-blue-500 text-white rounded-full transform transition-transform group-hover:scale-110"
+                    aria-label="Expand image"
+                    disabled
+                  >
+                    <Maximize2 size={20} />
+                  </button>
+                </div>
+                <button
+                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Remove image"
+                  disabled
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8">
+            <div className="space-y-6">
+              {/* Image editing toolbar */}
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 mr-2">
+                    <Button onClick={handleZoomOut} variant="outline">
+                      <span className="text-lg">-</span>
+                    </Button>
+                    <Button onClick={handleZoomIn} variant="outline">
+                      <span className="text-lg">+</span>
+                    </Button>
+                  </div>
+                  <Button onClick={handleToggleCropping} variant="outline">
+                    <Crop className="mr-2 h-4 w-4" />
+                    Crop Image
+                  </Button>
+                  <Button onClick={handleToggleBlurring} variant="outline">
+                    <Droplets className="mr-2 h-4 w-4" />
+                    Blur Tool
+                  </Button>
+                  <Button onClick={handleTogglePainting} variant="outline">
+                    <Paintbrush className="mr-2 h-4 w-4" />
+                    Paint Tool
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button onClick={handleExitEditMode} variant="default">
+                    <X className="mr-2 h-4 w-4" />
+                    Exit Edit Mode
+                  </Button>
+                </div>
+              </div>
+
+              {/* Image editor area */}
+              <div className="flex flex-col gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
+                  <section className="col-span-1">
+                    <div className="space-y-2">
+                      <div className="relative border rounded-lg overflow-hidden">
+                        <div
+                          className="overflow-auto"
+                          style={{ maxHeight: "85vh", height: "85vh" }}
+                        >
+                          <img
+                            src={selectedImage.url}
+                            alt="Edited image"
+                            className="max-w-full transform origin-top-left"
+                            style={{ transform: `scale(${zoomLevel})` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </div>
+
+              {/* Hidden canvas for image processing */}
+              <canvas ref={canvasRef} className="hidden"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          ref={fileInputRef}
+          onChange={handleFileChange}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
       {images.map((image) => (
         <Card
           key={image.id}
-          className={`group relative overflow-hidden shadow-md transition-transform transform hover:scale-105 cursor-pointer`}
+          className={`group relative overflow-hidden polaroid-card ${
+            image.isNew ? "polaroid-new" : ""
+          } cursor-pointer`}
           onClick={() => selectImage(image)}
         >
           <div className="relative aspect-square w-full">
@@ -387,16 +550,19 @@ export default function ImageGallery({
               <ImagePlaceholder className="w-full h-full" />
             </div>
           </div>
+          <div className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400 truncate px-2">
+            {image.file.name}
+          </div>
           <Button
             variant="ghost"
             size="icon"
-            className="absolute top-2 right-2 z-10 text-red-500 hover:text-red-700"
+            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={(e) => {
               e.stopPropagation();
               removeImage(image.id);
             }}
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
         </Card>
       ))}

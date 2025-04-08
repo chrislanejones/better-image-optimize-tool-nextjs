@@ -140,3 +140,44 @@ body {
 .animate-fade-scale-in {
   animation: fade-scale-in 0.4s ease-out forwards;
 }
+
+/* Polaroid slide-down animation - slower version */
+@keyframes polaroid-slide-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-80px) rotate(-8deg);
+  }
+  30% {
+    opacity: 0.5;
+    transform: translateY(-40px) rotate(-4deg);
+  }
+  60% {
+    opacity: 0.8;
+    transform: translateY(-15px) rotate(-2deg);
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(5px) rotate(1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(0);
+  }
+}
+
+.polaroid-card {
+  background: white;
+  padding: 10px 10px 20px 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
+
+.polaroid-new {
+  animation: polaroid-slide-down 1.5s ease-out forwards;
+}
+
+/* Dark mode support for polaroid cards */
+.dark .polaroid-card {
+  background: hsl(0, 0%, 10%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}

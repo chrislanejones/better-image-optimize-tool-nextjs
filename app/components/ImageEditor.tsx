@@ -26,6 +26,7 @@ export default function ImageEditorPage() {
   const [image, setImage] = useState<ImageFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditingActive, setIsEditingActive] = useState(false);
 
   useEffect(() => {
     const loadImage = async () => {
@@ -63,6 +64,11 @@ export default function ImageEditorPage() {
 
   const handleBackToGallery = () => router.push("/");
 
+  // Handle editing mode changes
+  const handleEditModeChange = (isEditing: boolean) => {
+    setIsEditingActive(isEditing);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -88,16 +94,43 @@ export default function ImageEditorPage() {
 
   return (
     <div className="min-h-screen px-4 py-8 bg-gray-50 dark:bg-gray-900">
-      <div className="mb-6">
+      <div
+        className={`mb-6 transition-opacity duration-300 ${
+          isEditingActive ? "opacity-50" : "opacity-100"
+        }`}
+      >
         <Button
           variant="outline"
           onClick={handleBackToGallery}
           className="mb-4"
+          disabled={isEditingActive}
         >
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Gallery
         </Button>
         <h1 className="text-2xl font-bold">Edit Image</h1>
+
+        {isEditingActive && (
+          <div className="mt-2 p-2 bg-gray-800 text-white rounded-md flex items-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="lucide lucide-lock h-5 w-5 mr-2"
+            >
+              <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <span>Editing Mode Active</span>
+          </div>
+        )}
       </div>
+
       <ImageCropper
         image={image}
         onUploadNew={handleBackToGallery}
@@ -106,6 +139,7 @@ export default function ImageEditorPage() {
           handleBackToGallery();
         }}
         onBackToGallery={handleBackToGallery}
+        onEditModeChange={handleEditModeChange}
         isStandalone
       />
     </div>

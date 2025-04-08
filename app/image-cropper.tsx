@@ -31,6 +31,7 @@ interface ImageCropperProps {
   onRemoveAll: () => void;
   onBackToGallery?: () => void;
   isStandalone?: boolean;
+  onEditModeChange?: (isEditing: boolean) => void; // Added this prop
 }
 
 interface ImageStats {
@@ -53,6 +54,7 @@ export default function ImageCropper({
   onRemoveAll,
   onBackToGallery,
   isStandalone = false,
+  onEditModeChange, // Added this prop
 }: ImageCropperProps) {
   const [crop, setCrop] = useState<CropType>({
     unit: "%",
@@ -96,6 +98,13 @@ export default function ImageCropper({
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Notify parent component when edit mode changes
+  useEffect(() => {
+    if (onEditModeChange) {
+      onEditModeChange(isEditMode);
+    }
+  }, [isEditMode, onEditModeChange]);
 
   // Safe function to get file format
   const getFileFormat = (fileType: string | undefined): string => {
@@ -177,13 +186,14 @@ export default function ImageCropper({
     };
   }, [image, isStandalone, isMounted]);
 
-  // FIX: Only update isEditMode if it needs to change
+  // Update isEditMode when editing tools are activated
   useEffect(() => {
     if ((isCropping || isBlurring || isPainting) && !isEditMode) {
       setIsEditMode(true);
     }
   }, [isCropping, isBlurring, isPainting, isEditMode]);
 
+  // Handle back to gallery
   // Handle back to gallery
   const handleBackToGallery = useCallback(() => {
     if (onBackToGallery) {
@@ -242,6 +252,16 @@ export default function ImageCropper({
   const cancelPaint = useCallback(() => {
     setIsPainting(false);
   }, []);
+
+  // Exit edit mode completely
+  const exitEditMode = useCallback(() => {
+    setIsCropping(false);
+    setIsBlurring(false);
+    setIsPainting(false);
+    if (!isStandalone) {
+      setIsEditMode(false);
+    }
+  }, [isStandalone]);
 
   // Debounced resize function to prevent excessive renders
   const debouncedResize = useCallback(
@@ -699,6 +719,7 @@ export default function ImageCropper({
         onCancelCrop={cancelCrop}
         onCancelPaint={cancelPaint}
         onBackToGallery={handleBackToGallery}
+        onExitEditMode={exitEditMode} // Added this prop
         isStandalone={isStandalone}
       />
 
