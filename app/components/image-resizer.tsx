@@ -5,7 +5,13 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Maximize2 } from "lucide-react";
+import { Maximize2, Gauge } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ImageResizerProps {
   width: number;
@@ -64,6 +70,31 @@ export default function ImageResizer({
     }
   };
 
+  // Optimize for Core Web Vitals
+  const optimizeForCoreWebVitals = () => {
+    // Calculate optimal dimensions based on original aspect ratio
+    // Aim for a file size that helps with LCP (Largest Contentful Paint)
+
+    // General recommendation is to keep images under 1000px wide for most websites
+    // unless they're hero/banner images, while maintaining the aspect ratio
+    const MAX_RECOMMENDED_WIDTH = 1000;
+    const MAX_RECOMMENDED_HEIGHT = 800;
+
+    let optimalWidth = Math.min(currentWidth, MAX_RECOMMENDED_WIDTH);
+    let optimalHeight = Math.round(optimalWidth / aspectRatio);
+
+    // If height exceeds recommended, adjust dimensions
+    if (optimalHeight > MAX_RECOMMENDED_HEIGHT) {
+      optimalHeight = MAX_RECOMMENDED_HEIGHT;
+      optimalWidth = Math.round(optimalHeight * aspectRatio);
+    }
+
+    // Apply optimal dimensions
+    setCurrentWidth(optimalWidth);
+    setCurrentHeight(optimalHeight);
+    onResize(optimalWidth, optimalHeight);
+  };
+
   return (
     <Card className="bg-gray-800 text-white border-gray-700">
       <CardHeader className="pb-2">
@@ -116,6 +147,26 @@ export default function ImageResizer({
             Keep aspect ratio
           </label>
         </div>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={optimizeForCoreWebVitals}
+                className="w-full mb-2"
+                variant="destructive"
+              >
+                <Gauge className="h-4 w-4 mr-2" />
+                Optimize for Core Web Vitals
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>
+                Resize image to optimal dimensions for better page performance
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
         <Button onClick={onApplyResize} className="w-full">
           <Maximize2 className="h-4 w-4 mr-2" />

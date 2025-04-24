@@ -2,122 +2,112 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import BlurControls from "./second-controls/blur-controls";
 
-interface PaintToolProps {
+interface BlurToolProps {
   imageUrl: string;
-  onApplyPaint: (paintedImageUrl: string) => void;
+  onApplyBlur: (blurredImageUrl: string) => void;
   onCancel: () => void;
-  onToggleEraser: () => void;
-  isEraser: boolean;
 }
 
-export default function PaintTool({
+export default function BlurTool({
   imageUrl,
-  onApplyPaint,
+  onApplyBlur,
   onCancel,
-  onToggleEraser,
-  isEraser,
-}: PaintToolProps) {
-  const [brushColor, setBrushColor] = useState<string>("#ff0000");
-  const [brushSize, setBrushSize] = useState<number>(10);
-  const [isDrawing, setIsDrawing] = useState<boolean>(false);
+}: BlurToolProps) {
+  const [blurAmount, setBlurAmount] = useState<number>(5);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const contextRef = useRef<CanvasRenderingContext2D | null>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   // Load and setup the image
   useEffect(() => {
-    if (!canvasRef.current) return;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = imageUrl;
+    img.onload = () => {
+      imgRef.current = img;
+      applyBlurEffect(blurAmount);
+    };
 
-    const canvas = canvasRef.current;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-
-    contextRef.current = context;
-
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.src = imageUrl;
-
-    image.onload = () => {
-      // Set canvas dimensions to match image
-      canvas.width = image.naturalWidth;
-      canvas.height = image.naturalHeight;
-
-      // Draw the image onto the canvas
-      context.drawImage(image, 0, 0);
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [imageUrl]);
 
-  // Update brush when eraser mode changes
+  // Apply blur when slider changes
   useEffect(() => {
-    if (!contextRef.current) return;
-
-    if (isEraser) {
-      contextRef.current.globalCompositeOperation = "destination-out";
-    } else {
-      contextRef.current.globalCompositeOperation = "source-over";
-      contextRef.current.strokeStyle = brushColor;
+    if (imgRef.current) {
+      applyBlurEffect(blurAmount);
     }
-  }, [isEraser, brushColor]);
+  }, [blurAmount]);
 
-  const startDrawing = ({ nativeEvent }: React.MouseEvent) => {
-    if (!contextRef.current) return;
+  const applyBlurEffect = (amount: number) => {
+    if (!canvasRef.current || !imgRef.current) return;
 
-    const { offsetX, offsetY } = nativeEvent;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    contextRef.current.beginPath();
-    contextRef.current.moveTo(offsetX, offsetY);
-    contextRef.current.lineWidth = brushSize;
-    contextRef.current.lineCap = "round";
-    contextRef.current.strokeStyle = isEraser ? "#ffffff" : brushColor;
-    contextRef.current.globalCompositeOperation = isEraser
-      ? "destination-out"
-      : "source-over";
+    // Set canvas dimensions to match image
+    canvas.width = imgRef.current.naturalWidth;
+    canvas.height = imgRef.current.naturalHeight;
 
-    setIsDrawing(true);
-  };
+    // Draw the original image
+    ctx.drawImage(imgRef.current, 0, 0);
 
-  const finishDrawing = () => {
-    if (!contextRef.current) return;
+    // Apply CSS filter for blur
+    if (amount > 0) {
+      ctx.filter = `blur(${amount}px)`;
+      ctx.drawImage(imgRef.current, 0, 0);
+      ctx.filter = "none";
+    }
 
-    contextRef.current.closePath();
-    setIsDrawing(false);
-  };
+    // Generate preview URL
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
 
-  const draw = ({ nativeEvent }: React.MouseEvent) => {
-    if (!isDrawing || !contextRef.current) return;
-
-    const { offsetX, offsetY } = nativeEvent;
-
-    contextRef.current.lineTo(offsetX, offsetY);
-    contextRef.current.stroke();
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          setPreviewUrl(url);
+        }
+      },
+      "image/jpeg",
+      0.9
+    );
   };
 
   const handleApply = () => {
-    if (!canvasRef.current) return;
-
-    const dataUrl = canvasRef.current.toDataURL("image/jpeg", 0.9);
-    onApplyPaint(dataUrl);
+    if (previewUrl) {
+      onApplyBlur(previewUrl);
+    }
   };
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="relative border rounded-md overflow-hidden">
+      <div className="relative">
         <canvas
           ref={canvasRef}
-          onMouseDown={startDrawing}
-          onMouseUp={finishDrawing}
-          onMouseMove={draw}
-          onMouseLeave={finishDrawing}
-          className="max-w-full cursor-crosshair"
+          className="max-w-full"
+          style={{ cursor: "crosshair" }}
+        />
+        <img
+          src={imageUrl}
+          alt="Image for blurring"
+          className="hidden"
+          ref={imgRef}
         />
       </div>
 
       <div className="flex justify-end gap-2 mt-4">
-        <Button onClick={handleApply} variant="default">
-          Apply Changes
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
         </Button>
+        <Button onClick={handleApply}>Apply Blur</Button>
       </div>
+
+      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 }

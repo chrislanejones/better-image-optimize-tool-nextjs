@@ -2,23 +2,34 @@
 
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { Minus, Plus } from "lucide-react";
 
 interface BlurControlsProps {
   blurAmount: number;
+  blurRadius: number;
   onBlurAmountChange: (value: number) => void;
+  onBlurRadiusChange: (value: number) => void;
 }
 
 export default function BlurControls({
   blurAmount,
+  blurRadius,
   onBlurAmountChange,
+  onBlurRadiusChange,
 }: BlurControlsProps) {
-  const decreaseBlur = () => {
+  const decreaseBlurAmount = () => {
     onBlurAmountChange(Math.max(blurAmount - 1, 1));
   };
 
-  const increaseBlur = () => {
+  const increaseBlurAmount = () => {
     onBlurAmountChange(Math.min(blurAmount + 1, 20));
+  };
+
+  const decreaseBlurRadius = () => {
+    onBlurRadiusChange(Math.max(blurRadius - 1, 1));
+  };
+
+  const increaseBlurRadius = () => {
+    onBlurRadiusChange(Math.min(blurRadius + 1, 30));
   };
 
   return (
@@ -34,7 +45,7 @@ export default function BlurControls({
             </label>
             <div className="flex items-center gap-1">
               <Button
-                onClick={decreaseBlur}
+                onClick={decreaseBlurAmount}
                 variant="outline"
                 size="sm"
                 className="h-6 w-6 p-0 rounded-md"
@@ -42,7 +53,7 @@ export default function BlurControls({
                 <span className="text-sm">-</span>
               </Button>
               <Button
-                onClick={increaseBlur}
+                onClick={increaseBlurAmount}
                 variant="outline"
                 size="sm"
                 className="h-6 w-6 p-0 rounded-md"
@@ -64,18 +75,40 @@ export default function BlurControls({
 
         <div className="space-y-1">
           <div className="flex justify-between items-center">
-            <label className="text-sm font-medium text-white">
-              Blur Radius: {Math.round(blurAmount * 1.5)}px
+            <label
+              htmlFor="blur-radius"
+              className="text-sm font-medium text-white"
+            >
+              Blur Radius: {blurRadius}px
             </label>
-          </div>
-          <div className="bg-gray-800 p-3 rounded-md flex items-center justify-center h-10">
-            <div className="w-full h-2 bg-gray-600 rounded-full relative">
-              <div
-                className="absolute h-full bg-blue-500 rounded-full"
-                style={{ width: `${(blurAmount / 20) * 100}%` }}
-              ></div>
+            <div className="flex items-center gap-1">
+              <Button
+                onClick={decreaseBlurRadius}
+                variant="outline"
+                size="sm"
+                className="h-6 w-6 p-0 rounded-md"
+              >
+                <span className="text-sm">-</span>
+              </Button>
+              <Button
+                onClick={increaseBlurRadius}
+                variant="outline"
+                size="sm"
+                className="h-6 w-6 p-0 rounded-md"
+              >
+                <span className="text-sm">+</span>
+              </Button>
             </div>
           </div>
+          <Slider
+            id="blur-radius"
+            min={1}
+            max={30}
+            step={1}
+            value={[blurRadius]}
+            onValueChange={(value) => onBlurRadiusChange(value[0])}
+            className="[&>.slider-track]:bg-gray-500"
+          />
         </div>
       </div>
     </div>
