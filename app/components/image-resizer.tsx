@@ -34,6 +34,8 @@ export default function ImageResizer({
   const [currentHeight, setCurrentHeight] = useState(height);
   const [keepAspectRatio, setKeepAspectRatio] = useState(true);
   const [aspectRatio, setAspectRatio] = useState(width / height);
+  // State to track button animation
+  const [isOptimizing, setIsOptimizing] = useState(false);
 
   // Update local state when props change
   useEffect(() => {
@@ -70,8 +72,11 @@ export default function ImageResizer({
     }
   };
 
-  // Optimize for Core Web Vitals
+  // Optimize for Core Web Vitals with animation
   const optimizeForCoreWebVitals = () => {
+    // Start animation
+    setIsOptimizing(true);
+
     // Calculate optimal dimensions based on original aspect ratio
     // Aim for a file size that helps with LCP (Largest Contentful Paint)
 
@@ -93,6 +98,13 @@ export default function ImageResizer({
     setCurrentWidth(optimalWidth);
     setCurrentHeight(optimalHeight);
     onResize(optimalWidth, optimalHeight);
+
+    // Auto-apply resize after animation completes
+    setTimeout(() => {
+      onApplyResize();
+      // End animation
+      setIsOptimizing(false);
+    }, 800); // Delay to allow animation to complete
   };
 
   return (
@@ -153,11 +165,18 @@ export default function ImageResizer({
             <TooltipTrigger asChild>
               <Button
                 onClick={optimizeForCoreWebVitals}
-                className="w-full mb-2"
+                className={`w-full mb-2 transition-all duration-300 ${
+                  isOptimizing ? "animate-pulse" : ""
+                }`}
+                disabled={isOptimizing}
                 variant="destructive"
               >
-                <Gauge className="h-4 w-4 mr-2" />
-                Optimize for Core Web Vitals
+                <div className="flex items-center mr-2">
+                  <Gauge className={"h-4 w-4"} />
+                </div>
+                {isOptimizing
+                  ? "Optimizing..."
+                  : "Optimize for Core Web Vitals"}
               </Button>
             </TooltipTrigger>
             <TooltipContent>

@@ -97,12 +97,6 @@ export default function PaintControls({
                 aria-label={`Select ${color} color`}
               />
             ))}
-            <input
-              type="color"
-              value={brushColor}
-              onChange={(e) => onBrushColorChange(e.target.value)}
-              className="w-6 h-6 p-0 border-0"
-            />
           </div>
         </div>
       </div>
