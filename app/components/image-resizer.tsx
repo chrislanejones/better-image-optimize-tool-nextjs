@@ -1,11 +1,17 @@
-"use client";
-
+// Modified ImageResizer.tsx with equal-width buttons and improved slider
 import { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Maximize2, Gauge } from "lucide-react";
+import { Maximize2, Gauge, Download } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
@@ -20,6 +26,9 @@ interface ImageResizerProps {
   maxHeight: number;
   onResize: (width: number, height: number) => void;
   onApplyResize: () => void;
+  format: string;
+  onFormatChange: (format: string) => void;
+  onDownload: () => void;
 }
 
 export default function ImageResizer({
@@ -29,6 +38,9 @@ export default function ImageResizer({
   maxHeight,
   onResize,
   onApplyResize,
+  format,
+  onFormatChange,
+  onDownload,
 }: ImageResizerProps) {
   const [currentWidth, setCurrentWidth] = useState(width);
   const [currentHeight, setCurrentHeight] = useState(height);
@@ -125,7 +137,7 @@ export default function ImageResizer({
             max={maxWidth}
             step={1}
             value={[currentWidth]}
-            className="[&>.slider-track]:bg-gray-500"
+            className="[&>.slider-track]:bg-gray-400"
             onValueChange={handleWidthChange}
           />
         </div>
@@ -142,7 +154,7 @@ export default function ImageResizer({
             max={maxHeight}
             step={1}
             value={[currentHeight]}
-            className="[&>.slider-track]:bg-gray-500"
+            className="[&>.slider-track]:bg-gray-400"
             onValueChange={handleHeightChange}
           />
         </div>
@@ -187,9 +199,29 @@ export default function ImageResizer({
           </Tooltip>
         </TooltipProvider>
 
-        <Button onClick={onApplyResize} className="w-full">
-          <Maximize2 className="h-4 w-4 mr-2" />
-          Apply Resize
+        {/* Modified layout: Apply Resize button and Format dropdown equally sized */}
+        <div className="grid grid-cols-2 gap-2">
+          <Button onClick={onApplyResize}>
+            <Maximize2 className="h-4 w-4 mr-2" />
+            Apply Resize
+          </Button>
+
+          <Select value={format} onValueChange={onFormatChange}>
+            <SelectTrigger className="bg-gray-700 border-gray-600 h-10">
+              <SelectValue placeholder="Format" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="jpeg">JPEG</SelectItem>
+              <SelectItem value="png">PNG</SelectItem>
+              <SelectItem value="webp">WebP</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Download button on its own row at full width */}
+        <Button onClick={onDownload} variant="outline" className="w-full">
+          <Download className="mr-2 h-4 w-4" />
+          Download
         </Button>
       </CardContent>
     </Card>

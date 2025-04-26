@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Import placeholder styles */
-@import "./styles/placeholders.css";
-
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -142,4 +139,342 @@ body {
 
 .animate-fade-scale-in {
   animation: fade-scale-in 0.4s ease-out forwards;
+}
+
+/* Polaroid slide-down animation - slower version */
+@keyframes polaroid-slide-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-80px) rotate(-8deg);
+  }
+  30% {
+    opacity: 0.5;
+    transform: translateY(-40px) rotate(-4deg);
+  }
+  60% {
+    opacity: 0.8;
+    transform: translateY(-15px) rotate(-2deg);
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(5px) rotate(1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(0);
+  }
+}
+
+.polaroid-card {
+  background: white;
+  padding: 10px 10px 20px 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
+
+.polaroid-new {
+  animation: polaroid-slide-down 1.5s ease-out forwards;
+}
+
+/* Dark mode support for polaroid cards */
+.dark .polaroid-card {
+  background: hsl(0, 0%, 10%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Base transitions for all UI elements that animate during mode changes */
+.transition-ui {
+  transition-property: opacity, transform, width, height, margin, padding;
+  transition-duration: 500ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Sidebar animations */
+.sidebar-container {
+  width: 25%;
+  min-width: 300px;
+  max-width: 400px;
+  transform: translateX(0);
+  opacity: 1;
+  transition-property: transform, opacity, width, margin;
+  transition-duration: 600ms;
+  transition-timing-function: cubic-bezier(
+    0.34,
+    1.56,
+    0.64,
+    1
+  ); /* Slight overshoot for natural feel */
+}
+
+.sidebar-container.exit {
+  transform: translateX(-110%);
+  opacity: 0;
+  width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* Main canvas animations */
+.canvas-container {
+  transition-property: width, padding, margin;
+  transition-duration: 500ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  width: 75%;
+}
+
+.canvas-container.fullscreen {
+  width: 100%;
+  padding: 0 1rem;
+}
+
+/* Bottom bar animations */
+.bottom-bar {
+  transform: translateY(0);
+  opacity: 1;
+  max-height: 200px;
+  transition-property: transform, opacity, max-height;
+  transition-duration: 500ms;
+  transition-delay: 100ms; /* Slight delay for staggered animation */
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.bottom-bar.exit {
+  transform: translateY(50px);
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+}
+
+/* Image gallery animations */
+.image-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 0.5rem;
+  transition-property: opacity, transform, max-height;
+  transition-duration: 400ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: top center;
+  max-height: 1000px;
+  overflow: visible;
+}
+
+.image-gallery-grid.minimized {
+  grid-template-columns: repeat(20, minmax(0, 1fr));
+  max-height: 3rem;
+  overflow: hidden;
+  opacity: 0.5;
+  transform: scale(0.9) translateY(-10px);
+}
+
+.image-gallery-item {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 0.375rem;
+}
+
+/* Edit mode overlay fade-in animation */
+.edit-mode-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 400ms ease;
+}
+
+.edit-mode-overlay.active {
+  opacity: 1;
+}
+
+/* Canvas expansion animation */
+@keyframes canvas-expand {
+  from {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.canvas-expand {
+  animation: canvas-expand 500ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* For the edit mode indicator */
+.edit-mode-indicator {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.edit-mode-indicator span {
+  margin-left: 0.5rem;
+  font-size: 0.875rem;
+  color: white;
+  opacity: 0.7;
+}
+
+/* Add subtle transition to image editor tools */
+.editing-tools {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 300ms ease, transform 300ms ease;
+}
+
+.editing-active .editing-tools {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Tool panel transitions */
+.tool-panel {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 300ms ease, transform 300ms ease;
+  pointer-events: none;
+}
+
+.tool-panel.active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* Image canvas container */
+.image-canvas-container {
+  position: relative;
+  overflow: hidden;
+  transition: height 500ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Zoom controls */
+.zoom-controls {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 300ms ease, transform 300ms ease;
+  z-index: 10;
+}
+
+.image-canvas-container:hover .zoom-controls {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Tool button transitions */
+.tool-button {
+  position: relative;
+  overflow: hidden;
+  transition: background-color 150ms ease;
+}
+
+.tool-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.2) 0%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.tool-button:hover::after {
+  opacity: 1;
+}
+
+.tool-button.active {
+  background-color: rgb(59, 130, 246);
+  color: white;
+}
+
+/* Status indicator for saving changes */
+.status-indicator {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(100%);
+  padding: 0.5rem 1rem;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  opacity: 0;
+  transition: transform 300ms ease, opacity 300ms ease;
+}
+
+.status-indicator.visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+/* Add focused blur effect for modal views */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0);
+  backdrop-filter: blur(0px);
+  transition: background-color 300ms ease, backdrop-filter 300ms ease;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.modal-backdrop.active {
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  pointer-events: auto;
+}
+
+/* Canvas guide lines for cropping */
+.canvas-guides {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.canvas-guides .guide-h,
+.canvas-guides .guide-v {
+  position: absolute;
+  background-color: rgba(59, 130, 246, 0.5);
+}
+
+.canvas-guides .guide-h {
+  height: 1px;
+  width: 100%;
+  top: 33.33%;
+}
+
+.canvas-guides .guide-h:nth-child(2) {
+  top: 66.66%;
+}
+
+.canvas-guides .guide-v {
+  width: 1px;
+  height: 100%;
+  left: 33.33%;
+}
+
+.canvas-guides .guide-v:nth-child(4) {
+  left: 66.66%;
+}
+
+.image-canvas-container:hover .canvas-guides {
+  opacity: 1;
 }

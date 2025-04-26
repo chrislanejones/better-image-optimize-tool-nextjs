@@ -125,7 +125,7 @@ export const getAllImages = async (): Promise<StoredImage[]> => {
   }
 };
 
-// Get a single image by ID
+// Modified function with better error handling
 export const getImageById = async (id: string): Promise<StoredImage | null> => {
   try {
     const db = await initDB();
@@ -135,10 +135,23 @@ export const getImageById = async (id: string): Promise<StoredImage | null> => {
     return new Promise((resolve, reject) => {
       const request = store.get(id);
 
-      request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(new Error("Failed to get image"));
+      request.onsuccess = () => {
+        const result = request.result;
+        console.log("Retrieved image data:", {
+          id: result?.id,
+          name: result?.name,
+          type: result?.type,
+          hasFileData: !!result?.fileData,
+          fileDataLength: result?.fileData?.length || 0,
+        });
+        resolve(request.result || null);
+      };
 
-      // Close the database when transaction completes
+      request.onerror = (error) => {
+        console.error("Failed to get image:", error);
+        reject(new Error("Failed to get image"));
+      };
+
       transaction.oncomplete = () => db.close();
     });
   } catch (error) {
@@ -235,9 +248,36 @@ export const createFileFromBase64 = (
   fileName: string,
   fileType: string
 ): File => {
-  // Create blob from base64
-  const blob = base64ToBlob(base64Data, fileType);
+  try {
+    // Check if base64Data is properly formatted
+    if (!base64Data) {
+      console.error("Base64 data is empty or undefined");
+      throw new Error("Invalid base64 data");
+    }
 
-  // Create file from blob
-  return new File([blob], fileName, { type: fileType });
+    // Ensure base64 data has the correct prefix
+    let processedBase64 = base64Data;
+    if (!base64Data.includes("base64,")) {
+      console.log("Adding base64 prefix to data");
+      processedBase64 = `data:${fileType};base64,${base64Data}`;
+    }
+
+    // Create blob from base64
+    const blob = base64ToBlob(processedBase64, fileType);
+
+    // Check if blob was created successfully
+    if (!blob || blob.size === 0) {
+      console.error("Failed to create blob from base64 data");
+      throw new Error("Failed to create blob");
+    }
+
+    // Create file from blob
+    return new File([blob], fileName, { type: fileType });
+  } catch (error) {
+    console.error("Error creating file from base64:", error);
+    // Return a placeholder file to prevent application crashes
+    return new File([new Blob([""], { type: "text/plain" })], "error.txt", {
+      type: "text/plain",
+    });
+  }
 };

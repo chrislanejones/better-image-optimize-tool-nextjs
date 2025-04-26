@@ -20,6 +20,18 @@ import {
 import { getMimeType, getFileFormat } from "./utils/image-utils";
 import { updateImage } from "./utils/indexedDB";
 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+  Text,
+} from "recharts";
+
 interface ImageFile {
   id: string;
   file: File;
@@ -719,6 +731,9 @@ export default function ImageCropper({
                 maxHeight={imgRef.current?.naturalHeight || 1000}
                 onResize={handleResize}
                 onApplyResize={applyResize}
+                format={format}
+                onFormatChange={setFormat}
+                onDownload={downloadImage}
               />
 
               {hasEdited && <ImageZoomView imageUrl={previewUrl} />}

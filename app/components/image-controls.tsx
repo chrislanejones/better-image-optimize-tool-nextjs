@@ -1,15 +1,8 @@
+// Modified ImageControls.tsx
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Pencil,
   RefreshCw,
-  Download,
   Upload,
   Trash2,
   Crop,
@@ -223,21 +216,7 @@ export default function ImageControls({
               Reset
             </Button>
 
-            <Select value={format} onValueChange={onFormatChange}>
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="Format" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="jpeg">JPEG</SelectItem>
-                <SelectItem value="png">PNG</SelectItem>
-                <SelectItem value="webp">WebP</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Button onClick={onDownload} variant="outline">
-              <Download className="mr-2 h-4 w-4" />
-              Download
-            </Button>
+            {/* Removed Format dropdown and Download button */}
 
             <Button onClick={onUploadNew} variant="outline">
               <Upload className="mr-2 h-4 w-4" />
