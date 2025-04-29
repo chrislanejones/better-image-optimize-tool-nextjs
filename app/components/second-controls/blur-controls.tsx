@@ -70,7 +70,7 @@ export default function BlurControls({
             value={[blurAmount]}
             onValueChange={(value) => {
               if (Array.isArray(value) && typeof value[0] === "number") {
-                onBlurRadiusChange(value[0]);
+                onBlurAmountChange(value[0]);
               }
             }}
             className="[&>.slider-track]:bg-gray-500"
@@ -83,7 +83,7 @@ export default function BlurControls({
               htmlFor="blur-radius"
               className="text-sm font-medium text-white"
             >
-              Blur Radius: {blurRadius}px
+              Brush Size: {blurRadius}px
             </label>
             <div className="flex items-center gap-1">
               <Button

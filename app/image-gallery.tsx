@@ -22,6 +22,7 @@ import {
   Paintbrush,
   Minus,
   Plus,
+  Eraser,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -313,17 +314,17 @@ export default function ImageGallery({
   const handleToggleCropping = () => {
     setIsCropping((prev) => !prev);
     setIsBlurring(false);
-    setPainting(false);
+    setIsPainting(false);
   };
 
   const handleToggleBlurring = () => {
     setIsBlurring((prev) => !prev);
     setIsCropping(false);
-    setPainting(false);
+    setIsPainting(false);
   };
 
   const handleTogglePainting = () => {
-    setPainting((prev) => !prev);
+    setIsPainting((prev) => !prev);
     setIsCropping(false);
     setIsBlurring(false);
   };
@@ -334,7 +335,7 @@ export default function ImageGallery({
     setZoomLevel(1);
     setIsCropping(false);
     setIsBlurring(false);
-    setPainting(false);
+    setIsPainting(false);
   };
 
   if (!isMounted || isLoading) {

@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import BlurBrushCanvas from "@/app/components/BlurBrushCanvas";
 import PaintTool from "@/app/components/paint-tool";
 import BlurControls from "@/app/components/second-controls/blur-controls";
+// Add the missing import for PaintControls
+import PaintControls from "@/app/components/second-controls/paint-controls";
 
 import {
-  Pencil,
-  Info,
   Upload,
   X,
   Maximize2,
@@ -36,8 +36,34 @@ export default function ImageEditor() {
   const [blurAmount, setBlurAmount] = useState(5);
   const [blurRadius, setBlurRadius] = useState(10);
   const [isEraser, setIsEraser] = useState(false);
+  const [brushSize, setBrushSize] = useState(10);
+  const [brushColor, setBrushColor] = useState("#ff0000");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Debug logging - using safe approach for ESLint
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      process.env.NODE_ENV === "development"
+    ) {
+      try {
+        // eslint-disable-next-line no-console
+        console.log(
+          "Selected image changed:",
+          selectedImage
+            ? {
+                id: selectedImage.id,
+                url: selectedImage.url?.substring(0, 30) + "...",
+                hasFile: !!selectedImage.file,
+              }
+            : null
+        );
+      } catch (e) {
+        // Silently fail in production
+      }
+    }
+  }, [selectedImage]);
 
   const handleUploadClick = () => fileInputRef.current?.click();
 
@@ -50,16 +76,16 @@ export default function ImageEditor() {
       url: URL.createObjectURL(file),
     }));
     setImages((prev) => [...prev, ...newImages]);
+
+    // Auto-select first image
+    if (newImages.length > 0 && images.length === 0) {
+      setSelectedImage(newImages[0]);
+    }
   };
 
   const removeImage = (id: string) => {
     setImages((prev) => prev.filter((img) => img.id !== id));
     if (selectedImage?.id === id) setSelectedImage(null);
-  };
-
-  const resetTools = () => {
-    setIsBlurring(false);
-    setIsPainting(false);
   };
 
   return (
@@ -133,7 +159,7 @@ export default function ImageEditor() {
               <Button
                 variant={isBlurring ? "default" : "outline"}
                 onClick={() => {
-                  setIsBlurring(true);
+                  setIsBlurring(!isBlurring);
                   setIsPainting(false);
                 }}
               >
@@ -143,7 +169,7 @@ export default function ImageEditor() {
               <Button
                 variant={isPainting ? "default" : "outline"}
                 onClick={() => {
-                  setIsPainting(true);
+                  setIsPainting(!isPainting);
                   setIsBlurring(false);
                 }}
               >
@@ -172,7 +198,7 @@ export default function ImageEditor() {
             </div>
           </div>
 
-          {/* Sub-Toolbar: Blur Controls OR Paint Controls */}
+          {/* Tool-specific controls */}
           {isBlurring && (
             <div className="mb-2">
               <BlurControls
@@ -183,11 +209,15 @@ export default function ImageEditor() {
               />
             </div>
           )}
+
           {isPainting && (
             <div className="mb-2">
-              {/* Add your PaintControls component or inline UI here */}
-              <p className="text-sm text-white">Brush Size: {10}px</p>
-              {/* TODO: Add color swatch buttons */}
+              <PaintControls
+                brushSize={brushSize}
+                brushColor={brushColor}
+                onBrushSizeChange={setBrushSize}
+                onBrushColorChange={setBrushColor}
+              />
             </div>
           )}
 
@@ -209,6 +239,8 @@ export default function ImageEditor() {
                 imageUrl={selectedImage.url}
                 blurAmount={blurAmount}
                 blurRadius={blurRadius}
+                onBlurAmountChange={setBlurAmount}
+                onBlurRadiusChange={setBlurRadius}
                 onApply={(dataUrl) => {
                   setSelectedImage({ ...selectedImage, url: dataUrl });
                   setIsBlurring(false);
@@ -216,11 +248,17 @@ export default function ImageEditor() {
                 onCancel={() => setIsBlurring(false)}
               />
             ) : (
-              <img
-                src={selectedImage.url}
-                alt="Editable"
-                className="object-contain max-h-full mx-auto"
-              />
+              <div className="h-full w-full flex justify-center items-center">
+                {selectedImage.url ? (
+                  <img
+                    src={selectedImage.url}
+                    alt="Editable"
+                    className="object-contain max-h-full max-w-full"
+                  />
+                ) : (
+                  <div className="text-white">No image available</div>
+                )}
+              </div>
             )}
           </div>
         </div>
