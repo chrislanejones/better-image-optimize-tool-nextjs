@@ -65,22 +65,6 @@ export default function ImageStats({
     setIsMounted(true);
   }, []);
 
-  const originalFormatted = originalStats
-    ? {
-        dimensions: `${originalStats.width} × ${originalStats.height}`,
-        size: formatBytes(originalStats.size),
-        format: originalStats.format.toUpperCase(),
-      }
-    : null;
-
-  const newFormatted = newStats
-    ? {
-        dimensions: `${newStats.width} × ${newStats.height}`,
-        size: formatBytes(newStats.size),
-        format: newStats.format.toUpperCase(),
-      }
-    : null;
-
   const savedBytes =
     originalStats && newStats ? originalStats.size - newStats.size : 0;
   const savedKB = Math.max(0, Math.round(savedBytes / 1024));
@@ -116,87 +100,29 @@ export default function ImageStats({
 
   return (
     <div className="space-y-4">
-      {hasEdited && originalStats && newStats && isMounted && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-gray-800 text-white border-gray-700">
-              <CardHeader className="p-3">
-                <CardTitle className="text-base flex items-center">
-                  <FileType className="mr-2 h-5 w-5 text-[hsl(var(--blue))]" />
-                  Original Image
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 pb-3 px-3">
-                <div className="text-sm">
-                  {originalFormatted && (
-                    <>
-                      <p className="mb-1 font-medium">File: {fileName}</p>
-                      <p className="mb-1">
-                        Dimensions: {originalFormatted.dimensions}
-                      </p>
-                      <p className="mb-1">Size: {originalFormatted.size}</p>
-                      <p>Format: {originalFormatted.format}</p>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+      {/* Row 1: Original Image, Dimensions, Storage */}
+      {originalStats && isMounted && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="bg-gray-800 text-white border-gray-700">
+            <CardHeader className="p-3">
+              <CardTitle className="text-base flex items-center">
+                <FileType className="mr-2 h-5 w-5 text-[hsl(var(--blue))]" />
+                Original Image
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 pb-3 px-3">
+              <div className="text-sm">
+                <p className="mb-1 font-medium">File: {fileName}</p>
+                <p className="mb-1">
+                  Dimensions: {originalStats.width} × {originalStats.height}
+                </p>
+                <p className="mb-1">Size: {formatBytes(originalStats.size)}</p>
+                <p>Format: {originalStats.format.toUpperCase()}</p>
+              </div>
+            </CardContent>
+          </Card>
 
-            <Card className="bg-gray-800 text-white border-gray-700">
-              <CardHeader className="p-3">
-                <CardTitle className="text-base flex items-center">
-                  <DownloadCloud className="mr-2 h-5 w-5 text-[hsl(var(--purple))]" />
-                  Edited Image
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 pb-3 px-3">
-                <div className="text-sm">
-                  {newFormatted && (
-                    <>
-                      <p className="mb-1">
-                        Dimensions: {newFormatted.dimensions}
-                      </p>
-                      <p className="mb-1">Size: {newFormatted.size}</p>
-                      <p>Format: {format.toUpperCase()}</p>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gray-800 text-white border-gray-700">
-              <CardHeader className="p-3">
-                <CardTitle className="text-base flex items-center">
-                  <ArrowDownCircle className="mr-2 h-5 w-5 text-[hsl(var(--light-blue))]" />
-                  Compression Results
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 pb-3 px-3">
-                <div className="text-sm">
-                  <p className="mb-1">
-                    Size Reduction:{" "}
-                    {dataSavings > 0
-                      ? `${Math.round(dataSavings)}%`
-                      : "No reduction"}
-                  </p>
-                  <p className="mb-1">Space Saved: {formatBytes(savedBytes)}</p>
-                  <p className="mb-1">
-                    Dimensions Change:{" "}
-                    {newStats.width === originalStats.width &&
-                    newStats.height === originalStats.height
-                      ? "Unchanged"
-                      : `${Math.round(
-                          (newStats.width / originalStats.width) * 100
-                        )}% width, ${Math.round(
-                          (newStats.height / originalStats.height) * 100
-                        )}% height`}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {hasEdited && originalStats && newStats && (
             <Card className="bg-gray-800 text-white border-gray-700">
               <CardHeader className="p-3">
                 <CardTitle className="text-base flex items-center">
@@ -218,7 +144,7 @@ export default function ImageStats({
                       />
                       <XAxis
                         type="number"
-                        tick={{ fontSize: 10 }}
+                        tick={{ fontSize: 14, fill: "white" }}
                         tickFormatter={(v: number) => v.toLocaleString()}
                       />
                       <YAxis
@@ -226,7 +152,7 @@ export default function ImageStats({
                         type="category"
                         tickLine={false}
                         axisLine={false}
-                        tick={{ fontSize: 10 }}
+                        tick={{ fontSize: 14, fill: "white" }}
                         width={65}
                       />
                       <Tooltip
@@ -237,7 +163,7 @@ export default function ImageStats({
                           fontSize: "11px",
                           padding: "4px 8px",
                           borderRadius: "4px",
-                          color: "white",
+                          color: "grey",
                         }}
                       />
                       <Bar
@@ -264,7 +190,9 @@ export default function ImageStats({
                 </div>
               </CardContent>
             </Card>
+          )}
 
+          {hasEdited && (
             <Card className="bg-gray-800 text-white border-gray-700">
               <CardHeader className="p-3">
                 <CardTitle className="text-base flex items-center">
@@ -283,8 +211,8 @@ export default function ImageStats({
                           dataKey="value"
                           cx="50%"
                           cy="50%"
-                          innerRadius={30}
-                          outerRadius={50}
+                          innerRadius={50}
+                          outerRadius={90}
                           paddingAngle={2}
                           label={({ percent }) =>
                             `${Math.round((percent ?? 0) * 100)}%`
@@ -297,7 +225,7 @@ export default function ImageStats({
                         <Tooltip
                           formatter={(value) => [`${value} KB`]}
                           contentStyle={{
-                            backgroundColor: "#1f2937",
+                            backgroundColor: "#fff",
                             borderColor: "hsl(var(--teal))",
                             fontSize: "11px",
                             padding: "4px 8px",
@@ -321,8 +249,62 @@ export default function ImageStats({
                 </div>
               </CardContent>
             </Card>
-          </div>
-        </>
+          )}
+        </div>
+      )}
+
+      {/* Row 2: Edited Image and Compression Results */}
+      {hasEdited && originalStats && newStats && isMounted && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="bg-gray-800 text-white border-gray-700">
+            <CardHeader className="p-3">
+              <CardTitle className="text-base flex items-center">
+                <DownloadCloud className="mr-2 h-5 w-5 text-[hsl(var(--purple))]" />
+                Edited Image
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 pb-3 px-3">
+              <div className="text-sm">
+                <p className="mb-1">
+                  Dimensions: {newStats.width} × {newStats.height}
+                </p>
+                <p className="mb-1">Size: {formatBytes(newStats.size)}</p>
+                <p>Format: {format.toUpperCase()}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-800 text-white border-gray-700">
+            <CardHeader className="p-3">
+              <CardTitle className="text-base flex items-center">
+                <ArrowDownCircle className="mr-2 h-5 w-5 text-[hsl(var(--light-blue))]" />
+                Compression Results
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 pb-3 px-3">
+              <div className="text-sm">
+                <p className="mb-1">
+                  Size Reduction:{" "}
+                  {dataSavings > 0
+                    ? `${Math.round(dataSavings)}%`
+                    : "No reduction"}
+                </p>
+                <p className="mb-1">Space Saved: {formatBytes(savedBytes)}</p>
+                <p className="mb-1">
+                  Dimensions Change:{" "}
+                  {newStats.width === originalStats.width &&
+                  newStats.height === originalStats.height
+                    ? "Unchanged"
+                    : `${Math.round(
+                        (newStats.width / originalStats.width) * 100
+                      )}% width, ${Math.round(
+                        (newStats.height / originalStats.height) * 100
+                      )}% height`}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );

@@ -498,3 +498,14 @@ body {
 .image-canvas-container:hover .canvas-guides {
   opacity: 1;
 }
+
+/* Chart */
+
+.recharts-layer .recharts-cartesian-axis-tick {
+  font-size: 0.875rem;
+  color: var(--primary);
+  border-color: red;
+  .text {
+    fill: red;
+  }
+}
