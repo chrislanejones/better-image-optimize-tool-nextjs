@@ -10,9 +10,8 @@ import PaintTool from "./components/paint-tool";
 import ImageResizer from "./components/image-resizer";
 import ImageZoomView from "./components/image-zoom-view";
 import BlurBrushCanvas from "./components/BlurBrushCanvas";
+import { BlurControls, PaintControls } from "./components/editor-controls";
 
-import BlurControls from "./components/second-controls/blur-controls";
-import PaintControls from "./components/second-controls/paint-controls";
 import {
   cropImage,
   resizeImage,
@@ -666,12 +665,13 @@ export default function ImageCropper({
       {/* Display appropriate tool controls based on active tool */}
       {isBlurring && (
         <BlurBrushCanvas
-          image={imgRef.current}
-          isActive={isBlurring}
+          imageUrl={previewUrl}
           blurAmount={blurAmount}
           blurRadius={blurRadius}
           onApply={handleBlurApply}
           onCancel={cancelBlur}
+          onBlurAmountChange={setBlurAmount}
+          onBlurRadiusChange={setBlurRadius}
         />
       )}
 

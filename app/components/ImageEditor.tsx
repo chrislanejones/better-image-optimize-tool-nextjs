@@ -5,9 +5,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import BlurBrushCanvas from "@/app/components/BlurBrushCanvas";
 import PaintTool from "@/app/components/paint-tool";
-import BlurControls from "@/app/components/second-controls/blur-controls";
-// Add the missing import for PaintControls
-import PaintControls from "@/app/components/second-controls/paint-controls";
+import { BlurControls, PaintControls } from "@/app/components/editor-controls";
 
 import {
   Upload,

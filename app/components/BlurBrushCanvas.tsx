@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import BlurControls from "@/app/components/second-controls/blur-controls";
+import { BlurControls } from "./editor-controls";
 
 interface BlurBrushCanvasProps {
   imageUrl: string;
-  blurAmount: number; // blur intensity (pixels)
-  blurRadius: number; // brush radius (pixels)
+  blurAmount: number;
+  blurRadius: number;
   onApply: (blurredImageUrl: string) => void;
   onCancel: () => void;
   onBlurAmountChange?: (value: number) => void;
@@ -71,6 +71,8 @@ export default function BlurBrushCanvas({
       const canvas = canvasRef.current;
       canvas.width = image.naturalWidth;
       canvas.height = image.naturalHeight;
+      canvas.style.width = "100%"; // Ensures canvas scales to parent width
+      canvas.style.height = "auto";
 
       const ctx = canvas.getContext("2d");
       if (!ctx) {
@@ -187,11 +189,11 @@ export default function BlurBrushCanvas({
 
         <canvas
           ref={canvasRef}
+          className="w-full max-w-full h-auto rounded border"
           onMouseDown={startDrawing}
           onMouseUp={finishDrawing}
           onMouseMove={draw}
           onMouseLeave={finishDrawing}
-          className="max-w-full max-h-full object-contain cursor-crosshair"
           style={{
             display: isImageLoaded ? "block" : "none",
           }}
