@@ -6,10 +6,11 @@ import "react-image-crop/dist/ReactCrop.css";
 import ImageControls from "./components/image-controls";
 import ImageStats from "./components/image-stats"; // Using the existing image-stats.tsx
 import CroppingTool from "./components/cropping-tool";
-import BlurTool from "./components/blur-tool";
 import PaintTool from "./components/paint-tool";
 import ImageResizer from "./components/image-resizer";
 import ImageZoomView from "./components/image-zoom-view";
+import BlurBrushCanvas from "./components/BlurBrushCanvas";
+
 import BlurControls from "./components/second-controls/blur-controls";
 import PaintControls from "./components/second-controls/paint-controls";
 import {
@@ -54,6 +55,15 @@ interface ImageStats {
   format: string;
 }
 
+interface BlurBrushCanvasProps {
+  image: HTMLImageElement | null;
+  isActive: boolean;
+  blurAmount: number;
+  blurRadius: number;
+  onApply: (imageUrl: string) => void;
+  onCancel: () => void;
+}
+
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
 export default function ImageCropper({
@@ -81,6 +91,7 @@ export default function ImageCropper({
 
   // Tool states
   const [blurAmount, setBlurAmount] = useState<number>(5);
+  const [blurRadius, setBlurRadius] = useState<number>(10);
   const [brushSize, setBrushSize] = useState<number>(10);
   const [brushColor, setBrushColor] = useState<string>("#ff0000");
   const [isEraser, setIsEraser] = useState<boolean>(false);
@@ -654,9 +665,13 @@ export default function ImageCropper({
 
       {/* Display appropriate tool controls based on active tool */}
       {isBlurring && (
-        <BlurControls
+        <BlurBrushCanvas
+          image={imgRef.current}
+          isActive={isBlurring}
           blurAmount={blurAmount}
-          onBlurAmountChange={setBlurAmount}
+          blurRadius={blurRadius}
+          onApply={handleBlurApply}
+          onCancel={cancelBlur}
         />
       )}
 
@@ -688,10 +703,11 @@ export default function ImageCropper({
                     onCancel={cancelCrop}
                   />
                 ) : isBlurring ? (
-                  <BlurTool
-                    imageUrl={previewUrl}
-                    onApplyBlur={handleBlurApply}
-                    onCancel={cancelBlur}
+                  <BlurControls
+                    blurAmount={blurAmount}
+                    blurRadius={blurRadius}
+                    onBlurAmountChange={setBlurAmount}
+                    onBlurRadiusChange={setBlurRadius}
                   />
                 ) : isPainting ? (
                   <PaintTool

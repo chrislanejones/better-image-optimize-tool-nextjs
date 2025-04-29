@@ -68,7 +68,11 @@ export default function BlurControls({
             max={20}
             step={1}
             value={[blurAmount]}
-            onValueChange={(value) => onBlurAmountChange(value[0])}
+            onValueChange={(value) => {
+              if (Array.isArray(value) && typeof value[0] === "number") {
+                onBlurRadiusChange(value[0]);
+              }
+            }}
             className="[&>.slider-track]:bg-gray-500"
           />
         </div>
