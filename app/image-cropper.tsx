@@ -8,7 +8,7 @@ import ImageStats from "./components/image-stats"; // Using the existing image-s
 import CroppingTool from "./components/cropping-tool";
 import ImageResizer from "./components/image-resizer";
 import ImageZoomView from "./components/image-zoom-view";
-import { BlurControls, PaintControls } from "./components/editor-controls";
+import { PaintControls } from "./components/editor-controls";
 import BlurBrushCanvas, {
   type BlurBrushCanvasRef,
 } from "./components/BlurBrushCanvas";
@@ -20,7 +20,7 @@ import {
   safeRevokeURL,
 } from "./utils/image-transformations";
 import { getMimeType, getFileFormat } from "./utils/image-utils";
-import { updateImage } from "./utils/indexedDB";
+import { imageDB } from "./utils/indexedDB";
 
 import {
   BarChart,
@@ -61,13 +61,38 @@ interface ImageStats {
   format: string;
 }
 
-interface BlurBrushCanvasProps {
-  image: HTMLImageElement | null;
-  isActive: boolean;
-  blurAmount: number;
-  blurRadius: number;
-  onApply: (imageUrl: string) => void;
-  onCancel: () => void;
+// Define the interface for ImageControls props
+interface ImageControlsProps {
+  isEditMode: boolean;
+  isCropping: boolean;
+  isBlurring: boolean;
+  isPainting: boolean;
+  isEraser: boolean;
+  format: string;
+  onFormatChange: (format: string) => void;
+  onToggleEditMode: () => void;
+  onToggleCropping: () => void;
+  onToggleBlurring: () => void;
+  onTogglePainting: () => void;
+  onToggleEraser: () => void;
+  onApplyCrop: () => void;
+  onApplyBlur: () => void;
+  onApplyPaint: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
+  onDownload: () => void;
+  onUploadNew: () => void;
+  onRemoveAll: () => void;
+  onCancelBlur: () => void;
+  onCancelCrop: () => void;
+  onCancelPaint: () => void;
+  onBackToGallery: () => void;
+  onExitEditMode: () => void;
+  isStandalone: boolean;
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
 }
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
@@ -214,7 +239,7 @@ export default function ImageCropper({
         });
 
         // Update in IndexedDB
-        await updateImage(image.id, {
+        await imageDB.updateImage(image.id, {
           fileData: base64Data,
           type: fileType,
           width: width || 0,

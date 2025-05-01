@@ -34,14 +34,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import {
-  getAllImages,
-  saveImage,
-  deleteImage,
-  deleteAllImages,
-  fileToBase64,
-  updateImage,
-} from "@/app/utils/indexedDB";
+import { imageDB } from "@/app/utils/indexedDB";
 import {
   ImagePlaceholder,
   LoadingPlaceholder,
@@ -103,27 +96,14 @@ export default function ImageGallery({
     const loadImages = async () => {
       try {
         setIsLoading(true);
-        const storedImages = await getAllImages();
+        const storedImages = await imageDB.getAllImages();
         if (storedImages && storedImages.length > 0) {
           const loadedImages = storedImages.map((img) => {
-            const fileData = img.fileData;
-            const base64Data = fileData.includes("base64,")
-              ? fileData
-              : `data:${img.type};base64,${fileData}`;
-            const byteString = atob(base64Data.split(",")[1]);
-            const mimeString = base64Data
-              .split(",")[0]
-              .split(":")[1]
-              .split(";")[0];
-            const ab = new ArrayBuffer(byteString.length);
-            const ia = new Uint8Array(ab);
-            for (let i = 0; i < byteString.length; i++) {
-              ia[i] = byteString.charCodeAt(i);
-            }
-            const blob = new Blob([ab], { type: mimeString });
-            const file = new File([blob], img.name, { type: img.type });
-            const objectUrl = URL.createObjectURL(blob);
-            return { id: img.id, file, url: objectUrl };
+            return {
+              id: img.id,
+              file: img.file,
+              url: img.url,
+            };
           });
           setImages(loadedImages);
           setUploadComplete(true);
@@ -148,17 +128,13 @@ export default function ImageGallery({
         try {
           await Promise.all(
             images.map(async (img) => {
-              const fileData = await fileToBase64(img.file);
-              await saveImage({
-                id: img.id,
-                name: img.file.name,
-                type: img.file.type,
-                fileData,
-                url: img.url,
-                width: img.file.size > 0 ? undefined : 0,
-                height: img.file.size > 0 ? undefined : 0,
-                lastModified: img.file.lastModified,
-              });
+              if (img.isNew) {
+                await imageDB.saveImage({
+                  id: img.id,
+                  file: img.file,
+                  url: img.url,
+                });
+              }
             })
           );
         } catch (error) {
@@ -227,7 +203,7 @@ export default function ImageGallery({
     if (imageToRemove?.url) URL.revokeObjectURL(imageToRemove.url);
     setImages(images.filter((img) => img.id !== id));
     try {
-      await deleteImage(id);
+      await imageDB.deleteImage(id);
     } catch (error) {
       console.error("Error deleting image:", error);
     }
@@ -249,7 +225,7 @@ export default function ImageGallery({
     setUploadComplete(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
     try {
-      await deleteAllImages();
+      await imageDB.deleteAllImages();
     } catch (error) {
       console.error("Error clearing image database:", error);
     }
@@ -336,6 +312,11 @@ export default function ImageGallery({
     setIsCropping(false);
     setIsBlurring(false);
     setIsPainting(false);
+  };
+
+  const handleEditImage = (image: ImageFile) => {
+    // Navigate to the image editor page with the image ID
+    router.push(`/image-editor/${image.id}`);
   };
 
   if (!isMounted || isLoading) {
@@ -535,7 +516,6 @@ export default function ImageGallery({
           className={`group relative overflow-hidden polaroid-card ${
             image.isNew ? "polaroid-new" : ""
           } cursor-pointer`}
-          onClick={() => selectImage(image)}
         >
           <div className="relative aspect-square w-full">
             <Image
@@ -554,17 +534,30 @@ export default function ImageGallery({
           <div className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400 truncate px-2">
             {image.file.name}
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-            onClick={(e) => {
-              e.stopPropagation();
-              removeImage(image.id);
-            }}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button
+              variant="default"
+              size="icon"
+              className="p-1 bg-blue-500 text-white rounded-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEditImage(image);
+              }}
+            >
+              <Edit2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="destructive"
+              size="icon"
+              className="p-1 bg-red-500 text-white rounded-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                removeImage(image.id);
+              }}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </Card>
       ))}
     </div>

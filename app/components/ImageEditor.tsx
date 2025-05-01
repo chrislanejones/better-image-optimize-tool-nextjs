@@ -3,11 +3,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import BlurBrushCanvas, {
-  type BlurBrushCanvasRef,
-} from "@/app/components/BlurBrushCanvas";
-import PaintTool, { type PaintToolRef } from "@/app/components/paint-tool";
 import { BlurControls, PaintControls } from "@/app/components/editor-controls";
+import BlurBrushCanvas, { type BlurBrushCanvasRef } from "./BlurBrushCanvas";
+import PaintTool, { type PaintToolRef } from "@/app/components/paint-tool";
+import { imageDB } from "@/app/utils/indexedDB";
 
 import {
   Upload,

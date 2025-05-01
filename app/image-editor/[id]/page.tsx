@@ -5,11 +5,8 @@ import { useRouter, useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import {
-  getImageById,
-  deleteAllImages,
-  createFileFromBase64,
-} from "@/app/utils/indexedDB";
+import { imageDB } from "@/app/utils/indexedDB";
+import { createFileFromBlob, base64ToBlob } from "@/app/utils/image-utils";
 
 // Dynamically import the ImageCropper component to prevent hydration mismatch
 // This ensures it only renders on the client side
@@ -44,16 +41,28 @@ export default function ImageEditor() {
     const loadImage = async () => {
       try {
         setLoading(true);
-        const foundImage = await getImageById(imageId);
+        const foundImage = await imageDB.getImageById(imageId);
 
         if (foundImage) {
-          // Create a File object from the stored data
-          const file = createFileFromBase64(
-            foundImage.fileData.includes("base64,")
-              ? foundImage.fileData
-              : `data:${foundImage.type};base64,${foundImage.fileData}`,
-            foundImage.name,
-            foundImage.type
+          // Process the base64 data
+          const fileData = foundImage.file.type;
+          const base64Data =
+            foundImage.file instanceof File
+              ? await fileToBase64(foundImage.file)
+              : "";
+
+          // Create a blob from the base64 data
+          const blob = base64ToBlob(base64Data, foundImage.file.type);
+
+          // Create a file from the blob
+          const file = createFileFromBlob(
+            blob,
+            foundImage.file.name,
+            foundImage.file.type.includes("png")
+              ? "png"
+              : foundImage.file.type.includes("webp")
+              ? "webp"
+              : "jpeg"
           );
 
           // Create object URL for the image
@@ -83,7 +92,17 @@ export default function ImageEditor() {
         URL.revokeObjectURL(image.url);
       }
     };
-  }, [imageId]);
+  }, [imageId, image]);
+
+  // Helper function to convert File to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
 
   const handleUploadNew = () => {
     router.push("/");
@@ -91,7 +110,7 @@ export default function ImageEditor() {
 
   const handleRemoveAll = async () => {
     try {
-      await deleteAllImages();
+      await imageDB.deleteAllImages();
     } catch (error) {
       console.error("Error removing images:", error);
     }

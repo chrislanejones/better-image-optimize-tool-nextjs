@@ -1,127 +1,247 @@
 "use client";
 
-// Image database functions
-export const initImageDB = () => {
-  const DB_NAME = "ImageEditorDB";
-  const DB_VERSION = 1;
-  const STORE_NAME = "images";
+import type { PixelCrop } from "react-image-crop";
 
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+/**
+ * Image format type definition
+ */
+export type ImageFormat = "jpeg" | "png" | "webp";
 
-    request.onerror = () => reject(new Error("Failed to open database"));
+/**
+ * Convert a format string to its MIME type
+ */
+export function getMimeType(format: string): string {
+  if (format === "webp") return "image/webp";
+  if (format === "jpeg") return "image/jpeg";
+  if (format === "png") return "image/png";
+  return "image/jpeg"; // Default fallback
+}
 
-    request.onsuccess = (event) => {
-      resolve((event.target as IDBOpenDBRequest).result);
-    };
+/**
+ * Extract format from file type
+ */
+export function getFileFormat(fileType: string | undefined): string {
+  if (!fileType || typeof fileType !== "string") return "unknown";
+  const parts = fileType.split("/");
+  return parts.length > 1 ? parts[1] : "unknown";
+}
 
-    // Create object store when needed (first time or version upgrade)
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-
-      // Create the images object store with id as key path
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
-      }
-    };
-  });
-};
-
-export const getImages = async () => {
-  try {
-    const db = await initImageDB();
-    const transaction = db.transaction(["images"], "readonly");
-    const store = transaction.objectStore("images");
-
-    return new Promise<any[]>((resolve, reject) => {
-      const request = store.getAll();
-
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(new Error("Failed to get images"));
-
-      transaction.oncomplete = () => db.close();
-    });
-  } catch (error) {
-    console.error("Error getting images:", error);
-    return [];
+/**
+ * Safely revoke an object URL to prevent memory leaks
+ */
+export function safeRevokeURL(url: string | null | undefined): void {
+  if (url && typeof url === "string" && url.startsWith("blob:")) {
+    try {
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.warn("Failed to revoke object URL:", e);
+    }
   }
-};
+}
 
-export const saveImage = async (image: any) => {
+/**
+ * Format bytes to a human-readable string
+ */
+export function formatBytes(bytes: number, decimals = 2): string {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return (
+    parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + " " + sizes[i]
+  );
+}
+
+/**
+ * Calculate size reduction percentage
+ */
+export function calculateSizeReduction(
+  originalSize: number,
+  newSize: number
+): number {
+  if (originalSize <= 0) return 0;
+  return 100 - (newSize / originalSize) * 100;
+}
+
+/**
+ * Create a safe image URL, falling back to placeholder if needed
+ */
+export function getSafeImageUrl(url?: string): string {
+  if (!url || typeof url !== "string") return "/placeholder.svg";
+  return url;
+}
+
+/**
+ * Apply crop to an image and return the result as a URL
+ */
+export async function cropImage(
+  image: HTMLImageElement,
+  crop: PixelCrop,
+  format: ImageFormat = "jpeg",
+  quality = 0.9
+): Promise<string> {
   try {
-    const db = await initImageDB();
-    const transaction = db.transaction(["images"], "readwrite");
-    const store = transaction.objectStore("images");
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
 
-    return new Promise<void>((resolve, reject) => {
-      const request = store.put(image);
+    if (!ctx) {
+      throw new Error("Failed to get canvas context");
+    }
 
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(new Error("Failed to save image"));
+    // Calculate scale if the displayed image is resized
+    const scaleX = image.naturalWidth / image.width;
+    const scaleY = image.naturalHeight / image.height;
 
-      transaction.oncomplete = () => db.close();
-    });
+    // Set canvas dimensions to crop dimensions
+    canvas.width = crop.width;
+    canvas.height = crop.height;
+
+    // Draw the cropped portion of the image
+    ctx.drawImage(
+      image,
+      crop.x * scaleX,
+      crop.y * scaleY,
+      crop.width * scaleX,
+      crop.height * scaleY,
+      0,
+      0,
+      crop.width,
+      crop.height
+    );
+
+    // Convert to blob and create URL
+    const blob = await canvasToBlob(canvas, format, quality);
+    return URL.createObjectURL(blob);
   } catch (error) {
-    console.error("Error saving image:", error);
+    console.error("Error cropping image:", error);
     throw error;
   }
-};
+}
 
-export const deleteImage = async (id: string) => {
+/**
+ * Resize an image and return the result as a URL
+ */
+export async function resizeImage(
+  image: HTMLImageElement,
+  width: number,
+  height: number,
+  format: ImageFormat = "jpeg",
+  quality = 0.9
+): Promise<string> {
   try {
-    const db = await initImageDB();
-    const transaction = db.transaction(["images"], "readwrite");
-    const store = transaction.objectStore("images");
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
 
-    return new Promise<void>((resolve, reject) => {
-      const request = store.delete(id);
+    if (!ctx) {
+      throw new Error("Failed to get canvas context");
+    }
 
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(new Error("Failed to delete image"));
+    // Set canvas dimensions to desired resize values
+    canvas.width = width;
+    canvas.height = height;
 
-      transaction.oncomplete = () => db.close();
-    });
+    // Draw the image with new dimensions
+    ctx.drawImage(image, 0, 0, width, height);
+
+    // Convert to blob and create URL
+    const blob = await canvasToBlob(canvas, format, quality);
+    return URL.createObjectURL(blob);
   } catch (error) {
-    console.error("Error deleting image:", error);
+    console.error("Error resizing image:", error);
     throw error;
   }
-};
+}
 
-export const clearImages = async () => {
-  try {
-    const db = await initImageDB();
-    const transaction = db.transaction(["images"], "readwrite");
-    const store = transaction.objectStore("images");
-
-    return new Promise<void>((resolve, reject) => {
-      const request = store.clear();
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(new Error("Failed to clear images"));
-
-      transaction.oncomplete = () => db.close();
-    });
-  } catch (error) {
-    console.error("Error clearing images:", error);
-    throw error;
-  }
-};
-
-// File conversion utilities
-export const fileToBase64 = (file: File): Promise<string> => {
+/**
+ * Convert a canvas to a blob
+ */
+export function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  format: ImageFormat = "jpeg",
+  quality = 0.9
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (error) => reject(error);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Canvas to Blob conversion failed"));
+          return;
+        }
+        resolve(blob);
+      },
+      getMimeType(format),
+      quality
+    );
   });
-};
+}
 
-export const base64ToBlob = (
+/**
+ * Get image details from a URL (dimensions, etc.)
+ */
+export async function getImageDetails(url: string): Promise<{
+  width: number;
+  height: number;
+  naturalWidth: number;
+  naturalHeight: number;
+}> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      resolve({
+        width: img.width,
+        height: img.height,
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight,
+      });
+    };
+    img.onerror = () => {
+      reject(new Error(`Failed to load image: ${url}`));
+    };
+    img.src = url;
+  });
+}
+
+/**
+ * Create a file from a blob with the given name and type
+ */
+export function createFileFromBlob(
+  blob: Blob,
+  fileName: string,
+  format: ImageFormat = "jpeg"
+): File {
+  const extension = format === "jpeg" ? "jpg" : format;
+  const name = fileName.includes(".")
+    ? fileName.substring(0, fileName.lastIndexOf(".")) + "." + extension
+    : fileName + "." + extension;
+
+  return new File([blob], name, { type: getMimeType(format) });
+}
+
+/**
+ * Generate a download for an image
+ */
+export function downloadImage(
+  imageUrl: string,
+  fileName: string,
+  format: ImageFormat = "jpeg"
+): void {
+  const extension = format === "jpeg" ? "jpg" : format;
+  const link = document.createElement("a");
+  link.href = imageUrl;
+  link.download = `${fileName.split(".")[0] || "image"}-edited.${extension}`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+/**
+ * Convert base64 data to a blob
+ */
+export function base64ToBlob(
   base64Data: string,
-  contentType: string = ""
-): Blob => {
-  // Extract the base64 data part if it includes the data URL prefix
+  contentType: string = "image/jpeg"
+): Blob {
+  // Extract the base64 data if it includes the data URL prefix
   const base64 = base64Data.includes("base64,")
     ? base64Data.split("base64,")[1]
     : base64Data;
@@ -142,86 +262,132 @@ export const base64ToBlob = (
   }
 
   return new Blob(byteArrays, { type: contentType });
-};
+}
 
-export const createFileFromBase64 = (
-  base64Data: string,
-  fileName: string,
-  fileType: string
-): File => {
-  // Create blob from base64
-  const blob = base64ToBlob(base64Data, fileType);
-
-  // Create file from blob
-  return new File([blob], fileName, { type: fileType });
-};
-
-// Image format utilities
-export const getFileFormat = (fileType: string | undefined): string => {
-  if (!fileType || typeof fileType !== "string") return "unknown";
-  const parts = fileType.split("/");
-  return parts.length > 1 ? parts[1] : "unknown";
-};
-
-export const getMimeType = (format: string): string => {
-  if (format === "webp") return "image/webp";
-  if (format === "jpeg") return "image/jpeg";
-  if (format === "png") return "image/png";
-  return "image/png"; // Default fallback
-};
-
-// Function to create a thumbnail from an image
-export const createThumbnail = async (
-  file: File,
-  maxWidth: number = 300
-): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          reject(new Error("Failed to get canvas context"));
-          return;
-        }
-
-        // Calculate new dimensions while maintaining aspect ratio
-        const aspectRatio = img.width / img.height;
-        let width = maxWidth;
-        let height = maxWidth / aspectRatio;
-
-        // Set canvas size to new dimensions
-        canvas.width = width;
-        canvas.height = height;
-
-        // Draw image at new size
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Get data URL and resolve
-        const thumbnailDataUrl = canvas.toDataURL("image/jpeg", 0.7);
-        resolve(thumbnailDataUrl);
-      };
-
-      img.onerror = () =>
-        reject(new Error("Failed to load image for thumbnail"));
-      img.src = event.target?.result as string;
-    };
-
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(file);
+/**
+ * Compress an image to a target size (in bytes)
+ * @param imageUrl The URL of the image to compress
+ * @param targetSize The target size in bytes
+ * @param format The output format
+ * @param initialQuality The starting quality (0-1)
+ * @param maxIterations Maximum number of compression attempts
+ * @returns The URL of the compressed image
+ */
+export async function compressImageToTargetSize(
+  imageUrl: string,
+  targetSize: number,
+  format: ImageFormat = "jpeg",
+  initialQuality = 0.9,
+  maxIterations = 10
+): Promise<string> {
+  // Load the image
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to load image"));
+    image.src = imageUrl;
   });
-};
 
-// Helper for safely revoking object URLs
-export const safeRevokeObjectURL = (url: string | undefined) => {
-  if (url && typeof url === "string" && url.startsWith("blob:")) {
-    try {
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.warn("Failed to revoke object URL:", e);
+  // Create a canvas with the image dimensions
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Failed to get canvas context");
+
+  // Draw the image to the canvas
+  ctx.drawImage(img, 0, 0);
+
+  // Binary search for the optimal quality
+  let minQuality = 0.1;
+  let maxQuality = initialQuality;
+  let currentQuality = maxQuality;
+  let bestBlob: Blob | null = null;
+  let iterations = 0;
+
+  while (iterations < maxIterations) {
+    iterations++;
+
+    // Try with the current quality
+    const blob = await canvasToBlob(canvas, format, currentQuality);
+
+    // Check if we're close enough to target size
+    if (Math.abs(blob.size - targetSize) / targetSize < 0.05) {
+      // Within 5% of target, good enough
+      bestBlob = blob;
+      break;
+    }
+
+    if (blob.size > targetSize) {
+      // Too big, reduce quality
+      maxQuality = currentQuality;
+    } else {
+      // Too small, increase quality
+      minQuality = currentQuality;
+      bestBlob = blob; // This is a valid result as it's under target size
+    }
+
+    // Calculate new quality to try
+    currentQuality = (minQuality + maxQuality) / 2;
+
+    // If we've converged, exit
+    if (maxQuality - minQuality < 0.01) {
+      // We have the best blob already stored
+      break;
     }
   }
-};
+
+  // Use the best blob if we found one, otherwise use the last iteration
+  if (!bestBlob) {
+    bestBlob = await canvasToBlob(canvas, format, currentQuality);
+  }
+
+  // Create and return object URL
+  return URL.createObjectURL(bestBlob);
+}
+
+/**
+ * Create a downscaled version of an image optimized for web
+ * This is great for creating thumbnails or responsive images
+ */
+export async function createOptimizedImage(
+  imageUrl: string,
+  maxWidth: number = 1200,
+  maxHeight: number = 1200,
+  format: ImageFormat = "webp",
+  quality = 0.8
+): Promise<string> {
+  // Load the image
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to load image"));
+    image.src = imageUrl;
+  });
+
+  // Calculate new dimensions while maintaining aspect ratio
+  let width = img.naturalWidth;
+  let height = img.naturalHeight;
+
+  if (width > maxWidth || height > maxHeight) {
+    const ratio = Math.min(maxWidth / width, maxHeight / height);
+    width = Math.floor(width * ratio);
+    height = Math.floor(height * ratio);
+  }
+
+  // Create a canvas with the new dimensions
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Failed to get canvas context");
+
+  // Draw the image to the canvas with the new dimensions
+  ctx.drawImage(img, 0, 0, width, height);
+
+  // Convert to blob and create URL
+  const blob = await canvasToBlob(canvas, format, quality);
+  return URL.createObjectURL(blob);
+}

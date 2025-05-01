@@ -1,275 +1,209 @@
 "use client";
 
-interface StoredImage {
+import { base64ToBlob, getFileFormat } from "./image-utils";
+
+// IndexedDB configuration
+const DB_CONFIG = {
+  name: "ImageEditorDB",
+  version: 1,
+  storeName: "images",
+};
+
+// Types
+export interface StoredImage {
   id: string;
   name: string;
   type: string;
   fileData: string; // base64 encoded file data
-  url: string;
+  url?: string;
   width?: number;
   height?: number;
   lastModified?: number;
+  metadata?: Record<string, any>;
 }
 
-const DB_NAME = "ImageEditorDB";
-const DB_VERSION = 1;
-const STORE_NAME = "images";
+export interface ImageRecord {
+  id: string;
+  file: File;
+  url: string;
+  width?: number;
+  height?: number;
+  metadata?: Record<string, any>;
+}
 
-// Initialize the database
-export const initDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+/**
+ * Generic class for IndexedDB operations
+ */
+class IndexedDBStore<T extends { id: string }> {
+  private dbName: string;
+  private version: number;
+  private storeName: string;
 
-    request.onerror = () => reject(new Error("Failed to open database"));
-
-    request.onsuccess = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      resolve(db);
-    };
-
-    // Create object store when needed (first time or version upgrade)
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-
-      // Create the images object store with id as key path
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
-      }
-    };
-  });
-};
-
-// Save an image to IndexedDB
-export const saveImage = async (image: StoredImage): Promise<void> => {
-  try {
-    const db = await initDB();
-    const transaction = db.transaction([STORE_NAME], "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-
-    return new Promise((resolve, reject) => {
-      const request = store.put(image);
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(new Error("Failed to save image"));
-
-      // Close the database when transaction completes
-      transaction.oncomplete = () => db.close();
-    });
-  } catch (error) {
-    console.error("Error saving image to IndexedDB:", error);
-    throw error;
+  constructor(dbName: string, version: number, storeName: string) {
+    this.dbName = dbName;
+    this.version = version;
+    this.storeName = storeName;
   }
-};
 
-// Update an existing image
-export const updateImage = async (
-  id: string,
-  updates: Partial<StoredImage>
-): Promise<void> => {
-  try {
-    const db = await initDB();
-    const transaction = db.transaction([STORE_NAME], "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-
+  /**
+   * Open a connection to the database
+   */
+  private openDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
-      // First get the existing image
-      const getRequest = store.get(id);
+      const request = indexedDB.open(this.dbName, this.version);
 
-      getRequest.onsuccess = () => {
-        const image = getRequest.result;
-        if (!image) {
-          reject(new Error("Image not found"));
-          return;
+      request.onerror = () =>
+        reject(new Error(`Failed to open ${this.dbName} database`));
+
+      request.onsuccess = (event) => {
+        resolve((event.target as IDBOpenDBRequest).result);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+
+        // Create the object store if it doesn't exist
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName, { keyPath: "id" });
         }
-
-        // Update with new data
-        const updatedImage = { ...image, ...updates };
-
-        // Put it back in the store
-        const putRequest = store.put(updatedImage);
-        putRequest.onsuccess = () => resolve();
-        putRequest.onerror = () => reject(new Error("Failed to update image"));
       };
-
-      getRequest.onerror = () =>
-        reject(new Error("Failed to retrieve image for update"));
-
-      // Close the database when transaction completes
-      transaction.oncomplete = () => db.close();
     });
-  } catch (error) {
-    console.error("Error updating image in IndexedDB:", error);
-    throw error;
   }
-};
 
-// Get all images from IndexedDB
-export const getAllImages = async (): Promise<StoredImage[]> => {
-  try {
-    const db = await initDB();
-    const transaction = db.transaction([STORE_NAME], "readonly");
-    const store = transaction.objectStore(STORE_NAME);
+  /**
+   * Execute a transaction on the database
+   */
+  private async transaction<R>(
+    mode: IDBTransactionMode,
+    callback: (store: IDBObjectStore) => IDBRequest<R>
+  ): Promise<R> {
+    const db = await this.openDB();
 
     return new Promise((resolve, reject) => {
-      const request = store.getAll();
+      const transaction = db.transaction([this.storeName], mode);
+      const store = transaction.objectStore(this.storeName);
 
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(new Error("Failed to get images"));
+      const request = callback(store);
 
-      // Close the database when transaction completes
-      transaction.oncomplete = () => db.close();
-    });
-  } catch (error) {
-    console.error("Error getting images from IndexedDB:", error);
-    return [];
-  }
-};
-
-// Modified function with better error handling
-export const getImageById = async (id: string): Promise<StoredImage | null> => {
-  try {
-    const db = await initDB();
-    const transaction = db.transaction([STORE_NAME], "readonly");
-    const store = transaction.objectStore(STORE_NAME);
-
-    return new Promise((resolve, reject) => {
-      const request = store.get(id);
-
-      request.onsuccess = () => {
-        const result = request.result;
-        console.log("Retrieved image data:", {
-          id: result?.id,
-          name: result?.name,
-          type: result?.type,
-          hasFileData: !!result?.fileData,
-          fileDataLength: result?.fileData?.length || 0,
-        });
-        resolve(request.result || null);
-      };
-
-      request.onerror = (error) => {
-        console.error("Failed to get image:", error);
-        reject(new Error("Failed to get image"));
-      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
 
       transaction.oncomplete = () => db.close();
+      transaction.onerror = () => reject(transaction.error);
     });
-  } catch (error) {
-    console.error("Error getting image from IndexedDB:", error);
-    return null;
   }
-};
 
-// Delete an image by ID
-export const deleteImage = async (id: string): Promise<void> => {
-  try {
-    const db = await initDB();
-    const transaction = db.transaction([STORE_NAME], "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-
-    return new Promise((resolve, reject) => {
-      const request = store.delete(id);
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(new Error("Failed to delete image"));
-
-      // Close the database when transaction completes
-      transaction.oncomplete = () => db.close();
-    });
-  } catch (error) {
-    console.error("Error deleting image from IndexedDB:", error);
-    throw error;
+  /**
+   * Add or update an item in the store
+   */
+  async put(item: T): Promise<void> {
+    await this.transaction("readwrite", (store) => store.put(item));
   }
-};
 
-// Delete all images
-export const deleteAllImages = async (): Promise<void> => {
-  try {
-    const db = await initDB();
-    const transaction = db.transaction([STORE_NAME], "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-
-    return new Promise((resolve, reject) => {
-      const request = store.clear();
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(new Error("Failed to delete all images"));
-
-      // Close the database when transaction completes
-      transaction.oncomplete = () => db.close();
-    });
-  } catch (error) {
-    console.error("Error deleting all images from IndexedDB:", error);
-    throw error;
+  /**
+   * Get an item by id
+   */
+  async get(id: string): Promise<T | undefined> {
+    try {
+      const result = await this.transaction("readonly", (store) =>
+        store.get(id)
+      );
+      return result;
+    } catch (error) {
+      console.error(`Error getting item ${id}:`, error);
+      return undefined;
+    }
   }
-};
 
-// Helper function to convert File to base64
-export const fileToBase64 = (file: File): Promise<string> => {
+  /**
+   * Get all items in the store
+   */
+  async getAll(): Promise<T[]> {
+    try {
+      const result = await this.transaction("readonly", (store) =>
+        store.getAll()
+      );
+      return result || [];
+    } catch (error) {
+      console.error("Error getting all items:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Delete an item by id
+   */
+  async delete(id: string): Promise<void> {
+    await this.transaction("readwrite", (store) => store.delete(id));
+  }
+
+  /**
+   * Delete all items in the store
+   */
+  async clear(): Promise<void> {
+    await this.transaction("readwrite", (store) => store.clear());
+  }
+
+  /**
+   * Update an item with partial data
+   */
+  async update(id: string, updates: Partial<T>): Promise<void> {
+    try {
+      // First get the existing item
+      const item = await this.get(id);
+
+      if (!item) {
+        throw new Error(`Item with id ${id} not found`);
+      }
+
+      // Update with new data
+      const updatedItem = { ...item, ...updates };
+
+      // Save the updated item
+      await this.put(updatedItem);
+    } catch (error) {
+      console.error(`Error updating item ${id}:`, error);
+      throw error;
+    }
+  }
+}
+
+// Initialize the image store
+const imageStore = new IndexedDBStore<StoredImage>(
+  DB_CONFIG.name,
+  DB_CONFIG.version,
+  DB_CONFIG.storeName
+);
+
+/**
+ * Convert a File to base64
+ */
+export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = (error) => reject(error);
   });
-};
+}
 
-// Helper function to convert base64 to Blob
-export const base64ToBlob = (
-  base64Data: string,
-  contentType: string = ""
-): Blob => {
-  // Extract the base64 data part if it includes the data URL prefix
-  const base64 = base64Data.includes("base64,")
-    ? base64Data.split("base64,")[1]
-    : base64Data;
-
-  const byteCharacters = atob(base64);
-  const byteArrays: Uint8Array[] = [];
-
-  for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-    const slice = byteCharacters.slice(offset, offset + 512);
-
-    const byteNumbers = new Array(slice.length);
-    for (let i = 0; i < slice.length; i++) {
-      byteNumbers[i] = slice.charCodeAt(i);
-    }
-
-    const byteArray = new Uint8Array(byteNumbers);
-    byteArrays.push(byteArray);
-  }
-
-  return new Blob(byteArrays, { type: contentType });
-};
-
-// Helper function to create a File from base64 data
-export const createFileFromBase64 = (
+/**
+ * Create a File from base64 data
+ */
+export function createFileFromBase64(
   base64Data: string,
   fileName: string,
   fileType: string
-): File => {
+): File {
   try {
-    // Check if base64Data is properly formatted
-    if (!base64Data) {
-      console.error("Base64 data is empty or undefined");
-      throw new Error("Invalid base64 data");
-    }
-
     // Ensure base64 data has the correct prefix
     let processedBase64 = base64Data;
     if (!base64Data.includes("base64,")) {
-      console.log("Adding base64 prefix to data");
       processedBase64 = `data:${fileType};base64,${base64Data}`;
     }
 
     // Create blob from base64
     const blob = base64ToBlob(processedBase64, fileType);
-
-    // Check if blob was created successfully
-    if (!blob || blob.size === 0) {
-      console.error("Failed to create blob from base64 data");
-      throw new Error("Failed to create blob");
-    }
 
     // Create file from blob
     return new File([blob], fileName, { type: fileType });
@@ -280,4 +214,160 @@ export const createFileFromBase64 = (
       type: "text/plain",
     });
   }
+}
+
+/**
+ * API for image storage operations
+ */
+export const imageDB = {
+  /**
+   * Save an image to IndexedDB
+   */
+  async saveImage(image: ImageRecord): Promise<void> {
+    try {
+      // Convert file to base64
+      const fileData = await fileToBase64(image.file);
+
+      // Create stored image object
+      const storedImage: StoredImage = {
+        id: image.id,
+        name: image.file.name,
+        type: image.file.type,
+        fileData,
+        width: image.width,
+        height: image.height,
+        lastModified: image.file.lastModified,
+        metadata: image.metadata,
+      };
+
+      // Save to IndexedDB
+      await imageStore.put(storedImage);
+    } catch (error) {
+      console.error("Error saving image:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all images from IndexedDB
+   */
+  async getAllImages(): Promise<ImageRecord[]> {
+    try {
+      const storedImages = await imageStore.getAll();
+
+      // Convert stored images to ImageRecord objects
+      return storedImages.map((img) => {
+        // Process the base64 data
+        const fileData = img.fileData;
+        const base64Data = fileData.includes("base64,")
+          ? fileData
+          : `data:${img.type};base64,${fileData}`;
+
+        // Create a file object
+        const file = createFileFromBase64(base64Data, img.name, img.type);
+
+        // Create a blob URL
+        const blob = new Blob([file], { type: img.type });
+        const url = URL.createObjectURL(blob);
+
+        return {
+          id: img.id,
+          file,
+          url,
+          width: img.width,
+          height: img.height,
+          metadata: img.metadata,
+        };
+      });
+    } catch (error) {
+      console.error("Error getting all images:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Get an image by ID
+   */
+  async getImageById(id: string): Promise<ImageRecord | null> {
+    try {
+      const img = await imageStore.get(id);
+
+      if (!img) {
+        return null;
+      }
+
+      // Process the base64 data
+      const fileData = img.fileData;
+      const base64Data = fileData.includes("base64,")
+        ? fileData
+        : `data:${img.type};base64,${fileData}`;
+
+      // Create a file object
+      const file = createFileFromBase64(base64Data, img.name, img.type);
+
+      // Create a blob URL
+      const blob = new Blob([file], { type: img.type });
+      const url = URL.createObjectURL(blob);
+
+      return {
+        id: img.id,
+        file,
+        url,
+        width: img.width,
+        height: img.height,
+        metadata: img.metadata,
+      };
+    } catch (error) {
+      console.error(`Error getting image ${id}:`, error);
+      return null;
+    }
+  },
+
+  /**
+   * Update an existing image
+   */
+  async updateImage(
+    id: string,
+    updates: {
+      fileData?: string;
+      type?: string;
+      width?: number;
+      height?: number;
+      lastModified?: number;
+      metadata?: Record<string, any>;
+    }
+  ): Promise<void> {
+    try {
+      await imageStore.update(id, updates);
+    } catch (error) {
+      console.error(`Error updating image ${id}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete an image by ID
+   */
+  async deleteImage(id: string): Promise<void> {
+    try {
+      await imageStore.delete(id);
+    } catch (error) {
+      console.error(`Error deleting image ${id}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete all images
+   */
+  async deleteAllImages(): Promise<void> {
+    try {
+      await imageStore.clear();
+    } catch (error) {
+      console.error("Error deleting all images:", error);
+      throw error;
+    }
+  },
 };
+
+export default imageDB;
