@@ -3,8 +3,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import BlurBrushCanvas from "@/app/components/BlurBrushCanvas";
-import PaintTool from "@/app/components/paint-tool";
+import BlurBrushCanvas, {
+  type BlurBrushCanvasRef,
+} from "@/app/components/BlurBrushCanvas";
+import PaintTool, { type PaintToolRef } from "@/app/components/paint-tool";
 import { BlurControls, PaintControls } from "@/app/components/editor-controls";
 
 import {
@@ -17,6 +19,7 @@ import {
   Minus,
   Plus,
   Eraser,
+  Check,
 } from "lucide-react";
 
 interface ImageFile {
@@ -38,6 +41,8 @@ export default function ImageEditor() {
   const [brushColor, setBrushColor] = useState("#ff0000");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const blurCanvasRef = useRef<BlurBrushCanvasRef>(null);
+  const paintToolRef = useRef<PaintToolRef>(null);
 
   // Debug logging - using safe approach for ESLint
   useEffect(() => {
@@ -84,6 +89,66 @@ export default function ImageEditor() {
   const removeImage = (id: string) => {
     setImages((prev) => prev.filter((img) => img.id !== id));
     if (selectedImage?.id === id) setSelectedImage(null);
+  };
+
+  // Function to handle applying blur from the main toolbar
+  const handleApplyBlur = () => {
+    if (blurCanvasRef.current && selectedImage) {
+      const dataUrl = blurCanvasRef.current.getCanvasDataUrl();
+      if (dataUrl) {
+        // Debug log to verify we're getting a data URL
+        console.log("Got blur data URL:", dataUrl.substring(0, 50) + "...");
+
+        // Update the selected image with the new URL
+        setSelectedImage({
+          ...selectedImage,
+          url: dataUrl,
+        });
+
+        // Update the image in the images array
+        setImages((prev) =>
+          prev.map((img) =>
+            img.id === selectedImage.id ? { ...img, url: dataUrl } : img
+          )
+        );
+
+        setIsBlurring(false);
+      } else {
+        console.error("Failed to get blur canvas data URL");
+      }
+    } else {
+      console.error("Blur canvas ref not available");
+    }
+  };
+
+  // Function to handle applying paint from the main toolbar
+  const handleApplyPaint = () => {
+    if (paintToolRef.current && selectedImage) {
+      const dataUrl = paintToolRef.current.getCanvasDataUrl();
+      if (dataUrl) {
+        // Debug log to verify we're getting a data URL
+        console.log("Got paint data URL:", dataUrl.substring(0, 50) + "...");
+
+        // Update the selected image with the new URL
+        setSelectedImage({
+          ...selectedImage,
+          url: dataUrl,
+        });
+
+        // Update the image in the images array
+        setImages((prev) =>
+          prev.map((img) =>
+            img.id === selectedImage.id ? { ...img, url: dataUrl } : img
+          )
+        );
+
+        setIsPainting(false);
+      } else {
+        console.error("Failed to get paint canvas data URL");
+      }
+    } else {
+      console.error("Paint tool ref not available");
+    }
   };
 
   return (
@@ -178,21 +243,51 @@ export default function ImageEditor() {
 
             <div className="flex items-center gap-2">
               {isPainting && (
-                <Button onClick={() => setIsEraser((v) => !v)}>
-                  <Eraser className="mr-2 h-4 w-4" />
-                  {isEraser ? "Brush" : "Eraser"}
+                <>
+                  <Button onClick={() => setIsEraser((v) => !v)}>
+                    <Eraser className="mr-2 h-4 w-4" />
+                    {isEraser ? "Brush" : "Eraser"}
+                  </Button>
+                  <Button onClick={handleApplyPaint} variant="default">
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Paint
+                  </Button>
+                  <Button
+                    onClick={() => setIsPainting(false)}
+                    variant="destructive"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel Paint
+                  </Button>
+                </>
+              )}
+              {isBlurring && (
+                <>
+                  <Button onClick={handleApplyBlur} variant="default">
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Blur
+                  </Button>
+                  <Button
+                    onClick={() => setIsBlurring(false)}
+                    variant="destructive"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel Blur
+                  </Button>
+                </>
+              )}
+              {!isBlurring && !isPainting && (
+                <Button
+                  onClick={() => {
+                    setIsEditMode(false);
+                    setIsPainting(false);
+                    setIsBlurring(false);
+                  }}
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Exit Edit Mode
                 </Button>
               )}
-              <Button
-                onClick={() => {
-                  setIsEditMode(false);
-                  setIsPainting(false);
-                  setIsBlurring(false);
-                }}
-              >
-                <X className="mr-2 h-4 w-4" />
-                Exit Edit Mode
-              </Button>
             </div>
           </div>
 
@@ -223,6 +318,7 @@ export default function ImageEditor() {
           <div className="relative w-full h-[70vh] border rounded-lg overflow-hidden bg-black">
             {isPainting ? (
               <PaintTool
+                ref={paintToolRef}
                 imageUrl={selectedImage.url}
                 isEraser={isEraser}
                 onToggleEraser={() => setIsEraser((v) => !v)}
@@ -234,6 +330,7 @@ export default function ImageEditor() {
               />
             ) : isBlurring ? (
               <BlurBrushCanvas
+                ref={blurCanvasRef}
                 imageUrl={selectedImage.url}
                 blurAmount={blurAmount}
                 blurRadius={blurRadius}

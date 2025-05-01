@@ -1,7 +1,6 @@
 "use client";
 
 import { CardFooter } from "@/components/ui/card";
-
 import {
   useState,
   useRef,
@@ -9,6 +8,7 @@ import {
   type DragEvent,
   useEffect,
   type ClipboardEvent,
+  useMemo,
 } from "react";
 import Image from "next/image";
 import { X, Maximize2, Upload, ImageIcon, Info, Lock } from "lucide-react";
@@ -37,6 +37,29 @@ export default function ImageUploader() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isGalleryMinimized, setIsGalleryMinimized] = useState(false);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const IMAGES_PER_PAGE = 10;
+  const MAX_IMAGES = 50;
+
+  // Calculate total pages
+  const totalPages = useMemo(
+    () => Math.ceil(images.length / IMAGES_PER_PAGE),
+    [images.length]
+  );
+
+  // Get current page images
+  const currentImages = useMemo(() => {
+    const startIndex = (currentPage - 1) * IMAGES_PER_PAGE;
+    const endIndex = startIndex + IMAGES_PER_PAGE;
+    return images.slice(startIndex, endIndex);
+  }, [images, currentPage]);
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -47,8 +70,12 @@ export default function ImageUploader() {
   const addFiles = (files: FileList) => {
     const newImages: ImageFile[] = [];
 
-    // Process all files
-    for (let i = 0; i < files.length; i++) {
+    // Calculate how many more images we can add
+    const remainingSlots = MAX_IMAGES - images.length;
+    const filesToProcess = Math.min(files.length, remainingSlots);
+
+    // Process files up to the limit
+    for (let i = 0; i < filesToProcess; i++) {
       const file = files[i];
       if (file.type.startsWith("image/")) {
         newImages.push({
@@ -63,6 +90,14 @@ export default function ImageUploader() {
     if (newImages.length > 0) {
       setUploadComplete(true);
       setNewImageAdded(true);
+
+      // If we're adding images and not on the last page, go to the last page
+      if (images.length + newImages.length > currentPage * IMAGES_PER_PAGE) {
+        const newTotalPages = Math.ceil(
+          (images.length + newImages.length) / IMAGES_PER_PAGE
+        );
+        setCurrentPage(newTotalPages);
+      }
     }
   };
 
@@ -77,6 +112,13 @@ export default function ImageUploader() {
   }, [newImageAdded]);
 
   const handleUploadClick = () => {
+    // Check if we've reached the maximum number of images
+    if (images.length >= MAX_IMAGES) {
+      alert(
+        `Maximum limit of ${MAX_IMAGES} images reached. Please remove some images before uploading more.`
+      );
+      return;
+    }
     fileInputRef.current?.click();
   };
 
@@ -85,7 +127,15 @@ export default function ImageUploader() {
     if (selectedImage?.id === id) {
       setSelectedImage(null);
     }
-    if (images.length <= 1) {
+
+    // If we're removing an image and the current page becomes empty, go to the previous page
+    const newImagesLength = images.filter((image) => image.id !== id).length;
+    const newTotalPages = Math.ceil(newImagesLength / IMAGES_PER_PAGE);
+    if (currentPage > newTotalPages && newTotalPages > 0) {
+      setCurrentPage(newTotalPages);
+    }
+
+    if (newImagesLength === 0) {
       setUploadComplete(false);
     }
   };
@@ -103,6 +153,7 @@ export default function ImageUploader() {
     setImages([]);
     setUploadComplete(false);
     setSelectedImage(null);
+    setCurrentPage(1);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -132,6 +183,14 @@ export default function ImageUploader() {
     e.stopPropagation();
     setIsDragging(false);
 
+    // Check if we've reached the maximum number of images
+    if (images.length >= MAX_IMAGES) {
+      alert(
+        `Maximum limit of ${MAX_IMAGES} images reached. Please remove some images before uploading more.`
+      );
+      return;
+    }
+
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       addFiles(e.dataTransfer.files);
     }
@@ -140,6 +199,14 @@ export default function ImageUploader() {
   // Add useEffect to listen for paste events globally
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
+      // Check if we've reached the maximum number of images
+      if (images.length >= MAX_IMAGES) {
+        alert(
+          `Maximum limit of ${MAX_IMAGES} images reached. Please remove some images before uploading more.`
+        );
+        return;
+      }
+
       if (e.clipboardData && e.clipboardData.files.length > 0) {
         e.preventDefault();
         addFiles(e.clipboardData.files);
@@ -175,7 +242,7 @@ export default function ImageUploader() {
         handlePaste as unknown as EventListener
       );
     };
-  }, []); // Empty dependency array means this runs once on mount
+  }, [images.length]); // Added images.length to dependency array
 
   const toggleGalleryMinimized = (minimized: boolean) => {
     setIsGalleryMinimized(minimized);
@@ -193,6 +260,11 @@ export default function ImageUploader() {
               <CardTitle className="text-2xl">Upload Images</CardTitle>
               <CardDescription>
                 Upload multiple images for editing and compression
+                <br />
+                <span className="text-sm text-muted-foreground">
+                  Maximum {MAX_IMAGES} images allowed, {IMAGES_PER_PAGE} per
+                  page
+                </span>
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -233,7 +305,7 @@ export default function ImageUploader() {
       ) : (
         <div className="space-y-6">
           <div
-            className={`grid grid-cols-5 md:grid-cols-10 gap-2 p-2 bg-gray-800 rounded-lg ${
+            className={`grid grid-cols-5 md:grid-cols-10 gap-2 p-4 bg-gray-800 rounded-lg ${
               newImageAdded ? "animate-pulse-once" : ""
             } ${
               isGalleryMinimized
@@ -241,46 +313,47 @@ export default function ImageUploader() {
                 : "transition-all duration-300"
             }`}
           >
-            {isGalleryMinimized && (
-              <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+            {isGalleryMinimized ? (
+              // When in edit mode, show only the container with the "Editing Mode Active" message
+              <div className="absolute inset-0 flex items-center justify-center z-10">
                 <Lock className="h-6 w-6 text-white opacity-70" />
-                <span className="ml-2 text-white text-sm opacity-70">
+                <span className="ml-2 text-white text-sm opacity-90">
                   Editing Mode Active
                 </span>
               </div>
-            )}
-            {images.map((image, index) => (
-              <div
-                key={image.id}
-                className="relative group aspect-square animate-fade-scale-in"
-                style={{ animationDelay: `${index * 0.05}s` }}
-              >
-                <Image
-                  src={image.url || "/placeholder.svg"}
-                  alt="Uploaded image"
-                  fill
-                  className="object-cover rounded-md"
-                />
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100">
+            ) : (
+              // When not in edit mode, show the images
+              currentImages.map((image, index) => (
+                <div
+                  key={image.id}
+                  className="relative group aspect-square animate-fade-scale-in"
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                >
+                  <Image
+                    src={image.url || "/placeholder.svg"}
+                    alt="Uploaded image"
+                    fill
+                    className="object-cover rounded-md"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    <button
+                      onClick={() => expandImage(image)}
+                      className="p-2 bg-blue-500 text-white rounded-full transform transition-transform group-hover:scale-110"
+                      aria-label="Expand image"
+                    >
+                      <Maximize2 size={20} />
+                    </button>
+                  </div>
                   <button
-                    onClick={() => expandImage(image)}
-                    className="p-2 bg-blue-500 text-white rounded-full transform transition-transform group-hover:scale-110"
-                    aria-label="Expand image"
-                    disabled={isGalleryMinimized}
+                    onClick={() => removeImage(image.id)}
+                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Remove image"
                   >
-                    <Maximize2 size={20} />
+                    <X size={16} />
                   </button>
                 </div>
-                <button
-                  onClick={() => removeImage(image.id)}
-                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label="Remove image"
-                  disabled={isGalleryMinimized}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ))}
+              ))
+            )}
           </div>
 
           {!selectedImage && (
@@ -294,6 +367,12 @@ export default function ImageUploader() {
                   Select any image from the gallery above to start editing,
                   resizing, or converting it.
                 </p>
+                {images.length > IMAGES_PER_PAGE && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Showing page {currentPage} of {totalPages} ({images.length}{" "}
+                    images total)
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -305,6 +384,9 @@ export default function ImageUploader() {
                 onUploadNew={handleUploadClick}
                 onRemoveAll={resetUpload}
                 onEditModeChange={toggleGalleryMinimized}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
               />
             </div>
           )}

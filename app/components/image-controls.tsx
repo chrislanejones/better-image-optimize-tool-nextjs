@@ -1,4 +1,4 @@
-// Modified ImageControls.tsx
+// Modified ImageControls.tsx with pagination
 import { Button } from "@/components/ui/button";
 import {
   Pencil,
@@ -14,6 +14,9 @@ import {
   Minus,
   Plus,
   Eraser,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 
 interface ImageControlsProps {
@@ -30,8 +33,8 @@ interface ImageControlsProps {
   onTogglePainting: () => void;
   onToggleEraser: () => void;
   onApplyCrop: () => void;
-  onApplyBlur: (url: string) => void;
-  onApplyPaint: (url: string) => void;
+  onApplyBlur: () => void; // Remove the string parameter
+  onApplyPaint: () => void; // Remove the string parameter
   onZoomIn: () => void;
   onZoomOut: () => void;
   onReset: () => void;
@@ -44,6 +47,10 @@ interface ImageControlsProps {
   onBackToGallery?: () => void;
   onExitEditMode: () => void;
   isStandalone?: boolean;
+  // Pagination props
+  currentPage?: number;
+  totalPages?: number;
+  onPageChange?: (page: number) => void;
 }
 
 export default function ImageControls({
@@ -74,6 +81,10 @@ export default function ImageControls({
   onBackToGallery,
   onExitEditMode,
   isStandalone = false,
+  // Pagination props with defaults
+  currentPage = 1,
+  totalPages = 1,
+  onPageChange = () => {},
 }: ImageControlsProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
@@ -138,8 +149,9 @@ export default function ImageControls({
                   <Crop className="mr-2 h-4 w-4" />
                   Crop Image
                 </Button>
-                <Button onClick={() => onApplyBlur("")} variant="default">
-                  <Droplets className="mr-2 h-4 w-4" />
+                {/* Change this line to use the blurCanvasRef */}
+                <Button onClick={onApplyBlur} variant="default">
+                  <Check className="mr-2 h-4 w-4" />
                   Apply Blur
                 </Button>
                 <Button onClick={onTogglePainting} variant="outline">
@@ -166,8 +178,9 @@ export default function ImageControls({
                   <Droplets className="mr-2 h-4 w-4" />
                   Blur Tool
                 </Button>
-                <Button onClick={() => onApplyPaint("")} variant="default">
-                  <Paintbrush className="mr-2 h-4 w-4" />
+                {/* Change this line to use the paintToolRef */}
+                <Button onClick={onApplyPaint} variant="default">
+                  <Check className="mr-2 h-4 w-4" />
                   Apply Paint
                 </Button>
               </>
@@ -208,6 +221,47 @@ export default function ImageControls({
               <Pencil className="mr-2 h-4 w-4" />
               Edit Image Mode
             </Button>
+
+            {/* Pagination controls - only shown when not in edit mode */}
+            {!isEditMode && totalPages > 1 && (
+              <div className="flex items-center gap-1 ml-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => onPageChange(1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => onPageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="mx-2 text-sm">
+                  {currentPage} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => onPageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => onPageChange(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -215,8 +269,6 @@ export default function ImageControls({
               <RefreshCw className="mr-2 h-4 w-4" />
               Reset
             </Button>
-
-            {/* Removed Format dropdown and Download button */}
 
             <Button onClick={onUploadNew} variant="outline">
               <Upload className="mr-2 h-4 w-4" />
