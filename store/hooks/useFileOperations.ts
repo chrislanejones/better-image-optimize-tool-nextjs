@@ -1,9 +1,28 @@
 // store/hooks/useFileOperations.ts
 import { useCallback } from "react";
-import { useImageStore, useImageActions } from "../useImageStore";
+import { useImageStore } from "../useImageStore";
+import { useImageActions } from "../useImageActions";
 
 export const useFileOperations = () => {
   const actions = useImageActions();
+
+  const addFiles = useCallback(
+    (files: FileList) => {
+      const newImages = Array.from(files)
+        .filter((file) => file.type.startsWith("image/"))
+        .map((file) => ({
+          id: crypto.randomUUID(),
+          file,
+          url: URL.createObjectURL(file),
+          isNew: true,
+        }));
+
+      if (newImages.length > 0) {
+        actions.addImages(newImages);
+      }
+    },
+    [actions]
+  );
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,6 +108,7 @@ export const useFileOperations = () => {
   );
 
   return {
+    addFiles,
     handleFileChange,
     handleDragEnter,
     handleDragOver,

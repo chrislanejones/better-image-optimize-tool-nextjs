@@ -11,7 +11,8 @@ import BlurBrushCanvas, {
   type BlurBrushCanvasRef,
 } from "./components/BlurBrushCanvas";
 import PaintTool, { type PaintToolRef } from "./components/paint-tool";
-import { useImageStore, useImageActions } from "@/store/useImageStore";
+import { useImageStore } from "@/store/useImageStore";
+import { useImageActions } from "@/store/useImageActions";
 import { useImageOperations } from "@/store/hooks/useImageOperations";
 import { useImageControls } from "@/store/hooks/useImageControls";
 import { useImageStats } from "@/store/hooks/useImageStats";

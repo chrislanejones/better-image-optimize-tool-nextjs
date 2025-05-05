@@ -27,6 +27,54 @@ export function getFileFormat(fileType: string | undefined): string {
 }
 
 /**
+ * Convert base64 string to Blob
+ */
+export function base64ToBlob(base64Data: string, mimeType: string): Blob {
+  // Remove data URL prefix if present
+  const base64WithoutPrefix = base64Data.replace(
+    /^data:image\/(png|jpeg|jpg|webp);base64,/,
+    ""
+  );
+
+  try {
+    // Convert base64 to byte array
+    const byteCharacters = atob(base64WithoutPrefix);
+    const byteArrays = [];
+
+    for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+      const slice = byteCharacters.slice(offset, offset + 512);
+      const byteNumbers = new Array(slice.length);
+
+      for (let i = 0; i < slice.length; i++) {
+        byteNumbers[i] = slice.charCodeAt(i);
+      }
+
+      const byteArray = new Uint8Array(byteNumbers);
+      byteArrays.push(byteArray);
+    }
+
+    return new Blob(byteArrays, { type: mimeType });
+  } catch (error) {
+    console.error("Error converting base64 to blob:", error);
+    return new Blob([], { type: mimeType });
+  }
+}
+
+/**
+ * Create a File from a Blob
+ */
+export function createFileFromBlob(
+  blob: Blob,
+  fileName: string,
+  format: ImageFormat = "jpeg"
+): File {
+  return new File([blob], fileName, {
+    type: getMimeType(format),
+    lastModified: Date.now(),
+  });
+}
+
+/**
  * Safely revoke an object URL to prevent memory leaks
  */
 export function safeRevokeURL(url: string | null | undefined): void {
@@ -61,6 +109,68 @@ export function calculateSizeReduction(
 ): number {
   if (originalSize <= 0) return 0;
   return 100 - (newSize / originalSize) * 100;
+}
+
+/**
+ * Get image dimensions from a URL
+ */
+export function getImageDimensions(
+  url: string
+): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      resolve({
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+      });
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = url;
+  });
+}
+
+/**
+ * Calculate aspect ratio
+ */
+export function calculateAspectRatio(width: number, height: number): number {
+  return height > 0 ? width / height : 1;
+}
+
+/**
+ * Generate a unique filename
+ */
+export function generateUniqueFileName(
+  originalName: string,
+  format: ImageFormat = "jpeg"
+): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 8);
+  return `${timestamp}-${random}.${format}`;
+}
+
+/**
+ * Validate image dimensions
+ */
+export function validateImageDimensions(
+  width: number,
+  height: number,
+  maxWidth = 8000,
+  maxHeight = 8000
+): boolean {
+  return width > 0 && height > 0 && width <= maxWidth && height <= maxHeight;
+}
+
+/**
+ * Convert File to data URL
+ */
+export function fileToDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
 }
 
 /**
@@ -165,4 +275,31 @@ export function canvasToBlob(
       quality
     );
   });
+}
+
+/**
+ * Optimize canvas settings for better performance
+ */
+export function optimizeCanvas(
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D
+): void {
+  // Disable image smoothing for pixel-perfect rendering
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  // Enable alpha channel
+  ctx.globalAlpha = 1;
+
+  // Reset transform matrix
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+/**
+ * Check if WebP format is supported by the browser
+ */
+export async function isWebPSupported(): Promise<boolean> {
+  const canvas = document.createElement("canvas");
+  if (!canvas.toDataURL) return false;
+  return canvas.toDataURL("image/webp").indexOf("data:image/webp") === 0;
 }

@@ -2,130 +2,17 @@
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import { MutableRefObject } from "react";
+import {
+  ImageStore,
+  ImageState,
+  ImageActions,
+  ImageFile,
+  ImageStats,
+} from "../types/image.types";
+import { initialState } from "./initialState";
 
-export interface ImageFile {
-  id: string;
-  file: File;
-  url: string;
-  isNew?: boolean;
-}
-
-export interface ImageStats {
-  width: number;
-  height: number;
-  size: number;
-  format: string;
-}
-
-interface ImageState {
-  // Images state
-  images: ImageFile[];
-  paginatedFiles: ImageFile[];
-  selectedFile: ImageFile | null;
-  selectedImage: ImageFile | null;
-  isUploading: boolean;
-  uploadProgress: number;
-  error: string | null;
-  uploadComplete: boolean;
-  newImageAdded: boolean;
-  isDragging: boolean;
-  isEditMode: boolean;
-  currentPage: number;
-
-  // Editor state
-  isBlurring: boolean;
-  isPainting: boolean;
-  isCropping: boolean;
-  brushColor: string;
-  brushSize: number;
-  isEraser: boolean;
-  blurAmount: number;
-  blurRadius: number;
-  zoom: number;
-  previewUrl: string;
-  width: number;
-  height: number;
-  imageRef: MutableRefObject<HTMLImageElement | null> | null;
-  canvasRef: MutableRefObject<HTMLCanvasElement | null> | null;
-
-  // Image processing state
-  originalStats: ImageStats | null;
-  newStats: ImageStats | null;
-  dataSavings: number;
-  hasEdited: boolean;
-  format: string;
-}
-
-interface ImageActions {
-  setImages: (images: ImageFile[]) => void;
-  addImages: (newImages: ImageFile[]) => void;
-  removeImage: (id: string) => void;
-  selectImage: (image: ImageFile | null) => void;
-  setUploadComplete: (complete: boolean) => void;
-  setNewImageAdded: (added: boolean) => void;
-  setIsDragging: (dragging: boolean) => void;
-  setIsEditMode: (mode: boolean) => void;
-  setIsBlurring: (blurring: boolean) => void;
-  setIsPainting: (painting: boolean) => void;
-  setIsCropping: (cropping: boolean) => void;
-  setBrushColor: (color: string) => void;
-  setBrushSize: (size: number) => void;
-  setIsEraser: (eraser: boolean) => void;
-  setBlurAmount: (amount: number) => void;
-  setBlurRadius: (radius: number) => void;
-  setZoom: (zoom: number) => void;
-  setPreviewUrl: (url: string) => void;
-  setWidth: (width: number) => void;
-  setHeight: (height: number) => void;
-  setImageRef: (ref: MutableRefObject<HTMLImageElement | null>) => void;
-  setCanvasRef: (ref: MutableRefObject<HTMLCanvasElement | null>) => void;
-  setOriginalStats: (stats: ImageStats | null) => void;
-  setNewStats: (stats: ImageStats | null) => void;
-  setDataSavings: (savings: number) => void;
-  setHasEdited: (edited: boolean) => void;
-  setFormat: (format: string) => void;
-  setCurrentPage: (page: number) => void;
-  resetEditor: () => void;
-  resetAll: () => void;
-  cleanupObjectURLs: () => void;
-}
-
-export type ImageStore = ImageState & ImageActions;
-
-const initialState: ImageState = {
-  images: [],
-  paginatedFiles: [],
-  selectedFile: null,
-  selectedImage: null,
-  isUploading: false,
-  uploadProgress: 0,
-  error: null,
-  uploadComplete: false,
-  newImageAdded: false,
-  isDragging: false,
-  isEditMode: false,
-  isBlurring: false,
-  isPainting: false,
-  isCropping: false,
-  brushColor: "#ff0000",
-  brushSize: 10,
-  isEraser: false,
-  blurAmount: 5,
-  blurRadius: 10,
-  zoom: 1,
-  previewUrl: "",
-  width: 0,
-  height: 0,
-  imageRef: null,
-  canvasRef: null,
-  originalStats: null,
-  newStats: null,
-  dataSavings: 0,
-  hasEdited: false,
-  format: "jpeg",
-  currentPage: 1,
-};
+// Re-export types
+export type { ImageFile, ImageStats, ImageStore, ImageState, ImageActions };
 
 export const useImageStore = create<ImageStore>()(
   devtools(
@@ -137,7 +24,13 @@ export const useImageStore = create<ImageStore>()(
 
         addImages: (newImages) =>
           set((state) => {
-            state.images = [...state.images, ...newImages];
+            state.images = [
+              ...state.images,
+              ...newImages.map((img) => ({
+                ...img,
+                isNew: true,
+              })),
+            ];
             if (newImages.length > 0) {
               state.uploadComplete = true;
               state.newImageAdded = true;
@@ -161,13 +54,19 @@ export const useImageStore = create<ImageStore>()(
             if (image?.url) {
               state.previewUrl = image.url;
             }
-
-            // Reset stats
+            // Reset editing state
             state.hasEdited = false;
             state.originalStats = null;
             state.newStats = null;
+            state.completedCrop = null;
+            state.isEditMode = false;
+            state.isBlurring = false;
+            state.isPainting = false;
+            state.isCropping = false;
+            state.zoom = 1;
           }),
 
+        // Simple state setters
         setUploadComplete: (complete) => set({ uploadComplete: complete }),
         setNewImageAdded: (added) => set({ newImageAdded: added }),
         setIsDragging: (dragging) => set({ isDragging: dragging }),
@@ -192,6 +91,7 @@ export const useImageStore = create<ImageStore>()(
         setHasEdited: (edited) => set({ hasEdited: edited }),
         setFormat: (format) => set({ format }),
         setCurrentPage: (page) => set({ currentPage: page }),
+        setCompletedCrop: (crop) => set({ completedCrop: crop }),
 
         resetEditor: () =>
           set((state) => {
@@ -202,10 +102,29 @@ export const useImageStore = create<ImageStore>()(
             state.zoom = 1;
             state.hasEdited = false;
             state.newStats = null;
-            state.previewUrl = state.selectedImage?.url || "";
+            state.completedCrop = null;
+            if (state.selectedImage?.url) {
+              state.previewUrl = state.selectedImage.url;
+            }
           }),
 
-        resetAll: () => set(() => ({ ...initialState })),
+        resetAll: () =>
+          set((state) => {
+            // Cleanup URLs before reset
+            state.images.forEach((image) => {
+              if (image.url.startsWith("blob:")) {
+                URL.revokeObjectURL(image.url);
+              }
+            });
+            if (
+              state.previewUrl &&
+              state.previewUrl.startsWith("blob:") &&
+              state.previewUrl !== state.selectedImage?.url
+            ) {
+              URL.revokeObjectURL(state.previewUrl);
+            }
+            return initialState;
+          }),
 
         cleanupObjectURLs: () => {
           const state = get();
@@ -268,21 +187,8 @@ export const useImageActions = () => {
     setHasEdited: store.setHasEdited,
     setFormat: store.setFormat,
     setCurrentPage: store.setCurrentPage,
+    setCompletedCrop: store.setCompletedCrop,
     resetEditor: store.resetEditor,
     resetAll: store.resetAll,
   };
 };
-
-// Effect for automatic cleanup
-export const useImageCleanup = () => {
-  useEffect(() => {
-    const cleanup = useImageStore.getState().cleanupObjectURLs;
-
-    // Clean up URLs when the component unmounts
-    return () => {
-      cleanup();
-    };
-  }, []);
-};
-
-import { useEffect } from "react";

@@ -3,33 +3,21 @@
 
 import * as React from "react";
 import * as SliderPrimitive from "@radix-ui/react-slider";
-
 import { cn } from "@/lib/utils";
 
 const Slider = React.forwardRef<
   React.ElementRef<typeof SliderPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
 >(({ className, ...props }, ref) => {
-  // Create a stable reference to the onValueChange handler
-  const onValueChangeRef = React.useRef(props.onValueChange);
-
-  // Update the ref when the prop changes
-  React.useEffect(() => {
-    onValueChangeRef.current = props.onValueChange;
-  }, [props.onValueChange]);
-
-  // Create a stable wrapper function that uses the ref
+  // Prevent unnecessary re-renders
   const handleValueChange = React.useCallback(
     (value: number[]) => {
-      if (onValueChangeRef.current) {
-        onValueChangeRef.current(value);
+      if (props.onValueChange) {
+        props.onValueChange(value);
       }
     },
-    [] // No dependencies needed since we use the ref
+    [props.onValueChange]
   );
-
-  // Remove the original onValueChange to avoid duplicate calls
-  const { onValueChange, ...restProps } = props;
 
   return (
     <SliderPrimitive.Root
@@ -38,9 +26,8 @@ const Slider = React.forwardRef<
         "relative flex w-full touch-none select-none items-center",
         className
       )}
-      // Use our stable wrapper instead of the original prop
       onValueChange={handleValueChange}
-      {...restProps}
+      {...props}
     >
       <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-secondary">
         <SliderPrimitive.Range className="absolute h-full bg-primary" />
@@ -50,6 +37,6 @@ const Slider = React.forwardRef<
   );
 });
 
-Slider.displayName = SliderPrimitive.Root.displayName;
+Slider.displayName = "Slider";
 
 export { Slider };

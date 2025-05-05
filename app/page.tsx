@@ -14,12 +14,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import ImageCropper from "./image-cropper";
-import {
-  useImageStore,
-  useImageActions,
-  useImageCleanup,
-} from "@/store/useImageStore";
+import { useImageStore } from "@/store/useImageStore";
+import { useImageActions } from "@/store/useImageActions";
+import { useImageCleanup } from "@/store/useImageCleanup";
 import { useFileOperations } from "@/store/hooks/useFileOperations";
+import { ImageFile } from "@/store/useImageStore";
 
 const MAX_IMAGES = 50;
 const IMAGES_PER_PAGE = 10;

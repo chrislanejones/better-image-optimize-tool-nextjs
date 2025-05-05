@@ -8,7 +8,8 @@ import { BlurControls, PaintControls } from "@/app/components/editor-controls";
 import BlurBrushCanvas, { type BlurBrushCanvasRef } from "./BlurBrushCanvas";
 import PaintTool, { type PaintToolRef } from "@/app/components/paint-tool";
 import { imageDB } from "@/app/utils/indexedDB";
-import { useImageStore, useImageActions } from "@/store/useImageStore";
+import { useImageStore } from "@/store/useImageStore";
+import { useImageActions } from "@/store/useImageActions";
 import { useImageControls } from "@/store/hooks/useImageControls";
 import { useFileOperations } from "@/store/hooks/useFileOperations";
 import {

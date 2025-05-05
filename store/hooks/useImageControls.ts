@@ -1,6 +1,7 @@
 // store/hooks/useImageControls.ts
 import { useCallback } from "react";
-import { useImageStore, useImageActions } from "../useImageStore";
+import { useImageStore } from "../useImageStore";
+import { useImageActions } from "../useImageActions";
 
 export const useImageControls = () => {
   const actions = useImageActions();

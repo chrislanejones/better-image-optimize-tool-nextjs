@@ -1,9 +1,25 @@
 // store/hooks/useImageOperations.ts
 import { useCallback, useRef } from "react";
-import { useImageStore, useImageActions } from "../useImageStore";
+import { useImageStore } from "../useImageStore";
 import { PixelCrop } from "react-image-crop";
 import { useImageStats } from "./useImageStats";
 import { useImageHistoryWithStore } from "./useImageStats";
+import { useImageActions } from "../useImageActions";
+
+function getFileFormatFromName(fileName: string): string {
+  const extension = fileName.toLowerCase().split(".").pop();
+  switch (extension) {
+    case "jpg":
+    case "jpeg":
+      return "jpeg";
+    case "png":
+      return "png";
+    case "webp":
+      return "webp";
+    default:
+      return "jpeg";
+  }
+}
 
 export const useImageOperations = () => {
   const {
@@ -342,7 +358,7 @@ export const useImageOperations = () => {
   // Initialize on new image
   const initializeImage = useCallback(
     (img: HTMLImageElement) => {
-      if (!selectedImage) return;
+      if (!selectedImage?.file) return;
 
       imgRefInternal.current = img;
       actions.setImageRef({ current: imgRefInternal.current });
@@ -362,8 +378,12 @@ export const useImageOperations = () => {
       actions.setNewStats(null);
 
       // Get image dimensions and set original stats
-      const imageSize = selectedImage.file.size;
-      const imageFormat = selectedImage.file.type.split("/")[1] || "unknown";
+      const imageSize = selectedImage.file.size || 0;
+
+      // Safely get the image format
+      const imageFormat = selectedImage.file.type
+        ? selectedImage.file.type.split("/")[1] || "jpeg"
+        : getFileFormatFromName(selectedImage.file.name) || "jpeg";
 
       actions.setOriginalStats({
         width: img.naturalWidth,

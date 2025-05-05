@@ -1,6 +1,7 @@
 // store/hooks/useImageStats.ts
 import { useCallback, useEffect } from "react";
-import { useImageStore, useImageActions } from "../useImageStore";
+import { useImageStore } from "../useImageStore";
+import { useImageActions } from "../useImageActions";
 
 export const useImageStats = () => {
   const { selectedImage, originalStats, newStats, dataSavings, format } =

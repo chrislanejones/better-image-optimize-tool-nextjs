@@ -1,6 +1,7 @@
 // store/hooks/useImageProcessing.ts
 import { useCallback } from "react";
-import { useImageStore, useImageActions } from "../useImageStore";
+import { useImageStore } from "../useImageStore";
+import { useImageActions } from "../useImageActions";
 import { PixelCrop } from "react-image-crop";
 import {
   cropImage,
