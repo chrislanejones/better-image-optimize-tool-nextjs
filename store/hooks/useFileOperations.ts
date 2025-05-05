@@ -1,6 +1,6 @@
 // store/hooks/useFileOperations.ts
 import { useCallback } from "react";
-import { useImageActions } from "../useImageStore";
+import { useImageStore, useImageActions } from "../useImageStore";
 
 export const useFileOperations = () => {
   const actions = useImageActions();
@@ -35,7 +35,9 @@ export const useFileOperations = () => {
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       e.stopPropagation();
-      actions.setIsDragging(true);
+      if (!useImageStore.getState().isDragging) {
+        actions.setIsDragging(true);
+      }
     },
     [actions]
   );

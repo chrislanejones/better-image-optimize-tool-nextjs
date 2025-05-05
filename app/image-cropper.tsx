@@ -1,20 +1,42 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import "react-image-crop/dist/ReactCrop.css";
 import { BlurControls, PaintControls } from "@/app/components/editor-controls";
 import ImageStats from "./components/image-stats";
 import CroppingTool from "./components/cropping-tool";
 import ImageResizer from "./components/image-resizer";
 import ImageZoomView from "./components/image-zoom-view";
-import BlurBrushCanvas, { type BlurBrushCanvasRef } from "./components/BlurBrushCanvas";
+import BlurBrushCanvas, {
+  type BlurBrushCanvasRef,
+} from "./components/BlurBrushCanvas";
 import PaintTool, { type PaintToolRef } from "./components/paint-tool";
 import { useImageStore, useImageActions } from "@/store/useImageStore";
 import { useImageOperations } from "@/store/hooks/useImageOperations";
 import { useImageControls } from "@/store/hooks/useImageControls";
 import { useImageStats } from "@/store/hooks/useImageStats";
-import { useImageHistoryWithStore } from "@store/hooks/useImageHistory";
-
+import { useImageHistoryWithStore } from "@/store/hooks/useImageStats";
+import { Button } from "@/components/ui/button";
+import {
+  X,
+  Minus,
+  Plus,
+  Crop,
+  Droplets,
+  Paintbrush,
+  Check,
+  RefreshCw,
+  Upload,
+  Trash2,
+  Eraser,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Edit2,
+  Download,
+  FolderDown,
+} from "lucide-react";
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
@@ -102,14 +124,18 @@ export default function ImageCropper({
   } = useImageOperations();
 
   const { getFormattedStats } = useImageStats();
-  const { saveState, performUndo, performRedo, canUndo, canRedo } = useImageHistoryWithStore();
+  const { saveState, performUndo, performRedo, canUndo, canRedo } =
+    useImageHistoryWithStore();
 
   // Initialize with image data
   useEffect(() => {
     if (!image) return;
 
     // Initialize with a safe URL
-    const safeUrl = image?.url && typeof image.url === "string" ? image.url : PLACEHOLDER_IMAGE;
+    const safeUrl =
+      image?.url && typeof image.url === "string"
+        ? image.url
+        : PLACEHOLDER_IMAGE;
     actions.setPreviewUrl(safeUrl);
     actions.selectImage(image);
 
@@ -133,7 +159,11 @@ export default function ImageCropper({
 
     // Cleanup function to revoke object URL
     return () => {
-      if (previewUrl && previewUrl !== PLACEHOLDER_IMAGE && previewUrl !== image.url) {
+      if (
+        previewUrl &&
+        previewUrl !== PLACEHOLDER_IMAGE &&
+        previewUrl !== image.url
+      ) {
         URL.revokeObjectURL(previewUrl);
       }
     };
@@ -156,7 +186,7 @@ export default function ImageCropper({
     }
   }, [isStandalone, actions]);
 
-  // Handle back to gallery 
+  // Handle back to gallery
   const handleBackToGallery = useCallback(() => {
     if (onBackToGallery) {
       onBackToGallery();
@@ -226,21 +256,32 @@ export default function ImageCropper({
           )}
 
           {isCropping && (
-            <Button onClick={() => handleCropComplete?.(completedCrop, imgRef.current!)} variant="default">
+            <Button
+              onClick={() =>
+                handleCropComplete(
+                  useImageStore.getState().completedCrop!,
+                  imgRef.current!
+                )
+              }
+              variant="default"
+            >
               <Check className="mr-2 h-4 w-4" />
               Apply Crop
             </Button>
           )}
 
           {isBlurring && (
-            <Button onClick={() => {
-              if (blurCanvasRef.current) {
-                const dataUrl = blurCanvasRef.current.getCanvasDataUrl();
-                if (dataUrl) {
-                  handleBlurApply(dataUrl);
+            <Button
+              onClick={() => {
+                if (blurCanvasRef.current) {
+                  const dataUrl = blurCanvasRef.current.getCanvasDataUrl();
+                  if (dataUrl) {
+                    handleBlurApply(dataUrl);
+                  }
                 }
-              }
-            }} variant="default">
+              }}
+              variant="default"
+            >
               <Check className="mr-2 h-4 w-4" />
               Apply Blur
             </Button>
@@ -248,14 +289,17 @@ export default function ImageCropper({
 
           {isPainting && (
             <>
-              <Button onClick={() => {
-                if (paintToolRef.current) {
-                  const dataUrl = paintToolRef.current.getCanvasDataUrl();
-                  if (dataUrl) {
-                    handlePaintApply(dataUrl);
+              <Button
+                onClick={() => {
+                  if (paintToolRef.current) {
+                    const dataUrl = paintToolRef.current.getCanvasDataUrl();
+                    if (dataUrl) {
+                      handlePaintApply(dataUrl);
+                    }
                   }
-                }
-              }} variant="default">
+                }}
+                variant="default"
+              >
                 <Check className="mr-2 h-4 w-4" />
                 Apply Paint
               </Button>
@@ -319,7 +363,38 @@ export default function ImageCropper({
 
           {/* Tool-specific cancel buttons */}
           {isCropping && (
-            <Button onClick={() => actions.setIsCropping(false)} variant="outline">
+            <Button
+              onClick={() => actions.setIsCropping(false)}
+              variant="outline"
+            >
+              <X className="mr-2 h-4 w-4" />
+              Cancel
+            </Button>
+          )}
+
+          {isBlurring && (
+            <Button
+              onClick={() => actions.setIsBlurring(false)}
+              variant="outline"
+            >
+              <X className="mr-2 h-4 w-4" />
+              Cancel
+            </Button>
+          )}
+
+          {isPainting && (
+            <Button
+              onClick={() => actions.setIsPainting(false)}
+              variant="outline"
+            >
+              <X className="mr-2 h-4 w-4" />
+              Cancel
+            </Button>
+          )}
+
+          {/* Edit mode toggle */}
+          {!isCropping && !isBlurring && !isPainting && isEditMode && (
+            <Button onClick={exitEditMode} variant="outline">
               <X className="mr-2 h-4 w-4" />
               Exit Edit Mode
             </Button>
@@ -481,26 +556,3 @@ export default function ImageCropper({
     </div>
   );
 }
-
-              Cancel
-            </Button>
-          )}
-
-          {isBlurring && (
-            <Button onClick={() => actions.setIsBlurring(false)} variant="outline">
-              <X className="mr-2 h-4 w-4" />
-              Cancel
-            </Button>
-          )}
-
-          {isPainting && (
-            <Button onClick={() => actions.setIsPainting(false)} variant="outline">
-              <X className="mr-2 h-4 w-4" />
-              Cancel
-            </Button>
-          )}
-
-          {/* Edit mode toggle */}
-          {!isCropping && !isBlurring && !isPainting && isEditMode && (
-            <Button onClick={exitEditMode} variant="outline">
-              <X className="mr-2 h-4 w-4" />
