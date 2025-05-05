@@ -124,6 +124,16 @@ export default function ImageCropper({
     initializeImage,
   } = useImageOperations();
 
+  const memoizedActions = React.useMemo(
+    () => ({
+      setBlurAmount: actions.setBlurAmount,
+      setBlurRadius: actions.setBlurRadius,
+      setBrushSize: actions.setBrushSize,
+      setBrushColor: actions.setBrushColor,
+    }),
+    [actions]
+  );
+
   const { getFormattedStats } = useImageStats();
   const { saveState, performUndo, performRedo, canUndo, canRedo } =
     useImageHistoryWithStore();
@@ -443,8 +453,8 @@ export default function ImageCropper({
           <BlurControls
             blurAmount={blurAmount}
             blurRadius={blurRadius}
-            onBlurAmountChange={actions.setBlurAmount}
-            onBlurRadiusChange={actions.setBlurRadius}
+            onBlurAmountChange={memoizedActions.setBlurAmount}
+            onBlurRadiusChange={memoizedActions.setBlurRadius}
           />
         </div>
       )}

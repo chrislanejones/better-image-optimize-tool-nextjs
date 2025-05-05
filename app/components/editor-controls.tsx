@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useMemo } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,9 +14,14 @@ interface ControlProps {
   onChange: (value: number) => void;
 }
 
-/**
- * Unified control component that can be used for both blur and paint controls
- */
+interface BlurControlsProps {
+  blurAmount: number;
+  blurRadius: number;
+  onBlurAmountChange: (value: number) => void;
+  onBlurRadiusChange: (value: number) => void;
+  className?: string;
+}
+
 export function Control({
   label,
   value,
@@ -24,13 +30,25 @@ export function Control({
   step = 1,
   onChange,
 }: ControlProps) {
-  const decrease = () => {
+  // Memoize handlers to prevent unnecessary re-renders
+  const decrease = useCallback(() => {
     onChange(Math.max(value - step, min));
-  };
+  }, [value, step, min, onChange]);
 
-  const increase = () => {
+  const increase = useCallback(() => {
     onChange(Math.min(value + step, max));
-  };
+  }, [value, step, max, onChange]);
+
+  // Memoize the slider value array
+  const sliderValue = useMemo(() => [value], [value]);
+
+  // Memoize the slider change handler
+  const handleSliderChange = useCallback(
+    (newValue: number[]) => {
+      onChange(newValue[0]);
+    },
+    [onChange]
+  );
 
   return (
     <div className="space-y-1">
@@ -65,8 +83,8 @@ export function Control({
         min={min}
         max={max}
         step={step}
-        value={[value]}
-        onValueChange={(value) => onChange(value[0])}
+        value={sliderValue}
+        onValueChange={handleSliderChange}
         className="[&>.slider-track]:bg-gray-500"
       />
     </div>
@@ -87,9 +105,6 @@ interface EditorControlsProps {
   className?: string;
 }
 
-/**
- * Generic editor controls component that can be used for both blur and paint controls
- */
 export function EditorControls({ controls, className }: EditorControlsProps) {
   return (
     <div
@@ -115,73 +130,62 @@ export function EditorControls({ controls, className }: EditorControlsProps) {
   );
 }
 
-/**
- * Specialized blur controls component
- */
 export function BlurControls({
   blurAmount,
   blurRadius,
   onBlurAmountChange,
   onBlurRadiusChange,
   className,
-}: {
-  blurAmount: number;
-  blurRadius: number;
-  onBlurAmountChange: (value: number) => void;
-  onBlurRadiusChange: (value: number) => void;
-  className?: string;
-}) {
-  return (
-    <EditorControls
-      className={className}
-      controls={{
-        blurAmount: {
-          value: blurAmount,
-          min: 1,
-          max: 20,
-          label: "Blur Amount",
-          onChange: onBlurAmountChange,
-        },
-        brushSize: {
-          value: blurRadius,
-          min: 1,
-          max: 30,
-          label: "Brush Size",
-          onChange: onBlurRadiusChange,
-        },
-      }}
-    />
+}: BlurControlsProps) {
+  const controls = useMemo(
+    () => ({
+      blurAmount: {
+        value: blurAmount,
+        min: 1,
+        max: 20,
+        label: "Blur Amount",
+        onChange: onBlurAmountChange,
+      },
+      brushSize: {
+        value: blurRadius,
+        min: 1,
+        max: 30,
+        label: "Brush Size",
+        onChange: onBlurRadiusChange,
+      },
+    }),
+    [blurAmount, blurRadius, onBlurAmountChange, onBlurRadiusChange]
   );
+
+  return <EditorControls className={className} controls={controls} />;
 }
 
-/**
- * Specialized paint controls component
- */
+interface PaintControlsProps {
+  brushSize: number;
+  brushColor: string;
+  onBrushSizeChange: (value: number) => void;
+  onBrushColorChange: (color: string) => void;
+  className?: string;
+}
+
 export function PaintControls({
   brushSize,
   brushColor,
   onBrushSizeChange,
   onBrushColorChange,
   className,
-}: {
-  brushSize: number;
-  brushColor: string;
-  onBrushSizeChange: (value: number) => void;
-  onBrushColorChange: (color: string) => void;
-  className?: string;
-}) {
-  // Color palette
+}: PaintControlsProps) {
   const PRESET_COLORS = [
-    "#000000", // Black
-    "#FFFFFF", // White
-    "#FF0000", // Red
-    "#00FF00", // Green
-    "#0000FF", // Blue
-    "#FFFF00", // Yellow
-    "#FF00FF", // Magenta
-    "#00FFFF", // Cyan
-    "#FFA500", // Orange
-    "#800080", // Purple
+    "#000000",
+    "#FFFFFF",
+    "#FF0000",
+    "#00FF00",
+    "#0000FF",
+    "#FFFF00",
+    "#FF00FF",
+    "#00FFFF",
+    "#FFA500",
+    "#800080",
   ];
 
   return (

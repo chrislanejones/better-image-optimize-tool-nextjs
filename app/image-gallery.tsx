@@ -51,11 +51,11 @@ export default function ImageGallery({
     images,
     uploadComplete,
     newImageAdded,
-    isLoading,
+    isUploading, // Change isLoading to isUploading
     isDragging,
     selectedImage,
     isEditMode,
-    zoomLevel,
+    zoom, // Change zoomLevel to zoom
     isCropping,
     isBlurring,
     isPainting,
@@ -72,7 +72,6 @@ export default function ImageGallery({
   useEffect(() => {
     const loadImages = async () => {
       try {
-        actions.setIsLoading(true);
         const storedImages = await imageDB.getAllImages();
         if (storedImages?.length > 0) {
           actions.setImages(storedImages);
@@ -80,18 +79,16 @@ export default function ImageGallery({
         }
       } catch (error) {
         console.error("Error loading images:", error);
-      } finally {
-        actions.setIsLoading(false);
       }
-    };
 
-    loadImages();
+      loadImages();
 
-    // Cleanup URLs on unmount
-    return () => {
-      images.forEach((image) => {
-        if (image.url) URL.revokeObjectURL(image.url);
-      });
+      // Cleanup URLs on unmount
+      return () => {
+        images.forEach((image) => {
+          if (image.url) URL.revokeObjectURL(image.url);
+        });
+      };
     };
   }, []);
 
@@ -118,7 +115,7 @@ export default function ImageGallery({
     }
   };
 
-  if (isLoading) {
+  if (isUploading) {
     return (
       <div className="animate-pulse">
         <div className="h-8 w-32 bg-gray-300 rounded mb-4"></div>
@@ -260,7 +257,7 @@ export default function ImageGallery({
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
-                    onClick={controls.handleExitEditMode}
+                    onClick={() => actions.setIsEditMode(false)}
                     variant="default"
                   >
                     <X className="mr-2 h-4 w-4" />
@@ -283,7 +280,7 @@ export default function ImageGallery({
                             src={selectedImage.url}
                             alt="Edited image"
                             className="max-w-full transform origin-top-left"
-                            style={{ transform: `scale(${zoomLevel})` }}
+                            style={{ transform: `scale(${zoom})` }}
                           />
                         </div>
                       </div>
