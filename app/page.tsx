@@ -1,15 +1,8 @@
+// app/page.tsx
 "use client";
 
 import { CardFooter } from "@/components/ui/card";
-import {
-  useState,
-  useRef,
-  type ChangeEvent,
-  type DragEvent,
-  useEffect,
-  type ClipboardEvent,
-  useMemo,
-} from "react";
+import { useRef, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { X, Maximize2, Upload, ImageIcon, Info, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,26 +14,39 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import ImageCropper from "./image-cropper";
+import {
+  useImageStore,
+  useImageActions,
+  useImageCleanup,
+} from "@/store/useImageStore";
+import { useFileOperations } from "@/store/hooks/useFileOperations";
 
-interface ImageFile {
-  id: string;
-  file: File;
-  url: string;
-}
+const MAX_IMAGES = 50;
+const IMAGES_PER_PAGE = 10;
 
 export default function ImageUploader() {
-  const [images, setImages] = useState<ImageFile[]>([]);
-  const [uploadComplete, setUploadComplete] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<ImageFile | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [newImageAdded, setNewImageAdded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isGalleryMinimized, setIsGalleryMinimized] = useState(false);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const IMAGES_PER_PAGE = 10;
-  const MAX_IMAGES = 50;
+  // Zustand state
+  const {
+    images,
+    uploadComplete,
+    selectedImage,
+    isDragging,
+    newImageAdded,
+    isEditMode,
+  } = useImageStore();
+
+  // Zustand actions
+  const actions = useImageActions();
+
+  // Custom hooks
+  const fileOperations = useFileOperations();
+  useImageCleanup(); // Automatically clean up URLs
+
+  // Pagination
+  const currentPage = useImageStore((state) => state.currentPage || 1);
+  const setCurrentPage = (page: number) => actions.setCurrentPage(page);
 
   // Calculate total pages
   const totalPages = useMemo(
@@ -60,59 +66,17 @@ export default function ImageUploader() {
     setCurrentPage(page);
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    addFiles(files);
-  };
-
-  const addFiles = (files: FileList) => {
-    const newImages: ImageFile[] = [];
-
-    // Calculate how many more images we can add
-    const remainingSlots = MAX_IMAGES - images.length;
-    const filesToProcess = Math.min(files.length, remainingSlots);
-
-    // Process files up to the limit
-    for (let i = 0; i < filesToProcess; i++) {
-      const file = files[i];
-      if (file.type.startsWith("image/")) {
-        newImages.push({
-          id: crypto.randomUUID(),
-          file,
-          url: URL.createObjectURL(file),
-        });
-      }
-    }
-
-    setImages((prev) => [...prev, ...newImages]);
-    if (newImages.length > 0) {
-      setUploadComplete(true);
-      setNewImageAdded(true);
-
-      // If we're adding images and not on the last page, go to the last page
-      if (images.length + newImages.length > currentPage * IMAGES_PER_PAGE) {
-        const newTotalPages = Math.ceil(
-          (images.length + newImages.length) / IMAGES_PER_PAGE
-        );
-        setCurrentPage(newTotalPages);
-      }
-    }
-  };
-
   // Reset the new image added flag after animation completes
   useEffect(() => {
     if (newImageAdded) {
       const timer = setTimeout(() => {
-        setNewImageAdded(false);
-      }, 800); // Match this to the animation duration
+        actions.setNewImageAdded(false);
+      }, 800);
       return () => clearTimeout(timer);
     }
-  }, [newImageAdded]);
+  }, [newImageAdded, actions]);
 
   const handleUploadClick = () => {
-    // Check if we've reached the maximum number of images
     if (images.length >= MAX_IMAGES) {
       alert(
         `Maximum limit of ${MAX_IMAGES} images reached. Please remove some images before uploading more.`
@@ -122,26 +86,8 @@ export default function ImageUploader() {
     fileInputRef.current?.click();
   };
 
-  const removeImage = (id: string) => {
-    setImages(images.filter((image) => image.id !== id));
-    if (selectedImage?.id === id) {
-      setSelectedImage(null);
-    }
-
-    // If we're removing an image and the current page becomes empty, go to the previous page
-    const newImagesLength = images.filter((image) => image.id !== id).length;
-    const newTotalPages = Math.ceil(newImagesLength / IMAGES_PER_PAGE);
-    if (currentPage > newTotalPages && newTotalPages > 0) {
-      setCurrentPage(newTotalPages);
-    }
-
-    if (newImagesLength === 0) {
-      setUploadComplete(false);
-    }
-  };
-
   const expandImage = (image: ImageFile) => {
-    setSelectedImage(image);
+    actions.selectImage(image);
   };
 
   const resetUpload = () => {
@@ -150,103 +96,25 @@ export default function ImageUploader() {
       URL.revokeObjectURL(image.url);
     });
 
-    setImages([]);
-    setUploadComplete(false);
-    setSelectedImage(null);
-    setCurrentPage(1);
+    actions.resetAll();
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  // Drag and drop handlers
-  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isDragging) setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    // Check if we've reached the maximum number of images
-    if (images.length >= MAX_IMAGES) {
-      alert(
-        `Maximum limit of ${MAX_IMAGES} images reached. Please remove some images before uploading more.`
-      );
-      return;
-    }
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      addFiles(e.dataTransfer.files);
-    }
-  };
-
   // Add useEffect to listen for paste events globally
   useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
-      // Check if we've reached the maximum number of images
-      if (images.length >= MAX_IMAGES) {
-        alert(
-          `Maximum limit of ${MAX_IMAGES} images reached. Please remove some images before uploading more.`
-        );
-        return;
-      }
-
-      if (e.clipboardData && e.clipboardData.files.length > 0) {
-        e.preventDefault();
-        addFiles(e.clipboardData.files);
-      } else if (e.clipboardData && e.clipboardData.items) {
-        const items = e.clipboardData.items;
-        const imageItems = [];
-
-        for (let i = 0; i < items.length; i++) {
-          if (items[i].type.indexOf("image") !== -1) {
-            const blob = items[i].getAsFile();
-            if (blob) {
-              imageItems.push(blob);
-            }
-          }
-        }
-
-        if (imageItems.length > 0) {
-          e.preventDefault();
-          const fileList = new DataTransfer();
-          imageItems.forEach((file) => fileList.items.add(file));
-          addFiles(fileList.files);
-        }
-      }
-    };
-
-    // Add the event listener to the document
-    document.addEventListener("paste", handlePaste as unknown as EventListener);
-
-    // Clean up
+    document.addEventListener(
+      "paste",
+      fileOperations.handlePaste as EventListener
+    );
     return () => {
       document.removeEventListener(
         "paste",
-        handlePaste as unknown as EventListener
+        fileOperations.handlePaste as EventListener
       );
     };
-  }, [images.length]); // Added images.length to dependency array
-
-  const toggleGalleryMinimized = (minimized: boolean) => {
-    setIsGalleryMinimized(minimized);
-  };
+  }, [images.length, fileOperations.handlePaste]);
 
   return (
     <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col">
@@ -275,10 +143,10 @@ export default function ImageUploader() {
                     : "border-primary/20 bg-primary/5"
                 } rounded-lg hover:bg-primary/10 transition-colors cursor-pointer`}
                 onClick={handleUploadClick}
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
+                onDragEnter={fileOperations.handleDragEnter}
+                onDragOver={fileOperations.handleDragOver}
+                onDragLeave={fileOperations.handleDragLeave}
+                onDrop={fileOperations.handleDrop}
               >
                 <Upload className="h-10 w-10 text-primary/60 mb-4" />
                 <p className="text-sm text-muted-foreground text-center">
@@ -289,7 +157,7 @@ export default function ImageUploader() {
               <input
                 type="file"
                 ref={fileInputRef}
-                onChange={handleFileChange}
+                onChange={fileOperations.handleFileChange}
                 multiple
                 accept="image/*"
                 className="hidden"
@@ -308,13 +176,12 @@ export default function ImageUploader() {
             className={`grid grid-cols-5 md:grid-cols-10 gap-2 p-4 bg-gray-800 rounded-lg ${
               newImageAdded ? "animate-pulse-once" : ""
             } ${
-              isGalleryMinimized
+              isEditMode
                 ? "opacity-50 max-h-12 overflow-hidden transition-all duration-300 scale-90 transform origin-top"
                 : "transition-all duration-300"
             }`}
           >
-            {isGalleryMinimized ? (
-              // When in edit mode, show only the container with the "Editing Mode Active" message
+            {isEditMode ? (
               <div className="absolute inset-0 flex items-center justify-center z-10">
                 <Lock className="h-6 w-6 text-white opacity-70" />
                 <span className="ml-2 text-white text-sm opacity-90">
@@ -322,7 +189,6 @@ export default function ImageUploader() {
                 </span>
               </div>
             ) : (
-              // When not in edit mode, show the images
               currentImages.map((image, index) => (
                 <div
                   key={image.id}
@@ -345,7 +211,7 @@ export default function ImageUploader() {
                     </button>
                   </div>
                   <button
-                    onClick={() => removeImage(image.id)}
+                    onClick={() => actions.removeImage(image.id)}
                     className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                     aria-label="Remove image"
                   >
@@ -383,7 +249,7 @@ export default function ImageUploader() {
                 image={selectedImage}
                 onUploadNew={handleUploadClick}
                 onRemoveAll={resetUpload}
-                onEditModeChange={toggleGalleryMinimized}
+                onEditModeChange={(editMode) => actions.setIsEditMode(editMode)}
                 currentPage={currentPage}
                 totalPages={totalPages}
                 onPageChange={handlePageChange}
@@ -394,7 +260,7 @@ export default function ImageUploader() {
           <input
             type="file"
             ref={fileInputRef}
-            onChange={handleFileChange}
+            onChange={fileOperations.handleFileChange}
             multiple
             accept="image/*"
             className="hidden"

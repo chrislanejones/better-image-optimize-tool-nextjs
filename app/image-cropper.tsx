@@ -1,46 +1,24 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { type PixelCrop } from "react-image-crop";
+import React, { useRef, useEffect, useCallback } from "react";
 import "react-image-crop/dist/ReactCrop.css";
-import ImageControls from "./components/image-controls";
-import ImageStats from "./components/image-stats"; // Using the existing image-stats.tsx
+import { BlurControls, PaintControls } from "@/app/components/editor-controls";
+import ImageStats from "./components/image-stats";
 import CroppingTool from "./components/cropping-tool";
 import ImageResizer from "./components/image-resizer";
 import ImageZoomView from "./components/image-zoom-view";
-import { PaintControls } from "./components/editor-controls";
-import BlurBrushCanvas, {
-  type BlurBrushCanvasRef,
-} from "./components/BlurBrushCanvas";
+import BlurBrushCanvas, { type BlurBrushCanvasRef } from "./components/BlurBrushCanvas";
 import PaintTool, { type PaintToolRef } from "./components/paint-tool";
+import { useImageStore, useImageActions } from "@/store/useImageStore";
+import { useImageOperations } from "@/store/hooks/useImageOperations";
+import { useImageControls } from "@/store/hooks/useImageControls";
+import { useImageStats } from "@/store/hooks/useImageStats";
+import { useImageHistoryWithStore } from "@store/hooks/useImageStats"
 
-import {
-  cropImage,
-  resizeImage,
-  safeRevokeURL,
-} from "./utils/image-transformations";
-import { getMimeType, getFileFormat } from "./utils/image-utils";
-import { imageDB } from "./utils/indexedDB";
 
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  PieChart,
-  Pie,
-  Cell,
-  Text,
-} from "recharts";
 
-interface ImageFile {
-  id: string;
-  file: File;
-  url: string;
-}
+const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
-// Update the ImageCropperProps interface in image-cropper.tsxinterface
 interface ImageCropperProps {
   image: ImageFile;
   onUploadNew: () => void;
@@ -48,54 +26,17 @@ interface ImageCropperProps {
   onBackToGallery?: () => void;
   isStandalone?: boolean;
   onEditModeChange?: (isEditing: boolean) => void;
-  // Add these new pagination props
   currentPage?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;
 }
 
-interface ImageStats {
-  width: number;
-  height: number;
-  size: number;
-  format: string;
+interface ImageFile {
+  id: string;
+  file: File;
+  url: string;
+  isNew?: boolean;
 }
-
-// Define the interface for ImageControls props
-interface ImageControlsProps {
-  isEditMode: boolean;
-  isCropping: boolean;
-  isBlurring: boolean;
-  isPainting: boolean;
-  isEraser: boolean;
-  format: string;
-  onFormatChange: (format: string) => void;
-  onToggleEditMode: () => void;
-  onToggleCropping: () => void;
-  onToggleBlurring: () => void;
-  onTogglePainting: () => void;
-  onToggleEraser: () => void;
-  onApplyCrop: () => void;
-  onApplyBlur: () => void;
-  onApplyPaint: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onReset: () => void;
-  onDownload: () => void;
-  onUploadNew: () => void;
-  onRemoveAll: () => void;
-  onCancelBlur: () => void;
-  onCancelCrop: () => void;
-  onCancelPaint: () => void;
-  onBackToGallery: () => void;
-  onExitEditMode: () => void;
-  isStandalone: boolean;
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-}
-
-const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
 export default function ImageCropper({
   image,
@@ -104,39 +45,10 @@ export default function ImageCropper({
   onBackToGallery,
   isStandalone = false,
   onEditModeChange,
-  // Add these new props with default values
   currentPage = 1,
   totalPages = 1,
   onPageChange = () => {},
 }: ImageCropperProps) {
-  // Basic state
-  const [width, setWidth] = useState<number>(0);
-  const [height, setHeight] = useState<number>(0);
-  const [format, setFormat] = useState<string>("jpeg");
-  const [previewUrl, setPreviewUrl] = useState<string>(PLACEHOLDER_IMAGE);
-  const [isMounted, setIsMounted] = useState<boolean>(false);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [zoom, setZoom] = useState<number>(1);
-
-  // Editing mode states
-  const [isEditMode, setIsEditMode] = useState<boolean>(isStandalone);
-  const [isCropping, setIsCropping] = useState<boolean>(false);
-  const [isBlurring, setIsBlurring] = useState<boolean>(false);
-  const [isPainting, setIsPainting] = useState<boolean>(false);
-
-  // Tool states
-  const [blurAmount, setBlurAmount] = useState<number>(5);
-  const [blurRadius, setBlurRadius] = useState<number>(10);
-  const [brushSize, setBrushSize] = useState<number>(10);
-  const [brushColor, setBrushColor] = useState<string>("#ff0000");
-  const [isEraser, setIsEraser] = useState<boolean>(false);
-
-  // Stats states
-  const [originalStats, setOriginalStats] = useState<ImageStats | null>(null);
-  const [newStats, setNewStats] = useState<ImageStats | null>(null);
-  const [dataSavings, setDataSavings] = useState<number>(0);
-  const [hasEdited, setHasEdited] = useState<boolean>(false);
-
   // Refs
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -144,554 +56,128 @@ export default function ImageCropper({
   const blurCanvasRef = useRef<BlurBrushCanvasRef>(null);
   const paintToolRef = useRef<PaintToolRef>(null);
 
-  // Set mounted state to prevent hydration mismatch
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  // Zustand state
+  const {
+    width,
+    height,
+    format,
+    previewUrl,
+    isEditMode,
+    isCropping,
+    isBlurring,
+    isPainting,
+    blurAmount,
+    blurRadius,
+    brushSize,
+    brushColor,
+    isEraser,
+    zoom,
+    hasEdited,
+    originalStats,
+    newStats,
+    dataSavings,
+  } = useImageStore();
 
-  // Notify parent component when edit mode changes
+  // Zustand actions
+  const actions = useImageActions();
+
+  // Custom hooks
+  const {
+    toggleEditMode,
+    toggleCropping,
+    toggleBlurring,
+    togglePainting,
+    zoomIn,
+    zoomOut,
+    resetImage,
+  } = useImageControls();
+
+  const {
+    handleCropComplete,
+    handleResize,
+    applyResize,
+    handleBlurApply,
+    handlePaintApply,
+    downloadImage,
+    initializeImage,
+  } = useImageOperations();
+
+  const { getFormattedStats } = useImageStats();
+  const { saveState, performUndo, performRedo, canUndo, canRedo } = useImageHistoryWithStore();
+
+  // Initialize with image data
+  useEffect(() => {
+    if (!image) return;
+
+    // Initialize with a safe URL
+    const safeUrl = image?.url && typeof image.url === "string" ? image.url : PLACEHOLDER_IMAGE;
+    actions.setPreviewUrl(safeUrl);
+    actions.selectImage(image);
+
+    // Reset editing states
+    actions.setIsCropping(false);
+    actions.setIsBlurring(false);
+    actions.setIsPainting(false);
+    actions.setZoom(1);
+    actions.setHasEdited(false);
+    actions.setNewStats(null);
+
+    // Get image dimensions when loaded
+    if (imgRef.current) {
+      initializeImage(imgRef.current);
+    }
+
+    // For standalone mode, always start in edit mode
+    if (isStandalone) {
+      actions.setIsEditMode(true);
+    }
+
+    // Cleanup function to revoke object URL
+    return () => {
+      if (previewUrl && previewUrl !== PLACEHOLDER_IMAGE && previewUrl !== image.url) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [image, isStandalone, actions, initializeImage, previewUrl]);
+
+  // Update parent component when edit mode changes
   useEffect(() => {
     if (onEditModeChange) {
       onEditModeChange(isEditMode);
     }
   }, [isEditMode, onEditModeChange]);
 
-  // Initialize image when component mounts or image changes
-  useEffect(() => {
-    if (!isMounted) return;
-
-    // Initialize with a safe URL
-    const safeUrl =
-      image?.url && typeof image.url === "string"
-        ? image.url
-        : PLACEHOLDER_IMAGE;
-
-    setPreviewUrl(safeUrl);
-
-    // For standalone mode, always start in edit mode
-    if (!isStandalone) {
-      setIsCropping(false);
-      setIsBlurring(false);
-      setIsPainting(false);
-    }
-
-    setZoom(1);
-    setHasEdited(false);
-    setNewStats(null);
-
-    // Get image dimensions
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      setWidth(img.width);
-      setHeight(img.height);
-
-      // Set original stats with safe values
-      setOriginalStats({
-        width: img.width,
-        height: img.height,
-        size: image?.file ? image.file.size : 0,
-        format: image?.file?.type ? getFileFormat(image.file.type) : "unknown",
-      });
-    };
-
-    // Set a safe image source
-    img.src = safeUrl;
-
-    // Clean up object URL on unmount if we created one
-    return () => {
-      if (
-        previewUrl &&
-        previewUrl !== PLACEHOLDER_IMAGE &&
-        image?.url &&
-        previewUrl !== image.url
-      ) {
-        safeRevokeURL(previewUrl);
-      }
-    };
-  }, [image, isStandalone, isMounted]);
-
-  // Update isEditMode when editing tools are activated
-  useEffect(() => {
-    if ((isCropping || isBlurring || isPainting) && !isEditMode) {
-      setIsEditMode(true);
-    }
-  }, [isCropping, isBlurring, isPainting, isEditMode]);
-
-  // Save edited image to IndexedDB - MOVED UP BEFORE IT'S USED
-  const saveEditedImage = useCallback(
-    async (url: string, blob: Blob) => {
-      if (!image?.id || !image?.file?.name) return;
-
-      try {
-        setIsSaving(true);
-        // Create a file from the blob
-        const fileName = image.file.name;
-        const fileType = getMimeType(format);
-
-        // Convert the blob to base64
-        const base64Data = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(blob);
-          reader.onloadend = () => {
-            resolve(reader.result as string);
-          };
-        });
-
-        // Update in IndexedDB
-        await imageDB.updateImage(image.id, {
-          fileData: base64Data,
-          type: fileType,
-          width: width || 0,
-          height: height || 0,
-          lastModified: new Date().getTime(),
-        });
-
-        setIsSaving(false);
-      } catch (error) {
-        console.error("Error saving edited image:", error);
-        setIsSaving(false);
-      }
-    },
-    [image, format, width, height]
-  );
-
-  // Toggle functions
-  const toggleEditMode = useCallback(() => {
-    if (!isStandalone) {
-      setIsEditMode((prev) => !prev);
-    }
-
-    setIsBlurring(false);
-    setIsCropping(false);
-    setIsPainting(false);
-  }, [isStandalone]);
-
-  const toggleCropping = useCallback(() => {
-    if (!isEditMode && !isStandalone) {
-      setIsEditMode(true);
-    }
-    setIsCropping((prev) => !prev);
-    setIsBlurring(false);
-    setIsPainting(false);
-  }, [isEditMode, isStandalone]);
-
-  const toggleBlurring = useCallback(() => {
-    if (!isEditMode && !isStandalone) {
-      setIsEditMode(true);
-    }
-    setIsBlurring((prev) => !prev);
-    setIsCropping(false);
-    setIsPainting(false);
-  }, [isEditMode, isStandalone]);
-
-  const togglePainting = useCallback(() => {
-    if (!isEditMode && !isStandalone) {
-      setIsEditMode(true);
-    }
-    setIsPainting((prev) => !prev);
-    setIsCropping(false);
-    setIsBlurring(false);
-  }, [isEditMode, isStandalone]);
-
-  // Cancel functions
-  const cancelBlur = useCallback(() => {
-    setIsBlurring(false);
-  }, []);
-
-  const cancelCrop = useCallback(() => {
-    setIsCropping(false);
-  }, []);
-
-  const cancelPaint = useCallback(() => {
-    setIsPainting(false);
-  }, []);
-
-  // Exit edit mode completely
+  // Exit edit mode
   const exitEditMode = useCallback(() => {
-    setIsCropping(false);
-    setIsBlurring(false);
-    setIsPainting(false);
+    actions.setIsCropping(false);
+    actions.setIsBlurring(false);
+    actions.setIsPainting(false);
     if (!isStandalone) {
-      setIsEditMode(false);
+      actions.setIsEditMode(false);
     }
-  }, [isStandalone]);
+  }, [isStandalone, actions]);
 
-  // Handle back to gallery
+  // Handle back to gallery 
   const handleBackToGallery = useCallback(() => {
     if (onBackToGallery) {
       onBackToGallery();
     } else {
-      // If no handler provided, just go back to upload state
       onUploadNew();
     }
   }, [onBackToGallery, onUploadNew]);
 
-  // Image editing handlers
-  const handleResize = useCallback(
-    async (newWidth: number, newHeight: number) => {
-      if (!imgRef.current) return;
-
-      // We just set the dimensions, but don't apply them yet
-      setWidth(newWidth);
-      setHeight(newHeight);
-    },
-    []
-  );
-
-  const applyResize = useCallback(async () => {
-    if (!imgRef.current) return;
-
-    try {
-      // Get the current image URL
-      const oldPreviewUrl = previewUrl;
-
-      // Resize the image
-      const resizedUrl = await resizeImage(
-        imgRef.current,
-        width,
-        height,
-        format
-      );
-
-      // Update the preview
-      setPreviewUrl(resizedUrl);
-      setHasEdited(true);
-
-      // Fetch the blob to calculate size
-      const blob = await fetch(resizedUrl).then((r) => r.blob());
-
-      // Update stats
-      setNewStats({
-        width,
-        height,
-        size: blob.size,
-        format: format || "unknown",
-      });
-
-      // Calculate data savings
-      if (originalStats) {
-        const savings = 100 - (blob.size / originalStats.size) * 100;
-        setDataSavings(savings);
-      }
-
-      // Update the stored image if in standalone mode
-      if (isStandalone) {
-        await saveEditedImage(resizedUrl, blob);
-      }
-
-      // Clean up old URL if needed
-      if (oldPreviewUrl !== PLACEHOLDER_IMAGE && oldPreviewUrl !== image?.url) {
-        safeRevokeURL(oldPreviewUrl);
-      }
-    } catch (error) {
-      console.error("Error applying resize:", error);
-    }
-  }, [
-    imgRef,
-    width,
-    height,
-    format,
-    previewUrl,
-    originalStats,
-    isStandalone,
-    image?.url,
-    saveEditedImage,
-  ]);
-
-  const handleCropComplete = useCallback(
-    async (crop: PixelCrop, imgElement: HTMLImageElement) => {
-      try {
-        // Get the current image URL
-        const oldPreviewUrl = previewUrl;
-
-        // Apply the crop
-        const croppedUrl = await cropImage(imgElement, crop, format);
-
-        // Update dimensions after crop
-        setWidth(crop.width);
-        setHeight(crop.height);
-
-        // Update the preview
-        setPreviewUrl(croppedUrl);
-        setIsCropping(false);
-        setHasEdited(true);
-
-        // Fetch the blob to calculate size
-        const blob = await fetch(croppedUrl).then((r) => r.blob());
-
-        // Update stats
-        setNewStats({
-          width: crop.width,
-          height: crop.height,
-          size: blob.size,
-          format: format || "unknown",
-        });
-
-        // Calculate data savings
-        if (originalStats) {
-          const savings = 100 - (blob.size / originalStats.size) * 100;
-          setDataSavings(savings);
-        }
-
-        // Update the stored image if in standalone mode
-        if (isStandalone) {
-          await saveEditedImage(croppedUrl, blob);
-        }
-
-        // Clean up old URL if needed
-        if (
-          oldPreviewUrl !== PLACEHOLDER_IMAGE &&
-          oldPreviewUrl !== image?.url
-        ) {
-          safeRevokeURL(oldPreviewUrl);
-        }
-      } catch (error) {
-        console.error("Error applying crop:", error);
-      }
-    },
-    [
-      previewUrl,
-      format,
-      originalStats,
-      isStandalone,
-      image?.url,
-      saveEditedImage,
-    ]
-  );
-
-  // Define handleBlurApply and handlePaintApply after saveEditedImage
-  const handleBlurApply = useCallback(
-    async (blurredImageUrl: string) => {
-      if (!blurredImageUrl || typeof blurredImageUrl !== "string") return;
-
-      try {
-        // Get the current image URL
-        const oldPreviewUrl = previewUrl;
-
-        setPreviewUrl(blurredImageUrl);
-        setIsBlurring(false);
-        setHasEdited(true);
-
-        // Fetch the blob to calculate size
-        const blob = await fetch(blurredImageUrl).then((r) => r.blob());
-
-        // Get image dimensions
-        const img = new Image();
-        img.src = blurredImageUrl;
-
-        await new Promise<void>((resolve) => {
-          img.onload = () => {
-            // Update stats
-            setNewStats({
-              width: img.naturalWidth,
-              height: img.naturalHeight,
-              size: blob.size,
-              format: format || "unknown",
-            });
-            resolve();
-          };
-        });
-
-        // Calculate data savings
-        if (originalStats) {
-          const savings = 100 - (blob.size / originalStats.size) * 100;
-          setDataSavings(savings);
-        }
-
-        // Update the stored image if in standalone mode
-        if (isStandalone) {
-          await saveEditedImage(blurredImageUrl, blob);
-        }
-
-        // Clean up old URL if needed
-        if (
-          oldPreviewUrl !== PLACEHOLDER_IMAGE &&
-          oldPreviewUrl !== image?.url
-        ) {
-          safeRevokeURL(oldPreviewUrl);
-        }
-      } catch (error) {
-        console.error("Error applying blur:", error);
-      }
-    },
-    [
-      previewUrl,
-      format,
-      originalStats,
-      isStandalone,
-      image?.url,
-      saveEditedImage,
-    ]
-  );
-
-  const handlePaintApply = useCallback(
-    async (paintedImageUrl: string) => {
-      if (!paintedImageUrl || typeof paintedImageUrl !== "string") return;
-
-      try {
-        // Get the current image URL
-        const oldPreviewUrl = previewUrl;
-
-        setPreviewUrl(paintedImageUrl);
-        setIsPainting(false);
-        setHasEdited(true);
-
-        // Fetch the blob to calculate size
-        const blob = await fetch(paintedImageUrl).then((r) => r.blob());
-
-        // Get image dimensions
-        const img = new Image();
-        img.src = paintedImageUrl;
-
-        await new Promise<void>((resolve) => {
-          img.onload = () => {
-            // Update stats
-            setNewStats({
-              width: img.naturalWidth,
-              height: img.naturalHeight,
-              size: blob.size,
-              format: format || "unknown",
-            });
-            resolve();
-          };
-        });
-
-        // Calculate data savings
-        if (originalStats) {
-          const savings = 100 - (blob.size / originalStats.size) * 100;
-          setDataSavings(savings);
-        }
-
-        // Update the stored image if in standalone mode
-        if (isStandalone) {
-          await saveEditedImage(paintedImageUrl, blob);
-        }
-
-        // Clean up old URL if needed
-        if (
-          oldPreviewUrl !== PLACEHOLDER_IMAGE &&
-          oldPreviewUrl !== image?.url
-        ) {
-          safeRevokeURL(oldPreviewUrl);
-        }
-      } catch (error) {
-        console.error("Error applying paint:", error);
-      }
-    },
-    [
-      previewUrl,
-      format,
-      originalStats,
-      isStandalone,
-      image?.url,
-      saveEditedImage,
-    ]
-  );
-
-  // Then define these functions that use the above functions
-  const handleApplyBlur = useCallback(() => {
-    if (blurCanvasRef.current) {
-      const dataUrl = blurCanvasRef.current.getCanvasDataUrl();
-      if (dataUrl) {
-        handleBlurApply(dataUrl);
-      }
-    }
-  }, [handleBlurApply]);
-
-  const handleApplyPaint = useCallback(() => {
-    if (paintToolRef.current) {
-      const dataUrl = paintToolRef.current.getCanvasDataUrl();
-      if (dataUrl) {
-        handlePaintApply(dataUrl);
-      }
-    }
-  }, [handlePaintApply]);
-
-  // Zoom in/out functions
-  const zoomIn = useCallback(() => {
-    setZoom((prev) => Math.min(prev + 0.1, 3));
+  // Get a safe image URL
+  const getSafeImageUrl = useCallback((url: string | undefined): string => {
+    if (!url || typeof url !== "string") return PLACEHOLDER_IMAGE;
+    return url;
   }, []);
 
-  const zoomOut = useCallback(() => {
-    setZoom((prev) => Math.max(prev - 0.1, 0.5));
+  // Only mount on client side
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
   }, []);
 
-  // Download current image
-  const downloadImage = useCallback(() => {
-    if (!canvasRef.current || !image?.file?.name) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-
-    if (!ctx || !imgRef.current) return;
-
-    // Set canvas dimensions to match current image
-    canvas.width = imgRef.current.naturalWidth;
-    canvas.height = imgRef.current.naturalHeight;
-
-    // Draw the current image to canvas
-    ctx.drawImage(imgRef.current, 0, 0);
-
-    // Convert to the selected format and download
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          const fileName = image.file.name.split(".")[0] || "image";
-          a.download = `${fileName}-edited.${
-            format === "webp" ? "webp" : format === "jpeg" ? "jpg" : "png"
-          }`;
-          a.click();
-          URL.revokeObjectURL(url);
-        }
-      },
-      getMimeType(format),
-      0.9
-    );
-  }, [imgRef, canvasRef, image, format]);
-
-  // Reset image to original
-  const resetImage = useCallback(() => {
-    // Revoke previous URL to prevent memory leaks
-    if (
-      previewUrl &&
-      previewUrl !== PLACEHOLDER_IMAGE &&
-      image?.url &&
-      previewUrl !== image.url
-    ) {
-      safeRevokeURL(previewUrl);
-    }
-
-    // Set a safe image source
-    const safeUrl =
-      image?.url && typeof image.url === "string"
-        ? image.url
-        : PLACEHOLDER_IMAGE;
-
-    setPreviewUrl(safeUrl);
-
-    setIsCropping(false);
-    setIsBlurring(false);
-    setIsPainting(false);
-    setHasEdited(false);
-    setNewStats(null);
-
-    // Reset dimensions to original
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      setWidth(img.width);
-      setHeight(img.height);
-    };
-
-    // Set a safe image source
-    img.src = safeUrl;
-  }, [previewUrl, image]);
-
-  // Don't render until client-side to prevent hydration errors
   if (!isMounted) {
     return (
       <div className="animate-pulse">
@@ -703,69 +189,200 @@ export default function ImageCropper({
 
   return (
     <div className="space-y-6">
-      {isSaving && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-center">Saving changes...</p>
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 mr-2">
+            <Button onClick={zoomOut} variant="outline">
+              <Minus className="h-4 w-4" />
+            </Button>
+            <Button onClick={zoomIn} variant="outline">
+              <Plus className="h-4 w-4" />
+            </Button>
           </div>
+
+          {!isEditMode && (
+            <Button onClick={toggleEditMode} variant="outline">
+              <Edit2 className="mr-2 h-4 w-4" />
+              Edit Image
+            </Button>
+          )}
+
+          {isEditMode && !isCropping && !isBlurring && !isPainting && (
+            <>
+              <Button onClick={toggleCropping} variant="outline">
+                <Crop className="mr-2 h-4 w-4" />
+                Crop Image
+              </Button>
+
+              <Button onClick={toggleBlurring} variant="outline">
+                <Droplets className="mr-2 h-4 w-4" />
+                Blur Tool
+              </Button>
+
+              <Button onClick={togglePainting} variant="outline">
+                <Paintbrush className="mr-2 h-4 w-4" />
+                Paint Tool
+              </Button>
+            </>
+          )}
+
+          {isCropping && (
+            <Button onClick={() => handleCropComplete?.(completedCrop, imgRef.current!)} variant="default">
+              <Check className="mr-2 h-4 w-4" />
+              Apply Crop
+            </Button>
+          )}
+
+          {isBlurring && (
+            <Button onClick={() => {
+              if (blurCanvasRef.current) {
+                const dataUrl = blurCanvasRef.current.getCanvasDataUrl();
+                if (dataUrl) {
+                  handleBlurApply(dataUrl);
+                }
+              }
+            }} variant="default">
+              <Check className="mr-2 h-4 w-4" />
+              Apply Blur
+            </Button>
+          )}
+
+          {isPainting && (
+            <>
+              <Button onClick={() => {
+                if (paintToolRef.current) {
+                  const dataUrl = paintToolRef.current.getCanvasDataUrl();
+                  if (dataUrl) {
+                    handlePaintApply(dataUrl);
+                  }
+                }
+              }} variant="default">
+                <Check className="mr-2 h-4 w-4" />
+                Apply Paint
+              </Button>
+
+              <Button
+                onClick={() => actions.setIsEraser(!isEraser)}
+                variant={isEraser ? "default" : "outline"}
+              >
+                <Eraser className="mr-2 h-4 w-4" />
+                {isEraser ? "Brush" : "Eraser"}
+              </Button>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Pagination controls - only shown in view mode */}
+          {!isEditMode && totalPages > 1 && (
+            <div className="flex items-center gap-1 mr-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onPageChange(1)}
+                disabled={currentPage === 1}
+                className="h-9 w-9"
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onPageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="h-9 w-9"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="mx-2 text-sm text-white">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onPageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="h-9 w-9"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onPageChange(totalPages)}
+                disabled={currentPage === totalPages}
+                className="h-9 w-9"
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
+          {/* Tool-specific cancel buttons */}
+          {isCropping && (
+            <Button onClick={() => actions.setIsCropping(false)} variant="outline">
+              <X className="mr-2 h-4 w-4" />
+              Exit Edit Mode
+            </Button>
+          )}
+
+          {/* Utility buttons (only in view mode) */}
+          {!isEditMode && (
+            <>
+              <Button onClick={resetImage} variant="outline">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reset
+              </Button>
+
+              <Button onClick={downloadImage} variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
+
+              {!isStandalone && (
+                <>
+                  <Button onClick={onUploadNew} variant="outline">
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload New
+                  </Button>
+
+                  <Button onClick={handleBackToGallery} variant="outline">
+                    <FolderDown className="mr-2 h-4 w-4" />
+                    Add From Files
+                  </Button>
+
+                  <Button onClick={onRemoveAll} variant="destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Remove All
+                  </Button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Tool-specific controls */}
+      {isBlurring && (
+        <div className="mb-2">
+          <BlurControls
+            blurAmount={blurAmount}
+            blurRadius={blurRadius}
+            onBlurAmountChange={actions.setBlurAmount}
+            onBlurRadiusChange={actions.setBlurRadius}
+          />
         </div>
       )}
 
-      <ImageControls
-        isEditMode={isEditMode}
-        isCropping={isCropping}
-        isBlurring={isBlurring}
-        isPainting={isPainting}
-        isEraser={isEraser}
-        format={format}
-        onFormatChange={setFormat}
-        onToggleEditMode={toggleEditMode}
-        onToggleCropping={toggleCropping}
-        onToggleBlurring={toggleBlurring}
-        onTogglePainting={togglePainting}
-        onToggleEraser={() => setIsEraser(!isEraser)}
-        onApplyCrop={() => {}}
-        onApplyBlur={handleApplyBlur}
-        onApplyPaint={handleApplyPaint}
-        onZoomIn={zoomIn}
-        onZoomOut={zoomOut}
-        onReset={resetImage}
-        onDownload={downloadImage}
-        onUploadNew={onUploadNew}
-        onRemoveAll={onRemoveAll}
-        onCancelBlur={cancelBlur}
-        onCancelCrop={cancelCrop}
-        onCancelPaint={cancelPaint}
-        onBackToGallery={handleBackToGallery}
-        onExitEditMode={exitEditMode}
-        isStandalone={isStandalone}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={onPageChange}
-      />
-
-      {/* Display appropriate tool controls based on active tool */}
-      {isBlurring && (
-        <BlurBrushCanvas
-          ref={blurCanvasRef}
-          imageUrl={previewUrl}
-          blurAmount={blurAmount}
-          blurRadius={blurRadius}
-          onApply={handleBlurApply}
-          onCancel={cancelBlur}
-          onBlurAmountChange={setBlurAmount}
-          onBlurRadiusChange={setBlurRadius}
-        />
-      )}
-
       {isPainting && (
-        <PaintControls
-          brushSize={brushSize}
-          brushColor={brushColor}
-          onBrushSizeChange={setBrushSize}
-          onBrushColorChange={setBrushColor}
-        />
+        <div className="mb-2">
+          <PaintControls
+            brushSize={brushSize}
+            brushColor={brushColor}
+            onBrushSizeChange={actions.setBrushSize}
+            onBrushColorChange={actions.setBrushColor}
+          />
+        </div>
       )}
 
       <div className="flex flex-col gap-6">
@@ -780,41 +397,49 @@ export default function ImageCropper({
                 className="relative border rounded-lg overflow-hidden"
                 ref={imageContainerRef}
               >
-                {
-                  isCropping ? (
-                    <CroppingTool
-                      imageUrl={previewUrl}
-                      onApplyCrop={handleCropComplete}
-                      onCancel={cancelCrop}
+                {isCropping ? (
+                  <CroppingTool
+                    imageUrl={previewUrl}
+                    onApplyCrop={handleCropComplete}
+                    onCancel={() => actions.setIsCropping(false)}
+                  />
+                ) : isBlurring ? (
+                  <BlurBrushCanvas
+                    ref={blurCanvasRef}
+                    imageUrl={previewUrl}
+                    blurAmount={blurAmount}
+                    blurRadius={blurRadius}
+                    onBlurAmountChange={actions.setBlurAmount}
+                    onBlurRadiusChange={actions.setBlurRadius}
+                    onApply={handleBlurApply}
+                    onCancel={() => actions.setIsBlurring(false)}
+                  />
+                ) : isPainting ? (
+                  <PaintTool
+                    ref={paintToolRef}
+                    imageUrl={previewUrl}
+                    isEraser={isEraser}
+                    onToggleEraser={() => actions.setIsEraser(!isEraser)}
+                    onApplyPaint={handlePaintApply}
+                    onCancel={() => actions.setIsPainting(false)}
+                  />
+                ) : (
+                  <div
+                    className="overflow-auto"
+                    style={{
+                      maxHeight: isEditMode ? "85vh" : "700px",
+                      height: isEditMode ? "85vh" : "70vh",
+                    }}
+                  >
+                    <img
+                      ref={imgRef}
+                      src={getSafeImageUrl(previewUrl)}
+                      alt="Edited image"
+                      className="max-w-full transform origin-top-left"
+                      style={{ transform: `scale(${zoom})` }}
                     />
-                  ) : isPainting ? (
-                    <PaintTool
-                      ref={paintToolRef}
-                      imageUrl={previewUrl}
-                      onApplyPaint={handlePaintApply}
-                      onCancel={cancelPaint}
-                      onToggleEraser={() => setIsEraser(!isEraser)}
-                      isEraser={isEraser}
-                    />
-                  ) : !isBlurring ? (
-                    // Only show the regular image view when NOT in blur mode
-                    <div
-                      className="overflow-auto"
-                      style={{
-                        maxHeight: isEditMode ? "85vh" : "700px",
-                        height: isEditMode ? "85vh" : "70vh",
-                      }}
-                    >
-                      <img
-                        ref={imgRef}
-                        src={previewUrl || PLACEHOLDER_IMAGE}
-                        alt="Edited image"
-                        className="max-w-full transform origin-top-left"
-                        style={{ transform: `scale(${zoom})` }}
-                      />
-                    </div>
-                  ) : null /* Don't render anything in the main area when blurring */
-                }
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -829,7 +454,7 @@ export default function ImageCropper({
                 onResize={handleResize}
                 onApplyResize={applyResize}
                 format={format}
-                onFormatChange={setFormat}
+                onFormatChange={actions.setFormat}
                 onDownload={downloadImage}
               />
 
@@ -857,3 +482,26 @@ export default function ImageCropper({
     </div>
   );
 }
+
+              Cancel
+            </Button>
+          )}
+
+          {isBlurring && (
+            <Button onClick={() => actions.setIsBlurring(false)} variant="outline">
+              <X className="mr-2 h-4 w-4" />
+              Cancel
+            </Button>
+          )}
+
+          {isPainting && (
+            <Button onClick={() => actions.setIsPainting(false)} variant="outline">
+              <X className="mr-2 h-4 w-4" />
+              Cancel
+            </Button>
+          )}
+
+          {/* Edit mode toggle */}
+          {!isCropping && !isBlurring && !isPainting && isEditMode && (
+            <Button onClick={exitEditMode} variant="outline">
+              <X className="mr-2 h-4 w-4" />
