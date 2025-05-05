@@ -2,7 +2,6 @@
 import { useCallback, useRef } from "react";
 import { useImageStore, useImageActions } from "../useImageStore";
 import { PixelCrop } from "react-image-crop";
-import { cropImage, resizeImage, getMimeType } from "../../utils/image-utils";
 import { useImageStats } from "./useImageStats";
 import { useImageHistoryWithStore } from "./useImageStats";
 
@@ -32,6 +31,107 @@ export const useImageOperations = () => {
     return canvasRef?.current || canvasRefInternal.current;
   }, [canvasRef]);
 
+  // Helper functions for image processing
+  const cropImage = useCallback(
+    async (
+      imgElement: HTMLImageElement,
+      crop: PixelCrop,
+      format: string
+    ): Promise<string> => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        throw new Error("Failed to get canvas context");
+      }
+
+      // Calculate scale if the displayed image is resized
+      const scaleX = imgElement.naturalWidth / imgElement.width;
+      const scaleY = imgElement.naturalHeight / imgElement.height;
+
+      // Set canvas dimensions to crop dimensions
+      canvas.width = crop.width;
+      canvas.height = crop.height;
+
+      // Draw the cropped portion of the image
+      ctx.drawImage(
+        imgElement,
+        crop.x * scaleX,
+        crop.y * scaleY,
+        crop.width * scaleX,
+        crop.height * scaleY,
+        0,
+        0,
+        crop.width,
+        crop.height
+      );
+
+      // Convert to blob and create URL
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("Canvas to Blob conversion failed"));
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            resolve(url);
+          },
+          getMimeType(format),
+          0.9
+        );
+      });
+    },
+    []
+  );
+
+  const resizeImage = useCallback(
+    async (
+      imgElement: HTMLImageElement,
+      newWidth: number,
+      newHeight: number,
+      format: string
+    ): Promise<string> => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        throw new Error("Failed to get canvas context");
+      }
+
+      // Set canvas dimensions to desired resize values
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+
+      // Draw the image with new dimensions
+      ctx.drawImage(imgElement, 0, 0, newWidth, newHeight);
+
+      // Convert to blob and create URL
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("Canvas to Blob conversion failed"));
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            resolve(url);
+          },
+          getMimeType(format),
+          0.9
+        );
+      });
+    },
+    []
+  );
+
+  const getMimeType = useCallback((format: string): string => {
+    if (format === "webp") return "image/webp";
+    if (format === "jpeg") return "image/jpeg";
+    if (format === "png") return "image/png";
+    return "image/jpeg"; // Default fallback
+  }, []);
+
   // Handle crop completion
   const handleCropComplete = useCallback(
     async (crop: PixelCrop, imgElement: HTMLImageElement) => {
@@ -40,7 +140,7 @@ export const useImageOperations = () => {
       try {
         saveState("crop");
 
-        const croppedUrl = await cropImage(imgElement, crop, format as any);
+        const croppedUrl = await cropImage(imgElement, crop, format as string);
 
         actions.setWidth(crop.width);
         actions.setHeight(crop.height);
@@ -73,12 +173,13 @@ export const useImageOperations = () => {
       updateStatsAfterProcessing,
       previewUrl,
       saveState,
+      cropImage,
     ]
   );
 
   // Handle resize
   const handleResize = useCallback(
-    async (newWidth: number, newHeight: number) => {
+    (newWidth: number, newHeight: number) => {
       actions.setWidth(newWidth);
       actions.setHeight(newHeight);
     },
@@ -97,7 +198,7 @@ export const useImageOperations = () => {
         imgRef,
         width,
         height,
-        format as any
+        format as string
       );
 
       actions.setPreviewUrl(resizedUrl);
@@ -130,6 +231,7 @@ export const useImageOperations = () => {
     updateStatsAfterProcessing,
     previewUrl,
     saveState,
+    resizeImage,
   ]);
 
   // Handle blur apply
@@ -232,18 +334,18 @@ export const useImageOperations = () => {
           URL.revokeObjectURL(url);
         }
       },
-      getMimeType(format),
+      getMimeType(format as string),
       0.9
     );
-  }, [getCanvasRef, getImageRef, selectedImage, format]);
+  }, [getCanvasRef, getImageRef, selectedImage, format, getMimeType]);
 
   // Initialize on new image
   const initializeImage = useCallback(
-    async (img: HTMLImageElement) => {
+    (img: HTMLImageElement) => {
       if (!selectedImage) return;
 
       imgRefInternal.current = img;
-      actions.setImageRef(imgRefInternal);
+      actions.setImageRef({ current: imgRefInternal.current });
 
       // Set initial dimensions from the image
       actions.setWidth(img.naturalWidth);
@@ -252,12 +354,23 @@ export const useImageOperations = () => {
       // Initialize the canvas reference if needed
       if (!canvasRefInternal.current) {
         canvasRefInternal.current = document.createElement("canvas");
-        actions.setCanvasRef(canvasRefInternal);
+        actions.setCanvasRef({ current: canvasRefInternal.current });
       }
 
       // Reset editing state
       actions.setHasEdited(false);
       actions.setNewStats(null);
+
+      // Get image dimensions and set original stats
+      const imageSize = selectedImage.file.size;
+      const imageFormat = selectedImage.file.type.split("/")[1] || "unknown";
+
+      actions.setOriginalStats({
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+        size: imageSize,
+        format: imageFormat,
+      });
     },
     [selectedImage, actions]
   );
@@ -270,7 +383,8 @@ export const useImageOperations = () => {
     handlePaintApply,
     downloadImage,
     initializeImage,
-    imgRef: imgRefInternal,
-    canvasRef: canvasRefInternal,
+    cropImage,
+    resizeImage,
+    getMimeType,
   };
 };

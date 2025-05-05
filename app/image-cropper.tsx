@@ -13,8 +13,7 @@ import { useImageStore, useImageActions } from "@/store/useImageStore";
 import { useImageOperations } from "@/store/hooks/useImageOperations";
 import { useImageControls } from "@/store/hooks/useImageControls";
 import { useImageStats } from "@/store/hooks/useImageStats";
-import { useImageHistoryWithStore } from "@store/hooks/useImageStats"
-
+import { useImageHistoryWithStore } from "@store/hooks/useImageHistory";
 
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";

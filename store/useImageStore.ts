@@ -1,16 +1,17 @@
 // store/useImageStore.ts
 import { create } from "zustand";
-import { devtools, persist, subscribeWithSelector } from "zustand/middleware";
+import { devtools, persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
+import { MutableRefObject } from "react";
 
-interface ImageFile {
+export interface ImageFile {
   id: string;
   file: File;
   url: string;
   isNew?: boolean;
 }
 
-interface ImageStats {
+export interface ImageStats {
   width: number;
   height: number;
   size: number;
@@ -20,11 +21,17 @@ interface ImageStats {
 interface ImageState {
   // Images state
   images: ImageFile[];
+  paginatedFiles: ImageFile[];
+  selectedFile: ImageFile | null;
   selectedImage: ImageFile | null;
+  isUploading: boolean;
+  uploadProgress: number;
+  error: string | null;
   uploadComplete: boolean;
   newImageAdded: boolean;
   isDragging: boolean;
   isEditMode: boolean;
+  currentPage: number;
 
   // Editor state
   isBlurring: boolean;
@@ -37,6 +44,10 @@ interface ImageState {
   blurRadius: number;
   zoom: number;
   previewUrl: string;
+  width: number;
+  height: number;
+  imageRef: MutableRefObject<HTMLImageElement | null> | null;
+  canvasRef: MutableRefObject<HTMLCanvasElement | null> | null;
 
   // Image processing state
   originalStats: ImageStats | null;
@@ -44,8 +55,9 @@ interface ImageState {
   dataSavings: number;
   hasEdited: boolean;
   format: string;
+}
 
-  // Actions
+interface ImageActions {
   setImages: (images: ImageFile[]) => void;
   addImages: (newImages: ImageFile[]) => void;
   removeImage: (id: string) => void;
@@ -64,18 +76,31 @@ interface ImageState {
   setBlurRadius: (radius: number) => void;
   setZoom: (zoom: number) => void;
   setPreviewUrl: (url: string) => void;
+  setWidth: (width: number) => void;
+  setHeight: (height: number) => void;
+  setImageRef: (ref: MutableRefObject<HTMLImageElement | null>) => void;
+  setCanvasRef: (ref: MutableRefObject<HTMLCanvasElement | null>) => void;
   setOriginalStats: (stats: ImageStats | null) => void;
   setNewStats: (stats: ImageStats | null) => void;
   setDataSavings: (savings: number) => void;
   setHasEdited: (edited: boolean) => void;
   setFormat: (format: string) => void;
+  setCurrentPage: (page: number) => void;
   resetEditor: () => void;
   resetAll: () => void;
+  cleanupObjectURLs: () => void;
 }
 
-const initialState = {
+export type ImageStore = ImageState & ImageActions;
+
+const initialState: ImageState = {
   images: [],
+  paginatedFiles: [],
+  selectedFile: null,
   selectedImage: null,
+  isUploading: false,
+  uploadProgress: 0,
+  error: null,
   uploadComplete: false,
   newImageAdded: false,
   isDragging: false,
@@ -90,17 +115,22 @@ const initialState = {
   blurRadius: 10,
   zoom: 1,
   previewUrl: "",
+  width: 0,
+  height: 0,
+  imageRef: null,
+  canvasRef: null,
   originalStats: null,
   newStats: null,
   dataSavings: 0,
   hasEdited: false,
   format: "jpeg",
+  currentPage: 1,
 };
 
-export const useImageStore = create<ImageState>()(
+export const useImageStore = create<ImageStore>()(
   devtools(
     persist(
-      immer((set) => ({
+      immer((set, get) => ({
         ...initialState,
 
         setImages: (images) => set({ images }),
@@ -131,6 +161,11 @@ export const useImageStore = create<ImageState>()(
             if (image?.url) {
               state.previewUrl = image.url;
             }
+
+            // Reset stats
+            state.hasEdited = false;
+            state.originalStats = null;
+            state.newStats = null;
           }),
 
         setUploadComplete: (complete) => set({ uploadComplete: complete }),
@@ -147,11 +182,16 @@ export const useImageStore = create<ImageState>()(
         setBlurRadius: (radius) => set({ blurRadius: radius }),
         setZoom: (zoom) => set({ zoom }),
         setPreviewUrl: (url) => set({ previewUrl: url }),
+        setWidth: (width) => set({ width }),
+        setHeight: (height) => set({ height }),
+        setImageRef: (ref) => set({ imageRef: ref }),
+        setCanvasRef: (ref) => set({ canvasRef: ref }),
         setOriginalStats: (stats) => set({ originalStats: stats }),
         setNewStats: (stats) => set({ newStats: stats }),
         setDataSavings: (savings) => set({ dataSavings: savings }),
         setHasEdited: (edited) => set({ hasEdited: edited }),
         setFormat: (format) => set({ format }),
+        setCurrentPage: (page) => set({ currentPage: page }),
 
         resetEditor: () =>
           set((state) => {
@@ -165,76 +205,84 @@ export const useImageStore = create<ImageState>()(
             state.previewUrl = state.selectedImage?.url || "";
           }),
 
-        resetAll: () =>
-          set((state) => {
-            Object.assign(state, initialState);
-          }),
+        resetAll: () => set(() => ({ ...initialState })),
+
+        cleanupObjectURLs: () => {
+          const state = get();
+          state.images.forEach((image) => {
+            if (image.url.startsWith("blob:")) {
+              URL.revokeObjectURL(image.url);
+            }
+          });
+
+          if (
+            state.previewUrl &&
+            state.previewUrl.startsWith("blob:") &&
+            state.previewUrl !== state.selectedImage?.url
+          ) {
+            URL.revokeObjectURL(state.previewUrl);
+          }
+        },
       })),
       {
         name: "image-editor-storage",
         partialize: (state) => ({
           images: state.images,
           uploadComplete: state.uploadComplete,
-          // Only persist non-ephemeral state
+          currentPage: state.currentPage,
         }),
       }
     )
   )
 );
 
-// Selectors for better performance
-export const useImageSelector = () => useImageStore((state) => state);
-
-export const useImageActions = () =>
-  useImageStore((state) => ({
-    setImages: state.setImages,
-    addImages: state.addImages,
-    removeImage: state.removeImage,
-    selectImage: state.selectImage,
-    setUploadComplete: state.setUploadComplete,
-    setNewImageAdded: state.setNewImageAdded,
-    setIsDragging: state.setIsDragging,
-    setIsEditMode: state.setIsEditMode,
-    setIsBlurring: state.setIsBlurring,
-    setIsPainting: state.setIsPainting,
-    setIsCropping: state.setIsCropping,
-    setBrushColor: state.setBrushColor,
-    setBrushSize: state.setBrushSize,
-    setIsEraser: state.setIsEraser,
-    setBlurAmount: state.setBlurAmount,
-    setBlurRadius: state.setBlurRadius,
-    setZoom: state.setZoom,
-    setPreviewUrl: state.setPreviewUrl,
-    setOriginalStats: state.setOriginalStats,
-    setNewStats: state.setNewStats,
-    setDataSavings: state.setDataSavings,
-    setHasEdited: state.setHasEdited,
-    setFormat: state.setFormat,
-    resetEditor: state.resetEditor,
-    resetAll: state.resetAll,
-  }));
+// Helper for actions
+export const useImageActions = () => {
+  const store = useImageStore();
+  return {
+    setImages: store.setImages,
+    addImages: store.addImages,
+    removeImage: store.removeImage,
+    selectImage: store.selectImage,
+    setUploadComplete: store.setUploadComplete,
+    setNewImageAdded: store.setNewImageAdded,
+    setIsDragging: store.setIsDragging,
+    setIsEditMode: store.setIsEditMode,
+    setIsBlurring: store.setIsBlurring,
+    setIsPainting: store.setIsPainting,
+    setIsCropping: store.setIsCropping,
+    setBrushColor: store.setBrushColor,
+    setBrushSize: store.setBrushSize,
+    setIsEraser: store.setIsEraser,
+    setBlurAmount: store.setBlurAmount,
+    setBlurRadius: store.setBlurRadius,
+    setZoom: store.setZoom,
+    setPreviewUrl: store.setPreviewUrl,
+    setWidth: store.setWidth,
+    setHeight: store.setHeight,
+    setImageRef: store.setImageRef,
+    setCanvasRef: store.setCanvasRef,
+    setOriginalStats: store.setOriginalStats,
+    setNewStats: store.setNewStats,
+    setDataSavings: store.setDataSavings,
+    setHasEdited: store.setHasEdited,
+    setFormat: store.setFormat,
+    setCurrentPage: store.setCurrentPage,
+    resetEditor: store.resetEditor,
+    resetAll: store.resetAll,
+  };
+};
 
 // Effect for automatic cleanup
 export const useImageCleanup = () => {
-  useImageStore(
-    subscribeWithSelector(
-      (state) => ({
-        images: state.images,
-        previewUrl: state.previewUrl,
-      }),
-      (prev, curr) => {
-        // Clean up old URLs when images change
-        prev.images.forEach((img) => {
-          if (!curr.images.some((newImg) => newImg.id === img.id)) {
-            URL.revokeObjectURL(img.url);
-          }
-        });
+  useEffect(() => {
+    const cleanup = useImageStore.getState().cleanupObjectURLs;
 
-        // Clean up old preview URL
-        if (prev.previewUrl && prev.previewUrl !== curr.previewUrl) {
-          URL.revokeObjectURL(prev.previewUrl);
-        }
-      }
-    )
-  );
+    // Clean up URLs when the component unmounts
+    return () => {
+      cleanup();
+    };
+  }, []);
 };
+
+import { useEffect } from "react";

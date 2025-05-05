@@ -1,7 +1,6 @@
 // store/hooks/useImageStats.ts
 import { useCallback, useEffect } from "react";
 import { useImageStore, useImageActions } from "../useImageStore";
-import { calculateSizeReduction, formatBytes } from "../../utils/image-utils";
 
 export const useImageStats = () => {
   const { selectedImage, originalStats, newStats, dataSavings, format } =
@@ -61,8 +60,27 @@ export const useImageStats = () => {
     [format, originalStats, actions]
   );
 
+  // Calculate size reduction percentage
+  const calculateSizeReduction = (
+    originalSize: number,
+    newSize: number
+  ): number => {
+    if (originalSize <= 0) return 0;
+    return 100 - (newSize / originalSize) * 100;
+  };
+
+  // Format bytes to human readable string
+  const formatBytes = (bytes: number, decimals = 2): string => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+  };
+
   // Get formatted stats for display
-  const getFormattedStats = () => {
+  const getFormattedStats = useCallback(() => {
     if (!originalStats) return null;
 
     return {
@@ -86,7 +104,7 @@ export const useImageStats = () => {
             : "0 Bytes",
       },
     };
-  };
+  }, [originalStats, newStats, dataSavings]);
 
   return {
     originalStats,
@@ -94,10 +112,12 @@ export const useImageStats = () => {
     dataSavings,
     updateStatsAfterProcessing,
     getFormattedStats,
+    formatBytes,
+    calculateSizeReduction,
   };
 };
 
-// store/hooks/useImageHistory.ts
+// Add a simple history hook for undo/redo functionality
 import { create } from "zustand";
 
 interface HistoryEntry {

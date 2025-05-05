@@ -55,6 +55,11 @@ export default function ImageEditor() {
 
   const removeImage = async (id: string) => {
     actions.removeImage(id);
+    try {
+      await imageDB.deleteImage(id);
+    } catch (error) {
+      console.error("Error removing image from DB:", error);
+    }
   };
 
   // Handle applying blur from the main toolbar
