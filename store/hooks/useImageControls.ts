@@ -41,6 +41,22 @@ export const useImageControls = () => {
     actions.setIsBlurring(false);
   }, [actions]);
 
+  const toggleFullScreen = useCallback(() => {
+    if (actions.setIsFullScreen) {
+      // Check if the function exists before calling it
+      const isFullScreen = useImageStore.getState().isFullScreen || false;
+      actions.setIsFullScreen(!isFullScreen);
+    }
+  }, [actions]);
+
+  const toggleStandalone = useCallback(() => {
+    if (actions.setIsStandalone) {
+      // Check if the function exists before calling it
+      const isStandalone = useImageStore.getState().isStandalone || false;
+      actions.setIsStandalone(!isStandalone);
+    }
+  }, [actions]);
+
   const zoomIn = useCallback(() => {
     const currentZoom = useImageStore.getState().zoom;
     actions.setZoom(Math.min(currentZoom + 0.1, 3));
@@ -63,6 +79,8 @@ export const useImageControls = () => {
     toggleCropping,
     toggleBlurring,
     togglePainting,
+    toggleFullScreen,
+    toggleStandalone,
     zoomIn,
     zoomOut,
     resetImage,

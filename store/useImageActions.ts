@@ -16,6 +16,8 @@ export const useImageActions = () => {
     setIsBlurring: store.setIsBlurring,
     setIsPainting: store.setIsPainting,
     setIsCropping: store.setIsCropping,
+    setIsStandalone: store.setIsStandalone, // New property
+    setIsFullScreen: store.setIsFullScreen, // New property
     setBrushColor: store.setBrushColor,
     setBrushSize: store.setBrushSize,
     setIsEraser: store.setIsEraser,

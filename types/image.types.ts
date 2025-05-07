@@ -1,6 +1,7 @@
 // types/image.types.ts
-import { RefObject } from "react";
-import { Crop as CropType, PixelCrop } from "react-image-crop";
+
+import { MutableRefObject } from "react";
+import { PixelCrop } from "react-image-crop";
 
 export interface ImageFile {
   id: string;
@@ -17,10 +18,10 @@ export interface ImageStats {
 }
 
 export interface ImageState {
-  // Images state
+  // Image collection
   images: ImageFile[];
-  paginatedFiles: ImageFile[];
-  selectedFile: ImageFile | null;
+  paginatedFiles: any[];
+  selectedFile: any | null;
   selectedImage: ImageFile | null;
   isUploading: boolean;
   uploadProgress: number;
@@ -28,39 +29,48 @@ export interface ImageState {
   uploadComplete: boolean;
   newImageAdded: boolean;
   isDragging: boolean;
-  isEditMode: boolean;
-  currentPage: number;
 
-  // Editor state
+  // Editor UI state
+  isEditMode: boolean;
   isBlurring: boolean;
   isPainting: boolean;
   isCropping: boolean;
+  isStandalone?: boolean;
+  isFullScreen?: boolean;
+
+  // Tool settings
   brushColor: string;
   brushSize: number;
   isEraser: boolean;
   blurAmount: number;
   blurRadius: number;
   zoom: number;
+
+  // Image processing
   previewUrl: string;
   width: number;
   height: number;
-  imageRef: RefObject<HTMLImageElement> | null;
-  canvasRef: RefObject<HTMLCanvasElement> | null;
+  imageRef: MutableRefObject<HTMLImageElement | null> | null;
+  canvasRef: MutableRefObject<HTMLCanvasElement | null> | null;
   completedCrop: PixelCrop | null;
 
-  // Image processing state
+  // Image stats
   originalStats: ImageStats | null;
   newStats: ImageStats | null;
   dataSavings: number;
   hasEdited: boolean;
   format: string;
+  currentPage: number;
 }
 
 export interface ImageActions {
+  // Image collection actions
   setImages: (images: ImageFile[]) => void;
   addImages: (newImages: ImageFile[]) => void;
   removeImage: (id: string) => void;
   selectImage: (image: ImageFile | null) => void;
+
+  // UI state actions
   setUploadComplete: (complete: boolean) => void;
   setNewImageAdded: (added: boolean) => void;
   setIsDragging: (dragging: boolean) => void;
@@ -68,26 +78,38 @@ export interface ImageActions {
   setIsBlurring: (blurring: boolean) => void;
   setIsPainting: (painting: boolean) => void;
   setIsCropping: (cropping: boolean) => void;
+  setIsStandalone?: (standalone: boolean) => void;
+  setIsFullScreen?: (fullscreen: boolean) => void;
+
+  // Tool settings actions
   setBrushColor: (color: string) => void;
   setBrushSize: (size: number) => void;
   setIsEraser: (eraser: boolean) => void;
   setBlurAmount: (amount: number) => void;
   setBlurRadius: (radius: number) => void;
   setZoom: (zoom: number) => void;
+
+  // Image processing actions
   setPreviewUrl: (url: string) => void;
   setWidth: (width: number) => void;
   setHeight: (height: number) => void;
-  setImageRef: (ref: RefObject<HTMLImageElement>) => void;
-  setCanvasRef: (ref: RefObject<HTMLCanvasElement>) => void;
+  setImageRef: (ref: MutableRefObject<HTMLImageElement | null>) => void;
+  setCanvasRef: (ref: MutableRefObject<HTMLCanvasElement | null>) => void;
+  setCompletedCrop: (crop: PixelCrop | null) => void;
+
+  // Image stats actions
   setOriginalStats: (stats: ImageStats | null) => void;
   setNewStats: (stats: ImageStats | null) => void;
   setDataSavings: (savings: number) => void;
   setHasEdited: (edited: boolean) => void;
   setFormat: (format: string) => void;
   setCurrentPage: (page: number) => void;
-  setCompletedCrop: (crop: PixelCrop | null) => void;
+
+  // Reset actions
   resetEditor: () => void;
   resetAll: () => void;
+
+  // Cleanup function
   cleanupObjectURLs: () => void;
 }
 

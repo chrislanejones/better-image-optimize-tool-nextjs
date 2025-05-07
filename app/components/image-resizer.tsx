@@ -1,5 +1,7 @@
-// Modified ImageResizer.tsx with equal-width buttons and improved slider
-import { useState, useEffect } from "react";
+// app/components/image-resizer.tsx
+"use client";
+
+import React, { useState, useEffect, useCallback } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -42,68 +44,87 @@ export default function ImageResizer({
   onFormatChange,
   onDownload,
 }: ImageResizerProps) {
+  // Local state to manage internal values
   const [currentWidth, setCurrentWidth] = useState(width);
   const [currentHeight, setCurrentHeight] = useState(height);
   const [keepAspectRatio, setKeepAspectRatio] = useState(true);
-  const [aspectRatio, setAspectRatio] = useState(width / height);
-  // State to track button animation
+  const [aspectRatio, setAspectRatio] = useState(
+    width > 0 && height > 0 ? width / height : 1
+  );
   const [isOptimizing, setIsOptimizing] = useState(false);
 
   // Update local state when props change
   useEffect(() => {
-    setCurrentWidth(width);
-    setCurrentHeight(height);
-    setAspectRatio(width / height);
+    if (width !== currentWidth) {
+      setCurrentWidth(width);
+    }
+    if (height !== currentHeight) {
+      setCurrentHeight(height);
+    }
+    if (width > 0 && height > 0) {
+      setAspectRatio(width / height);
+    }
   }, [width, height]);
 
-  // Handle width change
-  const handleWidthChange = (value: number[]) => {
-    const newWidth = value[0];
-    setCurrentWidth(newWidth);
+  // Memoized handlers for better performance
+  const handleWidthChange = useCallback(
+    (value: number[]) => {
+      if (!value.length || typeof value[0] !== "number") return;
 
-    if (keepAspectRatio) {
-      const newHeight = Math.round(newWidth / aspectRatio);
-      setCurrentHeight(newHeight);
-      onResize(newWidth, newHeight);
-    } else {
-      onResize(newWidth, currentHeight);
-    }
-  };
+      const newWidth = value[0];
+      setCurrentWidth(newWidth);
+
+      if (keepAspectRatio && aspectRatio > 0) {
+        const newHeight = Math.round(newWidth / aspectRatio);
+        setCurrentHeight(newHeight);
+        onResize(newWidth, newHeight);
+      } else {
+        onResize(newWidth, currentHeight);
+      }
+    },
+    [keepAspectRatio, aspectRatio, onResize, currentHeight]
+  );
 
   // Handle height change
-  const handleHeightChange = (value: number[]) => {
-    const newHeight = value[0];
-    setCurrentHeight(newHeight);
+  const handleHeightChange = useCallback(
+    (value: number[]) => {
+      if (!value.length || typeof value[0] !== "number") return;
 
-    if (keepAspectRatio) {
-      const newWidth = Math.round(newHeight * aspectRatio);
-      setCurrentWidth(newWidth);
-      onResize(newWidth, newHeight);
-    } else {
-      onResize(currentWidth, newHeight);
-    }
-  };
+      const newHeight = value[0];
+      setCurrentHeight(newHeight);
+
+      if (keepAspectRatio && aspectRatio > 0) {
+        const newWidth = Math.round(newHeight * aspectRatio);
+        setCurrentWidth(newWidth);
+        onResize(newWidth, newHeight);
+      } else {
+        onResize(currentWidth, newHeight);
+      }
+    },
+    [keepAspectRatio, aspectRatio, onResize, currentWidth]
+  );
 
   // Optimize for Core Web Vitals with animation
-  const optimizeForCoreWebVitals = () => {
+  const optimizeForCoreWebVitals = useCallback(() => {
     // Start animation
     setIsOptimizing(true);
 
     // Calculate optimal dimensions based on original aspect ratio
     // Aim for a file size that helps with LCP (Largest Contentful Paint)
-
-    // General recommendation is to keep images under 1000px wide for most websites
-    // unless they're hero/banner images, while maintaining the aspect ratio
     const MAX_RECOMMENDED_WIDTH = 1000;
     const MAX_RECOMMENDED_HEIGHT = 800;
 
     let optimalWidth = Math.min(currentWidth, MAX_RECOMMENDED_WIDTH);
-    let optimalHeight = Math.round(optimalWidth / aspectRatio);
+    let optimalHeight =
+      aspectRatio > 0 ? Math.round(optimalWidth / aspectRatio) : currentHeight;
 
     // If height exceeds recommended, adjust dimensions
     if (optimalHeight > MAX_RECOMMENDED_HEIGHT) {
       optimalHeight = MAX_RECOMMENDED_HEIGHT;
-      optimalWidth = Math.round(optimalHeight * aspectRatio);
+      optimalWidth =
+        aspectRatio > 0
+          ? Math.round(optimalHeight * aspectRatio)
+          : currentWidth;
     }
 
     // Apply optimal dimensions
@@ -117,7 +138,7 @@ export default function ImageResizer({
       // End animation
       setIsOptimizing(false);
     }, 800); // Delay to allow animation to complete
-  };
+  }, [currentWidth, currentHeight, aspectRatio, onResize, onApplyResize]);
 
   return (
     <Card className="bg-gray-800 text-white border-gray-700">
@@ -163,9 +184,13 @@ export default function ImageResizer({
           <Checkbox
             id="keep-aspect-ratio"
             checked={keepAspectRatio}
-            onCheckedChange={(checked) =>
-              setKeepAspectRatio(checked as boolean)
-            }
+            onCheckedChange={(checked) => {
+              const isChecked = !!checked;
+              setKeepAspectRatio(isChecked);
+              if (isChecked && width > 0 && height > 0) {
+                setAspectRatio(width / height);
+              }
+            }}
           />
           <label htmlFor="keep-aspect-ratio" className="text-sm font-medium">
             Keep aspect ratio

@@ -1,11 +1,30 @@
 // store/hooks/useImageStats.ts
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useImageStore } from "../useImageStore";
 import { useImageActions } from "../useImageActions";
+import {
+  formatBytes,
+  calculateSizeReduction,
+} from "../../app/utils/image-utils";
 
+/**
+ * Custom hook for managing image statistics
+ *
+ * Provides functionality to:
+ * - Initialize image statistics when a new image is loaded
+ * - Update statistics after image processing operations
+ * - Format statistics for display
+ * - Calculate size reduction and savings
+ */
 export const useImageStats = () => {
-  const { selectedImage, originalStats, newStats, dataSavings, format } =
-    useImageStore();
+  // Use selective state from the store
+  const selectedImage = useImageStore((state) => state.selectedImage);
+  const originalStats = useImageStore((state) => state.originalStats);
+  const newStats = useImageStore((state) => state.newStats);
+  const dataSavings = useImageStore((state) => state.dataSavings);
+  const format = useImageStore((state) => state.format);
+
+  // Get the actions
   const actions = useImageActions();
 
   // Initialize stats when new image is selected
@@ -13,6 +32,7 @@ export const useImageStats = () => {
     if (selectedImage && !originalStats) {
       const img = new Image();
       img.crossOrigin = "anonymous";
+
       img.onload = () => {
         actions.setOriginalStats({
           width: img.width,
@@ -21,6 +41,11 @@ export const useImageStats = () => {
           format: selectedImage.file.type.split("/")[1] || "unknown",
         });
       };
+
+      img.onerror = () => {
+        console.error("Error loading image for stats calculation");
+      };
+
       img.src = selectedImage.url;
     }
   }, [selectedImage, originalStats, actions]);
@@ -29,59 +54,51 @@ export const useImageStats = () => {
   const updateStatsAfterProcessing = useCallback(
     async (imageUrl: string) => {
       try {
-        const blob = await fetch(imageUrl).then((r) => r.blob());
-        const img = new Image();
-        img.src = imageUrl;
+        // Create a promise to handle the blob fetch
+        const blobPromise = fetch(imageUrl).then((r) => r.blob());
 
-        await new Promise<void>((resolve) => {
-          img.onload = () => {
-            const newStatsObj = {
-              width: img.naturalWidth,
-              height: img.naturalHeight,
-              size: blob.size,
-              format: format,
-            };
-            actions.setNewStats(newStatsObj);
+        // Create a promise to handle the image loading
+        const imagePromise = new Promise<HTMLImageElement>(
+          (resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error("Failed to load image"));
+            img.src = imageUrl;
+          }
+        );
 
-            if (originalStats) {
-              const savings = calculateSizeReduction(
-                originalStats.size,
-                blob.size
-              );
-              actions.setDataSavings(savings);
-            }
+        // Wait for both operations to complete
+        const [blob, img] = await Promise.all([blobPromise, imagePromise]);
 
-            resolve();
-          };
-        });
+        // Create new stats object
+        const newStatsObj = {
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+          size: blob.size,
+          format: format,
+        };
+
+        // Update state
+        actions.setNewStats(newStatsObj);
+
+        // Calculate savings if original stats exist
+        if (originalStats) {
+          const savings = calculateSizeReduction(originalStats.size, blob.size);
+          actions.setDataSavings(savings);
+        }
+
+        return newStatsObj;
       } catch (error) {
         console.error("Error updating stats:", error);
+        return null;
       }
     },
     [format, originalStats, actions]
   );
 
-  // Calculate size reduction percentage
-  const calculateSizeReduction = (
-    originalSize: number,
-    newSize: number
-  ): number => {
-    if (originalSize <= 0) return 0;
-    return 100 - (newSize / originalSize) * 100;
-  };
-
-  // Format bytes to human readable string
-  const formatBytes = (bytes: number, decimals = 2): string => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
-  };
-
-  // Get formatted stats for display
-  const getFormattedStats = useCallback(() => {
+  // Get formatted stats for display - memoized to prevent unnecessary recalculations
+  const getFormattedStats = useMemo(() => {
     if (!originalStats) return null;
 
     return {
@@ -103,22 +120,51 @@ export const useImageStats = () => {
           originalStats && newStats
             ? formatBytes(originalStats.size - newStats.size)
             : "0 Bytes",
+        ratio:
+          originalStats && newStats && newStats.size > 0
+            ? (originalStats.size / newStats.size).toFixed(2) + ":1"
+            : "1:1",
+      },
+      dimensions: {
+        changeX:
+          originalStats && newStats
+            ? Math.round((newStats.width / originalStats.width) * 100)
+            : 100,
+        changeY:
+          originalStats && newStats
+            ? Math.round((newStats.height / originalStats.height) * 100)
+            : 100,
       },
     };
   }, [originalStats, newStats, dataSavings]);
 
+  // Helper function to determine if an image was significantly optimized
+  const isOptimized = useMemo(() => {
+    if (!originalStats || !newStats) return false;
+    return dataSavings > 20; // Consider optimized if savings are more than 20%
+  }, [originalStats, newStats, dataSavings]);
+
   return {
+    // State
     originalStats,
     newStats,
     dataSavings,
+
+    // Functions
     updateStatsAfterProcessing,
     getFormattedStats,
+    isOptimized,
+
+    // Utilities (re-exported for convenience)
     formatBytes,
     calculateSizeReduction,
   };
 };
 
-// Add a simple history hook for undo/redo functionality
+/**
+ * History management hook for tracking image editing states
+ * Uses its own internal Zustand store independent of the main image store
+ */
 import { create } from "zustand";
 
 interface HistoryEntry {
@@ -206,10 +252,13 @@ export const useImageHistory = create<HistoryState>((set, get) => ({
     }),
 }));
 
-// Enhanced useImageHistory hook with Zustand integration
+/**
+ * Enhanced useImageHistory hook with Zustand integration
+ * Connects the history store with the main image store
+ */
 export const useImageHistoryWithStore = () => {
   const history = useImageHistory();
-  const { selectedImage } = useImageStore();
+  const selectedImage = useImageStore((state) => state.selectedImage);
   const actions = useImageActions();
 
   const saveState = useCallback(

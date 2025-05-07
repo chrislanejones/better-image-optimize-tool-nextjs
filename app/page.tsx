@@ -20,10 +20,107 @@ import { useImageCleanup } from "@/store/useImageCleanup";
 import { useFileOperations } from "@/store/hooks/useFileOperations";
 import { ImageFile } from "@/store/useImageStore";
 
-const MAX_IMAGES = 50;
-const IMAGES_PER_PAGE = 10;
+// --- ZUSTAND DEBUG UTILITIES ---
 
+// Add this hook to your component to debug state updates
+export function useZustandDebugger(store, label = "Store") {
+  const prevStateRef = useRef(store.getState());
+
+  useEffect(() => {
+    // Subscribe to state changes
+    const unsubscribe = store.subscribe((state) => {
+      const prevState = prevStateRef.current;
+      const changedKeys = Object.keys(state).filter(
+        (key) => state[key] !== prevState[key]
+      );
+
+      if (changedKeys.length > 0) {
+        console.group(`[${label}] State changed`);
+        changedKeys.forEach((key) => {
+          const oldValue = prevState[key];
+          const newValue = state[key];
+          console.log(`%c${key}`, "font-weight: bold; color: #735cdd", {
+            from: oldValue,
+            to: newValue,
+            changed:
+              typeof oldValue === "object" || typeof newValue === "object"
+                ? "Cannot compare objects deeply"
+                : oldValue !== newValue,
+          });
+        });
+        console.groupEnd();
+      }
+
+      prevStateRef.current = state;
+    });
+
+    // Initial state debug log
+    console.log(`[${label}] Initial state:`, store.getState());
+
+    return unsubscribe;
+  }, [store, label]);
+}
+
+// Add this to debug component renders
+export function useRenderCounter(componentName) {
+  const renderCount = useRef(0);
+
+  useEffect(() => {
+    renderCount.current += 1;
+    console.log(
+      `[Render Counter] ${componentName} rendered ${renderCount.current} times`
+    );
+  });
+}
+
+// Add this wrapper to debug props changes
+export function withPropDebugging(Component) {
+  const DebugComponent = (props) => {
+    const prevPropsRef = useRef(null);
+
+    useEffect(() => {
+      if (prevPropsRef.current) {
+        const prevProps = prevPropsRef.current;
+        const changedProps = Object.keys(props).filter(
+          (key) => props[key] !== prevProps[key]
+        );
+
+        if (changedProps.length > 0) {
+          console.group(
+            `[${Component.displayName || "Component"}] Props changed`
+          );
+          changedProps.forEach((key) => {
+            console.log(`${key}:`, {
+              from: prevProps[key],
+              to: props[key],
+            });
+          });
+          console.groupEnd();
+        }
+      }
+
+      prevPropsRef.current = props;
+    });
+
+    return <Component {...props} />;
+  };
+
+  DebugComponent.displayName = `DebugProps(${
+    Component.displayName || "Component"
+  })`;
+  return DebugComponent;
+}
+
+// Add this to your page component to use these utilities
 export default function ImageUploader() {
+  // Add the debugger to track state changes
+  useZustandDebugger(useImageStore, "ImageStore");
+
+  // Track renders of this component
+  useRenderCounter("ImageUploader");
+
+  const MAX_IMAGES = 50;
+  const IMAGES_PER_PAGE = 10;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Zustand state

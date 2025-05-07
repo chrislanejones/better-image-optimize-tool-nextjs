@@ -10,6 +10,15 @@ import React, {
 } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Check,
+  X,
+  Droplets,
+  RotateCcw,
+  MinusIcon,
+  PlusIcon,
+} from "lucide-react";
 
 // Export the ref type so it can be imported by other components
 export interface BlurBrushCanvasRef {
@@ -19,33 +28,35 @@ export interface BlurBrushCanvasRef {
 
 interface BlurBrushCanvasProps {
   imageUrl: string;
-  blurAmount: number;
-  blurRadius: number;
+  initialBlurAmount?: number;
+  initialBlurRadius?: number;
   onApply: (blurredImageUrl: string) => void;
   onCancel: () => void;
-  onBlurAmountChange?: (value: number) => void;
-  onBlurRadiusChange?: (value: number) => void;
 }
 
 const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
   (
     {
       imageUrl,
-      blurAmount,
-      blurRadius,
+      initialBlurAmount = 5,
+      initialBlurRadius = 10,
       onApply,
       onCancel,
-      onBlurAmountChange,
-      onBlurRadiusChange,
     },
     ref
   ) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const contextRef = useRef<CanvasRenderingContext2D | null>(null);
+    // State for blur settings
+    const [blurAmount, setBlurAmount] = useState(initialBlurAmount);
+    const [blurRadius, setBlurRadius] = useState(initialBlurRadius);
     const [isDrawing, setIsDrawing] = useState(false);
     const [baseImage, setBaseImage] = useState<HTMLImageElement | null>(null);
     const [isImageLoaded, setIsImageLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    // Canvas references
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const contextRef = useRef<CanvasRenderingContext2D | null>(null);
 
     // Initialize canvas with image
     const initCanvas = useCallback(async () => {
@@ -222,124 +233,210 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
       [applyBlurEffect]
     );
 
-    // Handle blur amount change
-    const handleBlurAmountChange = useCallback(
-      (value: number[]) => {
-        if (onBlurAmountChange) {
-          onBlurAmountChange(value[0]);
-        }
-      },
-      [onBlurAmountChange]
-    );
+    // Handler functions for controls
+    const decreaseBlurAmount = useCallback(() => {
+      setBlurAmount((prev) => Math.max(prev - 1, 1));
+    }, []);
 
-    // Handle blur radius change
-    const handleBlurRadiusChange = useCallback(
-      (value: number[]) => {
-        if (onBlurRadiusChange) {
-          onBlurRadiusChange(value[0]);
+    const increaseBlurAmount = useCallback(() => {
+      setBlurAmount((prev) => Math.min(prev + 1, 20));
+    }, []);
+
+    const decreaseBlurRadius = useCallback(() => {
+      setBlurRadius((prev) => Math.max(prev - 1, 1));
+    }, []);
+
+    const increaseBlurRadius = useCallback(() => {
+      setBlurRadius((prev) => Math.min(prev + 1, 50));
+    }, []);
+
+    const handleApply = useCallback(() => {
+      if (!canvasRef.current) return;
+
+      setIsProcessing(true);
+      try {
+        const dataUrl = canvasRef.current?.toDataURL("image/jpeg", 0.9);
+        if (dataUrl) {
+          onApply(dataUrl);
         }
-      },
-      [onBlurRadiusChange]
-    );
+      } catch (error) {
+        console.error("Error applying blur:", error);
+      } finally {
+        setIsProcessing(false);
+      }
+    }, [onApply]);
 
     return (
       <div className="flex flex-col gap-4 w-full h-full">
         {/* Blur controls */}
-        {(onBlurAmountChange || onBlurRadiusChange) && (
-          <div className="flex items-center gap-4 mb-4 bg-gray-700 p-2 rounded-lg">
-            <div className="grid grid-cols-2 gap-6 w-full">
-              {onBlurAmountChange && (
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <label
-                      htmlFor="blur-amount"
-                      className="text-sm font-medium text-white"
-                    >
-                      Blur Amount: {blurAmount}px
-                    </label>
-                  </div>
-                  <Slider
-                    id="blur-amount"
-                    min={1}
-                    max={20}
-                    step={1}
-                    value={[blurAmount]}
-                    onValueChange={handleBlurAmountChange}
-                    className="[&>.slider-track]:bg-gray-500"
-                  />
+        <div className="flex items-center gap-4 mb-4 bg-gray-700 p-2 rounded-lg">
+          <div className="grid grid-cols-2 gap-6 w-full">
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label
+                  htmlFor="blur-amount"
+                  className="text-sm font-medium text-white"
+                >
+                  Blur Amount: {blurAmount}px
+                </label>
+                <div className="flex items-center gap-1">
+                  <Button
+                    onClick={decreaseBlurAmount}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0 rounded-md"
+                    aria-label="Decrease blur amount"
+                  >
+                    <MinusIcon className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    onClick={increaseBlurAmount}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0 rounded-md"
+                    aria-label="Increase blur amount"
+                  >
+                    <PlusIcon className="h-3 w-3" />
+                  </Button>
                 </div>
-              )}
+              </div>
+              <Slider
+                id="blur-amount"
+                min={1}
+                max={20}
+                step={1}
+                value={[blurAmount]}
+                onValueChange={(value) => setBlurAmount(value[0])}
+                className="[&_.slider-track]:bg-gray-500"
+                aria-label="Blur amount"
+              />
+              <p className="text-xs text-gray-300">
+                Controls the intensity of the blur effect
+              </p>
+            </div>
 
-              {onBlurRadiusChange && (
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <label
-                      htmlFor="blur-radius"
-                      className="text-sm font-medium text-white"
-                    >
-                      Brush Size: {blurRadius}px
-                    </label>
-                  </div>
-                  <Slider
-                    id="blur-radius"
-                    min={1}
-                    max={30}
-                    step={1}
-                    value={[blurRadius]}
-                    onValueChange={handleBlurRadiusChange}
-                    className="[&>.slider-track]:bg-gray-500"
-                  />
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label
+                  htmlFor="blur-radius"
+                  className="text-sm font-medium text-white"
+                >
+                  Brush Size: {blurRadius}px
+                </label>
+                <div className="flex items-center gap-1">
+                  <Button
+                    onClick={decreaseBlurRadius}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0 rounded-md"
+                    aria-label="Decrease brush size"
+                  >
+                    <MinusIcon className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    onClick={increaseBlurRadius}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0 rounded-md"
+                    aria-label="Increase brush size"
+                  >
+                    <PlusIcon className="h-3 w-3" />
+                  </Button>
                 </div>
-              )}
+              </div>
+              <Slider
+                id="blur-radius"
+                min={1}
+                max={50}
+                step={1}
+                value={[blurRadius]}
+                onValueChange={(value) => setBlurRadius(value[0])}
+                className="[&_.slider-track]:bg-gray-500"
+                aria-label="Brush size"
+              />
+              <p className="text-xs text-gray-300">
+                Controls the size of the blur brush
+              </p>
             </div>
           </div>
-        )}
-
-        {/* Canvas area */}
-        <div className="relative flex-1 border rounded-lg overflow-hidden bg-gray-900 flex items-center justify-center">
-          {error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-red-900/20 text-white">
-              <p className="bg-red-600 px-4 py-2 rounded">{error}</p>
-            </div>
-          )}
-
-          {!isImageLoaded && !error && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
-            </div>
-          )}
-
-          <canvas
-            ref={canvasRef}
-            className="w-full max-w-full h-auto rounded border"
-            onMouseDown={startDrawing}
-            onMouseUp={finishDrawing}
-            onMouseMove={draw}
-            onMouseLeave={finishDrawing}
-            style={{
-              display: isImageLoaded ? "block" : "none",
-              cursor: "crosshair",
-            }}
-          />
         </div>
 
-        {/* Action buttons */}
-        <div className="flex justify-end gap-2">
-          <Button onClick={onCancel} variant="outline">
-            Cancel
-          </Button>
-          <Button
-            onClick={() => {
-              const dataUrl = canvasRef.current?.toDataURL("image/jpeg", 0.9);
-              if (dataUrl) {
-                onApply(dataUrl);
-              }
-            }}
-            variant="default"
-          >
-            Apply Blur
-          </Button>
-        </div>
+        {/* Canvas toolbar */}
+        <Card className="bg-gray-800 border-gray-700 p-2 rounded-md">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Droplets className="h-5 w-5 text-blue-400" />
+              <h3 className="text-sm font-medium text-white">Blur Tool</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={clear}
+                variant="outline"
+                size="sm"
+                className="h-8"
+                disabled={isProcessing}
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Reset
+              </Button>
+              <Button
+                onClick={onCancel}
+                variant="outline"
+                size="sm"
+                className="h-8"
+                disabled={isProcessing}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Cancel
+              </Button>
+              <Button
+                onClick={handleApply}
+                variant="default"
+                size="sm"
+                className="h-8"
+                disabled={isProcessing || !isImageLoaded}
+              >
+                <Check className="h-4 w-4 mr-1" />
+                Apply
+              </Button>
+            </div>
+          </div>
+
+          {/* Canvas area */}
+          <div className="relative border rounded-lg overflow-hidden bg-gray-900 flex items-center justify-center">
+            {error && (
+              <div className="absolute inset-0 flex items-center justify-center bg-red-900/20 text-white">
+                <p className="bg-red-600 px-4 py-2 rounded">{error}</p>
+              </div>
+            )}
+
+            {!isImageLoaded && !error && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+              </div>
+            )}
+
+            <canvas
+              ref={canvasRef}
+              className="w-full max-w-full h-auto rounded border"
+              onMouseDown={startDrawing}
+              onMouseUp={finishDrawing}
+              onMouseMove={draw}
+              onMouseLeave={finishDrawing}
+              style={{
+                display: isImageLoaded ? "block" : "none",
+                cursor: "crosshair",
+              }}
+            />
+          </div>
+
+          <div className="mt-2 px-2">
+            <p className="text-xs text-gray-400">
+              Paint over areas you want to blur. Adjust blur amount and brush
+              size using the controls above.
+            </p>
+          </div>
+        </Card>
       </div>
     );
   }
