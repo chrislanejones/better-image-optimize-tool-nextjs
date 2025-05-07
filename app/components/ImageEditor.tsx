@@ -4,9 +4,9 @@ import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { BlurControls, PaintControls } from "@/app/components/editor-controls";
-import BlurBrushCanvas, { type BlurBrushCanvasRef } from "./BlurBrushCanvas";
-import PaintTool, { type PaintToolRef } from "@/app/components/paint-tool";
-import { imageDB } from "@/app/utils/indexedDB";
+import BlurBrushCanvas from "./blur-canvas";
+import { type BlurBrushCanvasRef, type PaintToolRef } from "@/types/editor";
+import PaintTool from "@/app/components/paint-tool";
 
 import {
   Upload,

@@ -1,3 +1,4 @@
+// image-controls.tsx
 "use client";
 
 import React from "react";
@@ -19,6 +20,7 @@ import {
   ChevronsRight,
   WandSparkles,
   FolderDown,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ImageControlsProps } from "@/types/props";
@@ -30,9 +32,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Define the props interface
-
-// Define the component with the props interface
 const ImageControls: React.FC<ImageControlsProps> = ({
   isEditMode,
   isCropping,
@@ -69,7 +68,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
     <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
       {/* Left side toolbar */}
       <div className="flex items-center gap-2">
-        {/* Zoom controls (always visible) */}
+        {/* Zoom controls - always visible */}
         <div className="flex items-center gap-1 mr-2">
           <Button
             onClick={onZoomOut}
@@ -89,14 +88,15 @@ const ImageControls: React.FC<ImageControlsProps> = ({
           </Button>
         </div>
 
-        {!isEditMode && (
+        {/* Edit Image button - only when not in edit mode and not in any tool mode */}
+        {!isEditMode && !isCropping && !isBlurring && !isPainting && (
           <Button onClick={onToggleEditMode} variant="outline">
             <WandSparkles className="mr-2 h-4 w-4" />
             Edit Image
           </Button>
         )}
 
-        {/* Tool buttons (only in edit mode) */}
+        {/* Tool buttons - only in edit mode and not in any tool mode */}
         {isEditMode && !isCropping && !isBlurring && !isPainting && (
           <>
             <Button onClick={onToggleCropping} variant="outline">
@@ -116,118 +116,123 @@ const ImageControls: React.FC<ImageControlsProps> = ({
           </>
         )}
 
-        {/* Apply buttons for tool modes */}
+        {/* Apply buttons for specific tools */}
         {isCropping && (
           <Button onClick={onApplyCrop} variant="default">
             <Check className="mr-2 h-4 w-4" />
             Apply Crop
           </Button>
         )}
-
-        {isBlurring && (
+        {isBlurring && !isCropping && (
           <Button onClick={onApplyBlur} variant="default">
             <Check className="mr-2 h-4 w-4" />
             Apply Blur
           </Button>
         )}
 
-        {isPainting && (
+        {isPainting && !isCropping && (
           <>
             <Button onClick={onApplyPaint} variant="default">
               <Check className="mr-2 h-4 w-4" />
               Apply Paint
             </Button>
 
-            <Button
-              onClick={onToggleEraser}
-              variant={isEraser ? "default" : "outline"}
-            >
-              <Eraser className="mr-2 h-4 w-4" />
-              {isEraser ? "Brush" : "Eraser"}
-            </Button>
+            {onToggleEraser && (
+              <Button
+                onClick={onToggleEraser}
+                variant={isEraser ? "default" : "outline"}
+              >
+                <Eraser className="mr-2 h-4 w-4" />
+                {isEraser ? "Brush" : "Eraser"}
+              </Button>
+            )}
           </>
         )}
       </div>
 
       {/* Right side toolbar */}
       <div className="flex items-center gap-2">
-        {/* Pagination controls - only shown in view mode */}
-        {!isEditMode && totalPages > 1 && (
-          <div className="flex items-center gap-1 mr-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => onPageChange(1)}
-              disabled={currentPage === 1}
-              className="h-9 w-9"
-            >
-              <ChevronsLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="h-9 w-9"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="mx-2 text-sm text-white">
-              {currentPage} / {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="h-9 w-9"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => onPageChange(totalPages)}
-              disabled={currentPage === totalPages}
-              className="h-9 w-9"
-            >
-              <ChevronsRight className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
+        {/* Pagination controls - only in view mode and not in any tool mode */}
+        {!isEditMode &&
+          !isCropping &&
+          !isBlurring &&
+          !isPainting &&
+          totalPages > 1 && (
+            <div className="flex items-center gap-1 mr-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onPageChange(1)}
+                disabled={currentPage === 1}
+                className="h-9 w-9"
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onPageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="h-9 w-9"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="mx-2 text-sm text-white">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onPageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="h-9 w-9"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => onPageChange(totalPages)}
+                disabled={currentPage === totalPages}
+                className="h-9 w-9"
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
 
-        {/* Tool-specific cancel buttons */}
+        {/* Cancel buttons for tool modes */}
         {isCropping && (
           <Button onClick={onCancelCrop} variant="outline">
             <X className="mr-2 h-4 w-4" />
-            Cancel
+            Cancel Crop
           </Button>
         )}
 
-        {isBlurring && (
+        {isBlurring && !isCropping && (
           <Button onClick={onCancelBlur} variant="outline">
             <X className="mr-2 h-4 w-4" />
-            Cancel
+            Cancel Blur
           </Button>
         )}
 
-        {isPainting && (
+        {isPainting && !isCropping && (
           <Button onClick={onCancelPaint} variant="outline">
             <X className="mr-2 h-4 w-4" />
-            Cancel
+            Cancel Paint
           </Button>
         )}
 
-        {/* Edit mode toggle (only when not in a specific tool) */}
-        {!isCropping && !isBlurring && !isPainting && isEditMode && (
+        {/* Exit Edit Mode button - only when in edit mode but not in any tool mode */}
+        {isEditMode && !isCropping && !isBlurring && !isPainting && (
           <Button onClick={onExitEditMode} variant="outline">
             <X className="mr-2 h-4 w-4" />
             Exit Edit Mode
           </Button>
         )}
 
-        {/* Utility buttons (only in view mode) */}
-        {!isEditMode && (
+        {/* Utility buttons - only in view mode and not in any tool mode */}
+        {!isEditMode && !isCropping && !isBlurring && !isPainting && (
           <>
             <Button onClick={onReset} variant="outline">
               <RefreshCw className="mr-2 h-4 w-4" />
@@ -235,7 +240,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
             </Button>
 
             <Button onClick={onDownload} variant="outline">
-              <Upload className="mr-2 h-4 w-4" />
+              <Download className="mr-2 h-4 w-4" />
               Download
             </Button>
 

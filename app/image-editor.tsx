@@ -1,18 +1,17 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { type PixelCrop } from "react-image-crop";
+import ReactCrop, { type PixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import ImageControls from "./components/image-controls";
-import ImageStats from "./components/image-stats"; // Using the existing image-stats.tsx
 import CroppingTool from "./components/cropping-tool";
 import ImageResizer from "./components/image-resizer";
 import ImageZoomView from "./components/image-zoom-view";
 import { PaintControls } from "./components/editor-controls";
-import BlurBrushCanvas, {
-  type BlurBrushCanvasRef,
-} from "./components/BlurBrushCanvas";
-import PaintTool, { type PaintToolRef } from "./components/paint-tool";
+import BlurBrushCanvas from "./components/blur-canvas";
+import PaintTool from "./components/paint-tool";
+import ImageStatsComponent from "./components/image-stats";
+import { imageDB } from "./utils/indexedDB";
 
 import {
   cropImage,
@@ -20,80 +19,17 @@ import {
   safeRevokeURL,
 } from "./utils/image-transformations";
 import { getMimeType, getFileFormat } from "./utils/image-utils";
-import { imageDB } from "./utils/indexedDB";
 
+// Import the types from editor.ts
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  PieChart,
-  Pie,
-  Cell,
-  Text,
-} from "recharts";
+  type ImageFile,
+  type ImageCropperProps,
+  type ImageStats, // This is the type definition
+  type BlurBrushCanvasRef,
+  type PaintToolRef,
+} from "@/types/editor";
 
-interface ImageFile {
-  id: string;
-  file: File;
-  url: string;
-}
-
-// Update the ImageCropperProps interface in image-cropper.tsxinterface
-interface ImageCropperProps {
-  image: ImageFile;
-  onUploadNew: () => void;
-  onRemoveAll: () => void;
-  onBackToGallery?: () => void;
-  isStandalone?: boolean;
-  onEditModeChange?: (isEditing: boolean) => void;
-  // Add these new pagination props
-  currentPage?: number;
-  totalPages?: number;
-  onPageChange?: (page: number) => void;
-}
-
-interface ImageStats {
-  width: number;
-  height: number;
-  size: number;
-  format: string;
-}
-
-// Define the interface for ImageControls props
-interface ImageControlsProps {
-  isEditMode: boolean;
-  isCropping: boolean;
-  isBlurring: boolean;
-  isPainting: boolean;
-  isEraser: boolean;
-  format: string;
-  onFormatChange: (format: string) => void;
-  onToggleEditMode: () => void;
-  onToggleCropping: () => void;
-  onToggleBlurring: () => void;
-  onTogglePainting: () => void;
-  onToggleEraser: () => void;
-  onApplyCrop: () => void;
-  onApplyBlur: () => void;
-  onApplyPaint: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onReset: () => void;
-  onDownload: () => void;
-  onUploadNew: () => void;
-  onRemoveAll: () => void;
-  onCancelBlur: () => void;
-  onCancelCrop: () => void;
-  onCancelPaint: () => void;
-  onBackToGallery: () => void;
-  onExitEditMode: () => void;
-  isStandalone: boolean;
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-}
+// Remove the interface definitions from here since they're now in editor.ts
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
@@ -132,6 +68,7 @@ export default function ImageCropper({
   const [isEraser, setIsEraser] = useState<boolean>(false);
 
   // Stats states
+  // Use the imported type
   const [originalStats, setOriginalStats] = useState<ImageStats | null>(null);
   const [newStats, setNewStats] = useState<ImageStats | null>(null);
   const [dataSavings, setDataSavings] = useState<number>(0);
@@ -780,41 +717,53 @@ export default function ImageCropper({
                 className="relative border rounded-lg overflow-hidden"
                 ref={imageContainerRef}
               >
-                {
-                  isCropping ? (
-                    <CroppingTool
-                      imageUrl={previewUrl}
-                      onApplyCrop={handleCropComplete}
-                      onCancel={cancelCrop}
+                {isCropping ? (
+                  <CroppingTool
+                    imageUrl={previewUrl}
+                    onApplyCrop={handleCropComplete}
+                    onCancel={cancelCrop}
+                    zoom={zoom} // Pass zoom prop
+                  />
+                ) : isBlurring ? (
+                  <BlurBrushCanvas
+                    ref={blurCanvasRef}
+                    imageUrl={previewUrl}
+                    blurAmount={blurAmount}
+                    blurRadius={blurRadius}
+                    onApply={handleBlurApply}
+                    onCancel={cancelBlur}
+                    onBlurAmountChange={setBlurAmount}
+                    onBlurRadiusChange={setBlurRadius}
+                    zoom={zoom} // Pass zoom prop
+                  />
+                ) : isPainting ? (
+                  <PaintTool
+                    ref={paintToolRef}
+                    imageUrl={previewUrl}
+                    onApplyPaint={handlePaintApply}
+                    onCancel={cancelPaint}
+                    onToggleEraser={() => setIsEraser(!isEraser)}
+                    isEraser={isEraser}
+                    zoom={zoom} // Pass zoom prop
+                  />
+                ) : (
+                  // Regular image view
+                  <div
+                    className="overflow-auto"
+                    style={{
+                      maxHeight: isEditMode ? "85vh" : "700px",
+                      height: isEditMode ? "85vh" : "70vh",
+                    }}
+                  >
+                    <img
+                      ref={imgRef}
+                      src={previewUrl || PLACEHOLDER_IMAGE}
+                      alt="Edited image"
+                      className="max-w-full transform origin-top-left"
+                      style={{ transform: `scale(${zoom})` }}
                     />
-                  ) : isPainting ? (
-                    <PaintTool
-                      ref={paintToolRef}
-                      imageUrl={previewUrl}
-                      onApplyPaint={handlePaintApply}
-                      onCancel={cancelPaint}
-                      onToggleEraser={() => setIsEraser(!isEraser)}
-                      isEraser={isEraser}
-                    />
-                  ) : !isBlurring ? (
-                    // Only show the regular image view when NOT in blur mode
-                    <div
-                      className="overflow-auto"
-                      style={{
-                        maxHeight: isEditMode ? "85vh" : "700px",
-                        height: isEditMode ? "85vh" : "70vh",
-                      }}
-                    >
-                      <img
-                        ref={imgRef}
-                        src={previewUrl || PLACEHOLDER_IMAGE}
-                        alt="Edited image"
-                        className="max-w-full transform origin-top-left"
-                        style={{ transform: `scale(${zoom})` }}
-                      />
-                    </div>
-                  ) : null /* Don't render anything in the main area when blurring */
-                }
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -840,7 +789,7 @@ export default function ImageCropper({
 
         {/* Image Information Cards */}
         {!isEditMode && !isBlurring && !isPainting && (
-          <ImageStats
+          <ImageStatsComponent
             originalStats={originalStats}
             newStats={newStats}
             dataSavings={dataSavings}

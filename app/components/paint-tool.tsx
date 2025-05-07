@@ -7,19 +7,7 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { Button } from "@/components/ui/button";
-
-interface PaintToolProps {
-  imageUrl: string;
-  onApplyPaint: (paintedImageUrl: string) => void;
-  onCancel: () => void;
-  onToggleEraser: () => void;
-  isEraser: boolean;
-}
-
-export interface PaintToolRef {
-  getCanvasDataUrl: () => string | null;
-}
+import { type PaintToolProps, type PaintToolRef } from "@/types/editor";
 
 const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
   ({ imageUrl, onApplyPaint, onCancel, onToggleEraser, isEraser }, ref) => {

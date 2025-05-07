@@ -20,7 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import ImageCropper from "./image-cropper";
+import ImageCropper from "./image-editor";
 
 interface ImageFile {
   id: string;

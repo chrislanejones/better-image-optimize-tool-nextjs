@@ -6,17 +6,13 @@ import ReactCrop, {
   type PixelCrop,
 } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
-
-interface CroppingToolProps {
-  imageUrl: string;
-  onApplyCrop: (crop: PixelCrop, imageRef: HTMLImageElement) => void;
-  onCancel: () => void;
-}
+import { type CroppingToolProps } from "@/types/editor";
 
 export default function CroppingTool({
   imageUrl,
   onApplyCrop,
   onCancel,
+  zoom = 1,
 }: CroppingToolProps) {
   const [crop, setCrop] = useState<CropType>({
     unit: "%",
@@ -47,24 +43,13 @@ export default function CroppingTool({
           src={imageUrl}
           alt="Image for cropping"
           className="max-w-full"
+          style={{
+            transform: `scale(${zoom})`,
+            transformOrigin: "top left",
+          }}
         />
       </ReactCrop>
-
-      <div className="flex justify-end gap-2 mt-4">
-        <button
-          onClick={onCancel}
-          className="px-4 py-2 bg-gray-600 text-white rounded-md"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleApplyCrop}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md"
-          disabled={!completedCrop}
-        >
-          Apply Crop
-        </button>
-      </div>
+      {/* Removed the bottom buttons */}
     </div>
   );
 }

@@ -10,7 +10,7 @@ import { createFileFromBlob, base64ToBlob } from "@/app/utils/image-utils";
 
 // Dynamically import the ImageCropper component to prevent hydration mismatch
 // This ensures it only renders on the client side
-const ImageCropper = dynamic(() => import("@/app/image-cropper"), {
+const ImageCropper = dynamic(() => import("@/app/image-editor"), {
   ssr: false, // Disable server-side rendering
   loading: () => (
     <div className="animate-pulse flex items-center justify-center h-[600px] bg-gray-100 dark:bg-gray-800 rounded-lg">

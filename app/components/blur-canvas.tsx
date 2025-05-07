@@ -9,31 +9,18 @@ import React, {
   useCallback,
 } from "react";
 import { Slider } from "@/components/ui/slider";
-import { Button } from "@/components/ui/button";
+import {
+  type BlurBrushCanvasProps,
+  type BlurBrushCanvasRef,
+} from "@/types/editor";
 
-// Export the ref type so it can be imported by other components
-export interface BlurBrushCanvasRef {
-  getCanvasDataUrl: () => string | null;
-  clear: () => void;
-}
-
-interface BlurBrushCanvasProps {
-  imageUrl: string;
-  blurAmount: number;
-  blurRadius: number;
-  zoom?: number; // Add zoom prop
-  onZoomChange?: (zoom: number) => void; // Add zoom change handler
-  onApply: (blurredImageUrl: string) => void;
-  onCancel: () => void;
-  onBlurAmountChange?: (value: number) => void;
-  onBlurRadiusChange?: (value: number) => void;
-}
 const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
   (
     {
       imageUrl,
       blurAmount,
       blurRadius,
+      zoom = 1, // Add zoom prop with default value
       onApply,
       onCancel,
       onBlurAmountChange,
@@ -320,6 +307,8 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
             style={{
               display: isImageLoaded ? "block" : "none",
               cursor: "crosshair",
+              transform: `scale(${zoom})`, // Apply zoom transform
+              transformOrigin: "top left",
             }}
           />
         </div>
