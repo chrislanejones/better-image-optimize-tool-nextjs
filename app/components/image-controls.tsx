@@ -21,6 +21,7 @@ import {
   FolderDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { ImageControlsProps } from "@/types/props";
 import {
   Select,
   SelectContent,
@@ -30,38 +31,6 @@ import {
 } from "@/components/ui/select";
 
 // Define the props interface
-export interface ImageControlsProps {
-  isEditMode: boolean;
-  isCropping: boolean;
-  isBlurring: boolean;
-  isPainting: boolean;
-  isEraser: boolean;
-  format: string;
-  onFormatChange: (format: string) => void;
-  onToggleEditMode: () => void;
-  onToggleCropping: () => void;
-  onToggleBlurring: () => void;
-  onTogglePainting: () => void;
-  onToggleEraser: () => void;
-  onApplyCrop: () => void;
-  onApplyBlur: () => void;
-  onApplyPaint: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onReset: () => void;
-  onDownload: () => void;
-  onUploadNew: () => void;
-  onRemoveAll: () => void;
-  onCancelBlur: () => void;
-  onCancelCrop: () => void;
-  onCancelPaint: () => void;
-  onBackToGallery: () => void;
-  onExitEditMode: () => void;
-  isStandalone: boolean;
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-}
 
 // Define the component with the props interface
 const ImageControls: React.FC<ImageControlsProps> = ({

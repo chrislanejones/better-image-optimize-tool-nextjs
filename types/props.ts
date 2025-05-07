@@ -1,0 +1,32 @@
+export interface ImageControlsProps {
+  isEditMode: boolean;
+  isCropping: boolean;
+  isBlurring: boolean;
+  isPainting: boolean;
+  isEraser: boolean;
+  format: string;
+  onFormatChange: (format: string) => void;
+  onToggleEditMode: () => void;
+  onToggleCropping: () => void;
+  onToggleBlurring: () => void;
+  onTogglePainting: () => void;
+  onToggleEraser: () => void;
+  onApplyCrop: () => void;
+  onApplyBlur: () => void;
+  onApplyPaint: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
+  onDownload: () => void;
+  onUploadNew: () => void;
+  onRemoveAll: () => void;
+  onCancelBlur: () => void;
+  onCancelCrop: () => void;
+  onCancelPaint: () => void;
+  onBackToGallery: () => void;
+  onExitEditMode: () => void;
+  isStandalone: boolean;
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}

@@ -21,12 +21,13 @@ interface BlurBrushCanvasProps {
   imageUrl: string;
   blurAmount: number;
   blurRadius: number;
+  zoom?: number; // Add zoom prop
+  onZoomChange?: (zoom: number) => void; // Add zoom change handler
   onApply: (blurredImageUrl: string) => void;
   onCancel: () => void;
   onBlurAmountChange?: (value: number) => void;
   onBlurRadiusChange?: (value: number) => void;
 }
-
 const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
   (
     {
@@ -321,24 +322,6 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
               cursor: "crosshair",
             }}
           />
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex justify-end gap-2">
-          <Button onClick={onCancel} variant="outline">
-            Cancel
-          </Button>
-          <Button
-            onClick={() => {
-              const dataUrl = canvasRef.current?.toDataURL("image/jpeg", 0.9);
-              if (dataUrl) {
-                onApply(dataUrl);
-              }
-            }}
-            variant="default"
-          >
-            Apply Blur
-          </Button>
         </div>
       </div>
     );
