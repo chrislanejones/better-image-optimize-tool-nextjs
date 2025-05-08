@@ -7,9 +7,11 @@ import ImageControls from "./components/image-controls";
 import CroppingTool from "./components/cropping-tool";
 import ImageResizer from "./components/image-resizer";
 import ImageZoomView from "./components/image-zoom-view";
-import { PaintControls } from "./components/editor-controls";
+import { PaintControls } from "./components/paint-controls";
+import TextControls from "./components/text-controls";
 import BlurBrushCanvas from "./components/blur-canvas";
 import PaintTool from "./components/paint-tool";
+import TextTool from "./components/text-tool";
 import ImageStatsComponent from "./components/image-stats";
 import { imageDB } from "./utils/indexedDB";
 
@@ -27,11 +29,12 @@ import {
   type ImageStats,
   type BlurBrushCanvasRef,
   type PaintToolRef,
+  type TextToolRef,
 } from "@/types/editor";
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
-export default function ImageCropper({
+export default function ImageEditor({
   image,
   onUploadNew,
   onRemoveAll,
@@ -57,6 +60,7 @@ export default function ImageCropper({
   const [isCropping, setIsCropping] = useState<boolean>(false);
   const [isBlurring, setIsBlurring] = useState<boolean>(false);
   const [isPainting, setIsPainting] = useState<boolean>(false);
+  const [isTexting, setIsTexting] = useState<boolean>(false); // New state for text tool
 
   // Tool states
   const [blurAmount, setBlurAmount] = useState<number>(5);
@@ -64,6 +68,11 @@ export default function ImageCropper({
   const [brushSize, setBrushSize] = useState<number>(10);
   const [brushColor, setBrushColor] = useState<string>("#ff0000");
   const [isEraser, setIsEraser] = useState<boolean>(false);
+
+  // Text tool states
+  const [textSize, setTextSize] = useState<number>(24);
+  const [textFont, setTextFont] = useState<string>("Arial");
+  const [textColor, setTextColor] = useState<string>("#000000");
 
   // Stats states
   const [originalStats, setOriginalStats] = useState<ImageStats | null>(null);
@@ -77,6 +86,7 @@ export default function ImageCropper({
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const blurCanvasRef = useRef<BlurBrushCanvasRef>(null);
   const paintToolRef = useRef<PaintToolRef>(null);
+  const textToolRef = useRef<TextToolRef>(null); // New ref for text tool
 
   // Set mounted state to prevent hydration mismatch
   useEffect(() => {
@@ -107,6 +117,7 @@ export default function ImageCropper({
       setIsCropping(false);
       setIsBlurring(false);
       setIsPainting(false);
+      setIsTexting(false); // Reset text tool state
     }
 
     setZoom(1);
@@ -124,8 +135,11 @@ export default function ImageCropper({
       setOriginalStats({
         width: img.width,
         height: img.height,
-        size: image?.file ? image.file.size : 0,
-        format: image?.file?.type ? getFileFormat(image.file.type) : "unknown",
+        size: image && image.file ? image.file.size : 0,
+        format:
+          image && image.file && image.file.type
+            ? getFileFormat(image.file.type)
+            : "unknown",
       });
     };
 
@@ -147,10 +161,10 @@ export default function ImageCropper({
 
   // Update isEditMode when editing tools are activated
   useEffect(() => {
-    if ((isCropping || isBlurring || isPainting) && !isEditMode) {
+    if ((isCropping || isBlurring || isPainting || isTexting) && !isEditMode) {
       setIsEditMode(true);
     }
-  }, [isCropping, isBlurring, isPainting, isEditMode]);
+  }, [isCropping, isBlurring, isPainting, isTexting, isEditMode]);
 
   // Save edited image to IndexedDB
   const saveEditedImage = useCallback(
@@ -199,6 +213,7 @@ export default function ImageCropper({
     setIsBlurring(false);
     setIsCropping(false);
     setIsPainting(false);
+    setIsTexting(false);
   }, [isStandalone]);
 
   const toggleCropping = useCallback(() => {
@@ -208,6 +223,7 @@ export default function ImageCropper({
     setIsCropping((prev) => !prev);
     setIsBlurring(false);
     setIsPainting(false);
+    setIsTexting(false);
   }, [isEditMode, isStandalone]);
 
   const toggleBlurring = useCallback(() => {
@@ -217,6 +233,7 @@ export default function ImageCropper({
     setIsBlurring((prev) => !prev);
     setIsCropping(false);
     setIsPainting(false);
+    setIsTexting(false);
   }, [isEditMode, isStandalone]);
 
   const togglePainting = useCallback(() => {
@@ -226,6 +243,18 @@ export default function ImageCropper({
     setIsPainting((prev) => !prev);
     setIsCropping(false);
     setIsBlurring(false);
+    setIsTexting(false);
+  }, [isEditMode, isStandalone]);
+
+  // New toggle function for text tool
+  const toggleTexting = useCallback(() => {
+    if (!isEditMode && !isStandalone) {
+      setIsEditMode(true);
+    }
+    setIsTexting((prev) => !prev);
+    setIsCropping(false);
+    setIsBlurring(false);
+    setIsPainting(false);
   }, [isEditMode, isStandalone]);
 
   // Cancel functions
@@ -241,11 +270,17 @@ export default function ImageCropper({
     setIsPainting(false);
   }, []);
 
+  // New cancel function for text tool
+  const cancelText = useCallback(() => {
+    setIsTexting(false);
+  }, []);
+
   // Exit edit mode completely
   const exitEditMode = useCallback(() => {
     setIsCropping(false);
     setIsBlurring(false);
     setIsPainting(false);
+    setIsTexting(false);
     if (!isStandalone) {
       setIsEditMode(false);
     }
@@ -393,6 +428,7 @@ export default function ImageCropper({
       saveEditedImage,
     ]
   );
+
   // Add this near your other state variables
   const [crop, setCrop] = useState<Crop>({
     unit: "%",
@@ -533,6 +569,71 @@ export default function ImageCropper({
     ]
   );
 
+  // New handler for text tool
+  const handleTextApply = useCallback(
+    async (textedImageUrl: string) => {
+      if (!textedImageUrl || typeof textedImageUrl !== "string") return;
+
+      try {
+        // Get the current image URL
+        const oldPreviewUrl = previewUrl;
+
+        setPreviewUrl(textedImageUrl);
+        setIsTexting(false);
+        setHasEdited(true);
+
+        // Fetch the blob to calculate size
+        const blob = await fetch(textedImageUrl).then((r) => r.blob());
+
+        // Get image dimensions
+        const img = new Image();
+        img.src = textedImageUrl;
+
+        await new Promise<void>((resolve) => {
+          img.onload = () => {
+            // Update stats
+            setNewStats({
+              width: img.naturalWidth,
+              height: img.naturalHeight,
+              size: blob.size,
+              format: format || "unknown",
+            });
+            resolve();
+          };
+        });
+
+        // Calculate data savings
+        if (originalStats) {
+          const savings = 100 - (blob.size / originalStats.size) * 100;
+          setDataSavings(savings);
+        }
+
+        // Update the stored image if in standalone mode
+        if (isStandalone) {
+          await saveEditedImage(textedImageUrl, blob);
+        }
+
+        // Clean up old URL if needed
+        if (
+          oldPreviewUrl !== PLACEHOLDER_IMAGE &&
+          oldPreviewUrl !== image?.url
+        ) {
+          safeRevokeURL(oldPreviewUrl);
+        }
+      } catch (error) {
+        console.error("Error applying text:", error);
+      }
+    },
+    [
+      previewUrl,
+      format,
+      originalStats,
+      isStandalone,
+      image?.url,
+      saveEditedImage,
+    ]
+  );
+
   // Then define these functions that use the above functions
   const handleApplyBlur = useCallback(() => {
     if (blurCanvasRef.current) {
@@ -551,6 +652,16 @@ export default function ImageCropper({
       }
     }
   }, [handlePaintApply]);
+
+  // New function to apply text changes
+  const handleApplyText = useCallback(() => {
+    if (textToolRef.current) {
+      const dataUrl = textToolRef.current.getCanvasDataUrl();
+      if (dataUrl) {
+        handleTextApply(dataUrl);
+      }
+    }
+  }, [handleTextApply]);
 
   // Zoom in/out functions
   const zoomIn = useCallback(() => {
@@ -620,6 +731,7 @@ export default function ImageCropper({
     setIsCropping(false);
     setIsBlurring(false);
     setIsPainting(false);
+    setIsTexting(false);
     setHasEdited(false);
     setNewStats(null);
 
@@ -661,6 +773,7 @@ export default function ImageCropper({
         isCropping={isCropping}
         isBlurring={isBlurring}
         isPainting={isPainting}
+        isTexting={isTexting}
         isEraser={isEraser}
         format={format}
         onFormatChange={setFormat}
@@ -668,6 +781,7 @@ export default function ImageCropper({
         onToggleCropping={toggleCropping}
         onToggleBlurring={toggleBlurring}
         onTogglePainting={togglePainting}
+        onToggleTexting={toggleTexting}
         onToggleEraser={() => setIsEraser(!isEraser)}
         onApplyCrop={() => {
           if (completedCrop && cropImgRef.current) {
@@ -676,6 +790,7 @@ export default function ImageCropper({
         }}
         onApplyBlur={handleApplyBlur}
         onApplyPaint={handleApplyPaint}
+        onApplyText={handleApplyText}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
         onReset={resetImage}
@@ -685,6 +800,7 @@ export default function ImageCropper({
         onCancelBlur={cancelBlur}
         onCancelCrop={cancelCrop}
         onCancelPaint={cancelPaint}
+        onCancelText={cancelText}
         onBackToGallery={handleBackToGallery}
         onExitEditMode={exitEditMode}
         isStandalone={isStandalone}
@@ -694,13 +810,33 @@ export default function ImageCropper({
       />
 
       {/* Display appropriate tool controls based on active tool */}
+      {isBlurring && (
+        <BlurControls
+          blurAmount={blurAmount}
+          blurRadius={blurRadius}
+          onBlurAmountChange={setBlurAmount}
+          onBlurRadiusChange={setBlurRadius}
+        />
+      )}
 
       {isPainting && (
         <PaintControls
           brushSize={brushSize}
           brushColor={brushColor}
           onBrushSizeChange={setBrushSize}
-          onBrushColorChange={setBrushColor} // Make sure this is correctly connected
+          onBrushColorChange={setBrushColor}
+        />
+      )}
+
+      {/* Add Text Controls */}
+      {isTexting && (
+        <TextControls
+          textSize={textSize}
+          textFont={textFont}
+          textColor={textColor}
+          onTextSizeChange={setTextSize}
+          onTextFontChange={setTextFont}
+          onTextColorChange={setTextColor}
         />
       )}
 
@@ -754,8 +890,19 @@ export default function ImageCropper({
                     onCancel={cancelPaint}
                     onToggleEraser={() => setIsEraser(!isEraser)}
                     isEraser={isEraser}
-                    brushColor={brushColor} // Make sure this prop is passed
-                    brushSize={brushSize} // Make sure this prop is passed
+                    brushColor={brushColor}
+                    brushSize={brushSize}
+                    zoom={zoom}
+                  />
+                ) : isTexting ? (
+                  <TextTool
+                    ref={textToolRef}
+                    imageUrl={previewUrl}
+                    onApplyText={handleTextApply}
+                    onCancel={cancelText}
+                    textSize={textSize}
+                    textFont={textFont}
+                    textColor={textColor}
                     zoom={zoom}
                   />
                 ) : (
@@ -780,7 +927,7 @@ export default function ImageCropper({
             </div>
           </section>
 
-          {!isEditMode && !isBlurring && !isPainting && (
+          {!isEditMode && !isBlurring && !isPainting && !isTexting && (
             <aside className="md:col-span-1 space-y-6">
               <ImageResizer
                 width={width}
@@ -800,7 +947,7 @@ export default function ImageCropper({
         </div>
 
         {/* Image Information Cards */}
-        {!isEditMode && !isBlurring && !isPainting && (
+        {!isEditMode && !isBlurring && !isPainting && !isTexting && (
           <ImageStatsComponent
             originalStats={originalStats}
             newStats={newStats}

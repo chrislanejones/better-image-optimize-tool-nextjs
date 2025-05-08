@@ -21,6 +21,7 @@ import {
   WandSparkles,
   FolderDown,
   Download,
+  Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ImageControlsProps } from "@/types/editor";
@@ -37,6 +38,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
   isCropping,
   isBlurring,
   isPainting,
+  isTexting = false, // New prop with default value
   isEraser,
   format,
   onFormatChange,
@@ -44,10 +46,12 @@ const ImageControls: React.FC<ImageControlsProps> = ({
   onToggleCropping,
   onToggleBlurring,
   onTogglePainting,
+  onToggleTexting, // New function for text tool toggle
   onToggleEraser,
   onApplyCrop,
   onApplyBlur,
   onApplyPaint,
+  onApplyText, // New function for applying text
   onZoomIn,
   onZoomOut,
   onReset,
@@ -57,6 +61,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
   onCancelBlur,
   onCancelCrop,
   onCancelPaint,
+  onCancelText, // New function for canceling text tool
   onBackToGallery,
   onExitEditMode,
   isStandalone,
@@ -89,32 +94,48 @@ const ImageControls: React.FC<ImageControlsProps> = ({
         </div>
 
         {/* Edit Image button - only when not in edit mode and not in any tool mode */}
-        {!isEditMode && !isCropping && !isBlurring && !isPainting && (
-          <Button onClick={onToggleEditMode} variant="outline">
-            <WandSparkles className="mr-2 h-4 w-4" />
-            Edit Image
-          </Button>
-        )}
+        {!isEditMode &&
+          !isCropping &&
+          !isBlurring &&
+          !isPainting &&
+          !isTexting && (
+            <Button onClick={onToggleEditMode} variant="outline">
+              <WandSparkles className="mr-2 h-4 w-4" />
+              Edit Image
+            </Button>
+          )}
 
         {/* Tool buttons - only in edit mode and not in any tool mode */}
-        {isEditMode && !isCropping && !isBlurring && !isPainting && (
-          <>
-            <Button onClick={onToggleCropping} variant="outline">
-              <Crop className="mr-2 h-4 w-4" />
-              Crop Image
-            </Button>
+        {isEditMode &&
+          !isCropping &&
+          !isBlurring &&
+          !isPainting &&
+          !isTexting && (
+            <>
+              <Button onClick={onToggleCropping} variant="outline">
+                <Crop className="mr-2 h-4 w-4" />
+                Crop Image
+              </Button>
 
-            <Button onClick={onToggleBlurring} variant="outline">
-              <Droplets className="mr-2 h-4 w-4" />
-              Blur Tool
-            </Button>
+              <Button onClick={onToggleBlurring} variant="outline">
+                <Droplets className="mr-2 h-4 w-4" />
+                Blur Tool
+              </Button>
 
-            <Button onClick={onTogglePainting} variant="outline">
-              <Paintbrush className="mr-2 h-4 w-4" />
-              Paint Tool
-            </Button>
-          </>
-        )}
+              <Button onClick={onTogglePainting} variant="outline">
+                <Paintbrush className="mr-2 h-4 w-4" />
+                Paint Tool
+              </Button>
+
+              {/* Add Text Tool button */}
+              {onToggleTexting && (
+                <Button onClick={onToggleTexting} variant="outline">
+                  <Type className="mr-2 h-4 w-4" />
+                  Text Tool
+                </Button>
+              )}
+            </>
+          )}
 
         {/* Apply buttons for specific tools */}
         {isCropping && (
@@ -148,6 +169,14 @@ const ImageControls: React.FC<ImageControlsProps> = ({
             )}
           </>
         )}
+
+        {/* Text tool apply button */}
+        {isTexting && onApplyText && (
+          <Button onClick={onApplyText} variant="default">
+            <Check className="mr-2 h-4 w-4" />
+            Apply Text
+          </Button>
+        )}
       </div>
 
       {/* Right side toolbar */}
@@ -157,6 +186,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
           !isCropping &&
           !isBlurring &&
           !isPainting &&
+          !isTexting &&
           totalPages > 1 && (
             <div className="flex items-center gap-1 mr-2">
               <Button
@@ -223,47 +253,63 @@ const ImageControls: React.FC<ImageControlsProps> = ({
           </Button>
         )}
 
-        {/* Exit Edit Mode button - only when in edit mode but not in any tool mode */}
-        {isEditMode && !isCropping && !isBlurring && !isPainting && (
-          <Button onClick={onExitEditMode} variant="outline">
+        {/* Cancel text tool */}
+        {isTexting && onCancelText && (
+          <Button onClick={onCancelText} variant="outline">
             <X className="mr-2 h-4 w-4" />
-            Exit Edit Mode
+            Cancel Text
           </Button>
         )}
 
+        {/* Exit Edit Mode button - only when in edit mode but not in any tool mode */}
+        {isEditMode &&
+          !isCropping &&
+          !isBlurring &&
+          !isPainting &&
+          !isTexting && (
+            <Button onClick={onExitEditMode} variant="outline">
+              <X className="mr-2 h-4 w-4" />
+              Exit Edit Mode
+            </Button>
+          )}
+
         {/* Utility buttons - only in view mode and not in any tool mode */}
-        {!isEditMode && !isCropping && !isBlurring && !isPainting && (
-          <>
-            <Button onClick={onReset} variant="outline">
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Reset
-            </Button>
+        {!isEditMode &&
+          !isCropping &&
+          !isBlurring &&
+          !isPainting &&
+          !isTexting && (
+            <>
+              <Button onClick={onReset} variant="outline">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reset
+              </Button>
 
-            <Button onClick={onDownload} variant="outline">
-              <Download className="mr-2 h-4 w-4" />
-              Download
-            </Button>
+              <Button onClick={onDownload} variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
 
-            {!isStandalone && (
-              <>
-                <Button onClick={onUploadNew} variant="outline">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload New
-                </Button>
+              {!isStandalone && (
+                <>
+                  <Button onClick={onUploadNew} variant="outline">
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload New
+                  </Button>
 
-                <Button onClick={onBackToGallery} variant="outline">
-                  <FolderDown className="mr-2 h-4 w-4" />
-                  Add From Files
-                </Button>
+                  <Button onClick={onBackToGallery} variant="outline">
+                    <FolderDown className="mr-2 h-4 w-4" />
+                    Add From Files
+                  </Button>
 
-                <Button onClick={onRemoveAll} variant="destructive">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Remove All
-                </Button>
-              </>
-            )}
-          </>
-        )}
+                  <Button onClick={onRemoveAll} variant="destructive">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Remove All
+                  </Button>
+                </>
+              )}
+            </>
+          )}
       </div>
     </div>
   );
