@@ -80,13 +80,13 @@ const ImageControls: React.FC<ImageControlsProps> = ({
     setTheme(theme === "dark" ? "light" : "dark");
   };
 
-  // Handle edit mode button click - ensure this function explicitly calls the passed handler
-  const handleEditModeToggle = () => {
-    console.log("Edit button clicked - calling onToggleEditMode");
-    if (onToggleEditMode) {
+  // Direct handler for Edit Image button - no intermediate function
+  const handleEditButtonClick = () => {
+    console.log("Edit button clicked directly - calling onToggleEditMode");
+    if (typeof onToggleEditMode === "function") {
       onToggleEditMode();
     } else {
-      console.error("onToggleEditMode is not defined");
+      console.error("onToggleEditMode is not a function");
     }
   };
 
@@ -111,7 +111,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
           !isPainting &&
           !isTexting && (
             <Button
-              onClick={handleEditModeToggle}
+              onClick={handleEditButtonClick}
               variant="outline"
               className="h-9"
             >

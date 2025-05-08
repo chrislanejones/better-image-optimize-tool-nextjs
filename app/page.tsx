@@ -1,32 +1,23 @@
-// app/page.tsx - Complete implementation with fixed Edit Image button functionality
-
+// app/page.tsx
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import Image from "next/image";
-import MultiImageEditor from "./multi-editor";
-import {
-  Lock,
-  Maximize2,
-  Trash2,
-  Upload,
-  Images,
-  WandSparkles,
-  X,
-  Moon,
-  Sun,
-  User,
-} from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import dynamic from "next/dynamic";
+import { Button } from "@/components/ui/button";
 import { imageDB } from "./utils/indexedDB";
-import { type ImageFile, type ImageStats } from "@/types/editor";
+import { type ImageFile } from "@/types/editor";
 import ImageUploader from "./components/image-uploader";
 import ImageControls from "./components/image-controls";
 import ImageResizer from "./components/image-resizer";
 import ImageZoomView from "./components/image-zoom-view";
 import ImageStatsComponent from "./components/image-stats";
-import dynamic from "next/dynamic";
-import { useTheme } from "next-themes";
-import { Button } from "@/components/ui/button";
+import { useEditMode } from "@/hooks/use-edit-mode";
+import { useImageProcessing } from "@/hooks/use-image-processing";
+
+// Dynamically import the MultiImageEditor component
+const MultiImageEditor = dynamic(() => import("./multi-editor"), {
+  ssr: false,
+});
 
 // Dynamically import the ImageEditor component
 const ImageEditor = dynamic(() => import("./image-editor"), {
@@ -38,31 +29,26 @@ const IMAGES_PER_PAGE = 10;
 const MAX_IMAGES = 50;
 
 export default function HomePage() {
-  // State for managing images and UI
+  // Basic state
   const [images, setImages] = useState<ImageFile[]>([]);
-  const [selectedImage, setSelectedImage] = useState<ImageFile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [uploadComplete, setUploadComplete] = useState(false);
   const [newImageAdded, setNewImageAdded] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [isMultiEditMode, setIsMultiEditMode] = useState(false);
-  const [isGalleryMinimized, setIsGalleryMinimized] = useState(false);
-  const [width, setWidth] = useState<number>(0);
-  const [height, setHeight] = useState<number>(0);
-  const [format, setFormat] = useState<string>("jpeg");
-  const [hasEdited, setHasEdited] = useState<boolean>(false);
-  const [originalStats, setOriginalStats] = useState<ImageStats | null>(null);
-  const [newStats, setNewStats] = useState<ImageStats | null>(null);
-  const [dataSavings, setDataSavings] = useState(0);
-  const [zoom, setZoom] = useState<number>(1);
 
-  // Theme state
-  const { theme, setTheme } = useTheme();
-
-  // Pagination state
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(images.length / IMAGES_PER_PAGE);
+
+  // Get edit mode functionality from custom hook
+  const editMode = useEditMode(images);
+
+  // Get image processing functionality from custom hook
+  const imageProcessing = useImageProcessing(editMode.selectedImage, false);
+
+  // Crop related refs
+  const cropImgRef = useRef<HTMLImageElement | null>(null);
+  const completedCrop = useRef(null);
 
   // Set mounted state to prevent hydration mismatch
   useEffect(() => {
@@ -98,33 +84,6 @@ export default function HomePage() {
     };
   }, [isMounted]);
 
-  // Initialize image statistics when an image is selected
-  useEffect(() => {
-    if (!selectedImage || !isMounted) return;
-
-    // Get image dimensions - use global window.Image instead of imported Image
-    const img = new window.Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      setWidth(img.width);
-      setHeight(img.height);
-
-      // Set original stats with safe values
-      setOriginalStats({
-        width: img.width,
-        height: img.height,
-        size: selectedImage && selectedImage.file ? selectedImage.file.size : 0,
-        format:
-          selectedImage && selectedImage.file && selectedImage.file.type
-            ? selectedImage.file.type.split("/")[1]
-            : "unknown",
-      } as ImageStats);
-    };
-
-    // Set a safe image source
-    img.src = selectedImage.url;
-  }, [selectedImage, isMounted]);
-
   // Callback when images are uploaded
   const handleImagesUploaded = (newImages: ImageFile[]) => {
     setImages((prev) => [...prev, ...newImages]);
@@ -150,44 +109,9 @@ export default function HomePage() {
 
   // Handle image selection for viewing/basic editing
   const handleSelectImage = (image: ImageFile) => {
-    setSelectedImage(image);
-    setIsEditMode(false);
-    setIsMultiEditMode(false);
-    setIsGalleryMinimized(false);
-    setHasEdited(false);
-    setNewStats(null);
-  };
-
-  // Toggle advanced edit mode - FIXED IMPLEMENTATION
-  const handleToggleEditMode = useCallback(() => {
-    console.log("handleToggleEditMode called");
-
-    if (selectedImage) {
-      console.log("Setting edit mode to true for selected image");
-      setIsEditMode(true);
-      setIsGalleryMinimized(true);
-      setIsMultiEditMode(false);
-    } else if (images.length > 0) {
-      console.log(
-        "No image selected, selecting first image and entering edit mode"
-      );
-      setSelectedImage(images[0]);
-      setIsEditMode(true);
-      setIsGalleryMinimized(true);
-      setIsMultiEditMode(false);
-    }
-  }, [selectedImage, images]);
-
-  // Toggle multi-edit mode
-  const handleToggleMultiEditMode = () => {
-    setIsMultiEditMode(true);
-    setIsEditMode(false);
-    setIsGalleryMinimized(true);
-
-    // Select the first image if none is selected
-    if (!selectedImage && images.length > 0) {
-      setSelectedImage(images[0]);
-    }
+    editMode.setSelectedImage(image);
+    editMode.setIsEditMode(false);
+    editMode.exitEditMode();
   };
 
   // Handle image removal
@@ -204,8 +128,8 @@ export default function HomePage() {
     }
 
     // If we're removing the selected image, clear the selection
-    if (selectedImage?.id === id) {
-      setSelectedImage(null);
+    if (editMode.selectedImage?.id === id) {
+      editMode.setSelectedImage(null);
     }
 
     // Update pagination if needed
@@ -229,9 +153,8 @@ export default function HomePage() {
 
     setImages([]);
     setUploadComplete(false);
-    setSelectedImage(null);
-    setIsEditMode(false);
-    setIsMultiEditMode(false);
+    editMode.setSelectedImage(null);
+    editMode.exitEditMode();
     setCurrentPage(1);
 
     try {
@@ -244,102 +167,6 @@ export default function HomePage() {
   // Handle page change for pagination
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-  };
-
-  // Handle uploading more images
-  const handleUploadMore = () => {
-    // We don't exit view mode, just allow more image uploads
-  };
-
-  // Handle resizing the selected image
-  const handleResize = (newWidth: number, newHeight: number) => {
-    setWidth(newWidth);
-    setHeight(newHeight);
-  };
-
-  // Apply resize to the image
-  const applyResize = async () => {
-    if (!selectedImage) return;
-
-    try {
-      // Create a canvas to resize the image
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-
-      // Create an image element
-      const img = new window.Image();
-      img.crossOrigin = "anonymous";
-
-      // Wait for the image to load
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = selectedImage.url;
-      });
-
-      // Draw the image at the new size
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      ctx.drawImage(img, 0, 0, width, height);
-
-      // Convert canvas to blob
-      const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob(
-          (blob) => {
-            if (blob) resolve(blob);
-          },
-          `image/${
-            format === "jpeg" ? "jpeg" : format === "webp" ? "webp" : "png"
-          }`,
-          0.9
-        );
-      });
-
-      // Create a URL for the blob
-      const resizedUrl = URL.createObjectURL(blob);
-
-      // Update stats
-      setNewStats({
-        width,
-        height,
-        size: blob.size,
-        format: format || "unknown",
-      } as ImageStats);
-
-      // Calculate data savings
-      if (originalStats && originalStats.size > 0) {
-        const savings = 100 - (blob.size / originalStats.size) * 100;
-        setDataSavings(savings);
-      }
-
-      // Update the selected image URL
-      setSelectedImage({
-        ...selectedImage,
-        url: resizedUrl,
-      });
-
-      setHasEdited(true);
-    } catch (error) {
-      console.error("Error resizing image:", error);
-    }
-  };
-
-  // Zoom in/out functions
-  const zoomIn = () => {
-    setZoom((prev) => Math.min(prev + 0.1, 3));
-  };
-
-  const zoomOut = () => {
-    setZoom((prev) => Math.max(prev - 0.1, 0.5));
-  };
-
-  // Exit both edit modes
-  const exitEditMode = () => {
-    setIsEditMode(false);
-    setIsMultiEditMode(false);
-    setIsGalleryMinimized(false);
   };
 
   // Don't render until client-side
@@ -370,19 +197,17 @@ export default function HomePage() {
       {uploadComplete && (
         <div className="space-y-6">
           {/* Image Gallery - always at the top unless in Edit Mode */}
-          {isEditMode || isMultiEditMode ? (
+          {editMode.isEditMode || editMode.isMultiEditMode ? (
             <div className="grid grid-cols-5 md:grid-cols-10 gap-2 p-4 bg-gray-800 rounded-lg opacity-50 max-h-12 overflow-hidden transition-all duration-300 scale-90 transform origin-top">
               <div className="absolute inset-0 flex items-center justify-center z-10">
-                {isMultiEditMode ? (
+                {editMode.isMultiEditMode ? (
                   <>
-                    <Images className="h-6 w-6 text-white opacity-70" />
                     <span className="ml-2 text-white text-sm opacity-90">
                       Multi-editing Mode Active
                     </span>
                   </>
                 ) : (
                   <>
-                    <Lock className="h-6 w-6 text-white opacity-70" />
                     <span className="ml-2 text-white text-sm opacity-90">
                       Editing Mode Active
                     </span>
@@ -403,12 +228,11 @@ export default function HomePage() {
                     className="relative group aspect-square animate-fade-scale-in"
                     style={{ animationDelay: `${index * 0.05}s` }}
                   >
-                    <Image
+                    <img
                       src={image.url || "/placeholder.svg"}
                       alt="Uploaded image"
-                      fill
-                      className={`object-cover rounded-md ${
-                        selectedImage?.id === image.id
+                      className={`object-cover rounded-md w-full h-full ${
+                        editMode.selectedImage?.id === image.id
                           ? "ring-2 ring-blue-500"
                           : ""
                       }`}
@@ -419,7 +243,22 @@ export default function HomePage() {
                         className="p-2 bg-blue-500 text-white rounded-full transform transition-transform group-hover:scale-110"
                         aria-label="View image"
                       >
-                        <Maximize2 size={20} />
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="15 3 21 3 21 9"></polyline>
+                          <polyline points="9 21 3 21 3 15"></polyline>
+                          <line x1="21" y1="3" x2="14" y2="10"></line>
+                          <line x1="3" y1="21" x2="10" y2="14"></line>
+                        </svg>
                       </button>
                     </div>
                     <button
@@ -427,7 +266,20 @@ export default function HomePage() {
                       className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                       aria-label="Remove image"
                     >
-                      <X size={16} />
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
                     </button>
                   </div>
                 ))}
@@ -441,105 +293,99 @@ export default function HomePage() {
                     </span>
                   </div>
                 )}
-                <Button onClick={handleUploadMore} variant="outline" size="sm">
-                  <Upload className="mr-1 h-3 w-3" />
-                  Upload
+                <Button
+                  onClick={() => {
+                    /* Handle upload button click */
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  Upload More
                 </Button>
                 <Button
                   onClick={handleRemoveAll}
                   variant="destructive"
                   size="sm"
                 >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                >
-                  {theme === "dark" ? (
-                    <Sun className="h-3 w-3" />
-                  ) : (
-                    <Moon className="h-3 w-3" />
-                  )}
-                </Button>
-                <Button variant="outline" size="sm" disabled>
-                  <User className="h-3 w-3" />
+                  Remove All
                 </Button>
               </div>
             </div>
           )}
 
           {/* Main content area based on current state */}
-          {isEditMode && selectedImage ? (
+          {editMode.isEditMode && editMode.selectedImage ? (
             // Full edit mode with proper controls
             <ImageEditor
-              image={selectedImage}
-              onUploadNew={handleUploadMore}
+              image={editMode.selectedImage}
+              onUploadNew={() => {}} // Add proper handler
               onRemoveAll={handleRemoveAll}
-              onBackToGallery={exitEditMode}
+              onBackToGallery={editMode.exitEditMode}
               onEditModeChange={(newEditMode) => {
                 console.log("Edit mode changed to:", newEditMode);
-                setIsEditMode(newEditMode);
+                editMode.setIsEditMode(newEditMode);
               }}
             />
-          ) : isMultiEditMode ? (
+          ) : editMode.isMultiEditMode ? (
             // Multi-edit mode
             <MultiImageEditor
               images={images}
-              onUploadNew={handleUploadMore}
+              onUploadNew={() => {}} // Add proper handler
               onRemoveAll={handleRemoveAll}
-              onBackToGallery={exitEditMode}
-              selectedImageId={selectedImage?.id || ""}
+              onBackToGallery={editMode.exitEditMode}
+              selectedImageId={editMode.selectedImage?.id || ""}
             />
-          ) : selectedImage ? (
+          ) : editMode.selectedImage ? (
             // Basic view mode with selected image
             <div className="space-y-6">
               {/* Use ImageControls component for normal view */}
               <ImageControls
-                isEditMode={isEditMode}
-                isCropping={false}
-                isBlurring={false}
-                isPainting={false}
-                isTexting={false}
-                isEraser={false}
-                format={format}
-                onFormatChange={setFormat}
-                onToggleEditMode={handleToggleEditMode} // This is the critical line
-                onToggleCropping={() => {}}
-                onToggleBlurring={() => {}}
-                onTogglePainting={() => {}}
-                onToggleTexting={() => {}}
-                onToggleEraser={() => {}}
-                onApplyCrop={() => {}}
-                onApplyBlur={() => {}}
-                onApplyPaint={() => {}}
-                onApplyText={() => {}}
-                onZoomIn={zoomIn}
-                onZoomOut={zoomOut}
-                onReset={() => {}}
-                onDownload={() => {
-                  if (!selectedImage) return;
-
-                  // Create a download link
-                  const a = document.createElement("a");
-                  a.href = selectedImage.url;
-                  a.download = `${
-                    selectedImage.file.name.split(".")[0]
-                  }-resized.${format === "jpeg" ? "jpg" : format}`;
-                  a.click();
+                isEditMode={editMode.isEditMode}
+                isCropping={editMode.isCropping}
+                isBlurring={editMode.isBlurring}
+                isPainting={editMode.isPainting}
+                isTexting={editMode.isTexting}
+                isEraser={editMode.isEraser}
+                format={imageProcessing.format}
+                onFormatChange={imageProcessing.setFormat}
+                onToggleEditMode={editMode.toggleEditMode}
+                onToggleCropping={editMode.toggleCropping}
+                onToggleBlurring={editMode.toggleBlurring}
+                onTogglePainting={editMode.togglePainting}
+                onToggleTexting={editMode.toggleTexting}
+                onToggleEraser={editMode.toggleEraser}
+                onApplyCrop={() => {
+                  if (completedCrop.current && cropImgRef.current) {
+                    imageProcessing.applyCrop(
+                      completedCrop.current,
+                      cropImgRef.current
+                    );
+                  }
                 }}
-                onUploadNew={handleUploadMore}
+                onApplyBlur={() => {
+                  // Add proper handler
+                }}
+                onApplyPaint={() => {
+                  // Add proper handler
+                }}
+                onApplyText={() => {
+                  // Add proper handler
+                }}
+                onZoomIn={imageProcessing.zoomIn}
+                onZoomOut={imageProcessing.zoomOut}
+                onReset={imageProcessing.resetImage}
+                onDownload={imageProcessing.downloadImage}
+                onUploadNew={() => {}} // Add proper handler
                 onRemoveAll={handleRemoveAll}
-                onToggleMultiEditMode={handleToggleMultiEditMode}
-                onCancelBlur={() => {}}
-                onCancelCrop={() => {}}
-                onCancelPaint={() => {}}
-                onCancelText={() => {}}
-                onExitEditMode={exitEditMode}
+                onCancelBlur={editMode.cancelBlur}
+                onCancelCrop={editMode.cancelCrop}
+                onCancelPaint={editMode.cancelPaint}
+                onCancelText={editMode.cancelText}
+                onExitEditMode={editMode.exitEditMode}
                 totalPages={totalPages}
                 currentPage={currentPage}
                 onPageChange={handlePageChange}
+                onToggleMultiEditMode={editMode.toggleMultiEditMode}
               />
 
               {/* Main content grid - image + sidebar */}
@@ -552,12 +398,17 @@ export default function HomePage() {
                         className="overflow-auto"
                         style={{ maxHeight: "700px", height: "70vh" }}
                       >
-                        {selectedImage && (
+                        {editMode.selectedImage && (
                           <img
-                            src={selectedImage.url || "/placeholder.svg"}
+                            ref={imageProcessing.imgRef}
+                            src={
+                              imageProcessing.previewUrl || "/placeholder.svg"
+                            }
                             alt="Selected image"
                             className="max-w-full transform origin-center"
-                            style={{ transform: `scale(${zoom})` }}
+                            style={{
+                              transform: `scale(${imageProcessing.zoom})`,
+                            }}
                           />
                         )}
                       </div>
@@ -568,41 +419,36 @@ export default function HomePage() {
                 {/* Sidebar with tools */}
                 <aside className="md:col-span-1 space-y-6">
                   <ImageResizer
-                    width={width}
-                    height={height}
-                    maxWidth={originalStats?.width || 1000}
-                    maxHeight={originalStats?.height || 1000}
-                    onResize={handleResize}
-                    onApplyResize={applyResize}
-                    format={format}
-                    onFormatChange={setFormat}
-                    onDownload={() => {
-                      if (!selectedImage) return;
-
-                      // Create a download link
-                      const a = document.createElement("a");
-                      a.href = selectedImage.url;
-                      a.download = `${
-                        selectedImage.file.name.split(".")[0]
-                      }-resized.${format === "jpeg" ? "jpg" : format}`;
-                      a.click();
-                    }}
+                    width={imageProcessing.width}
+                    height={imageProcessing.height}
+                    maxWidth={imageProcessing.originalStats?.width || 1000}
+                    maxHeight={imageProcessing.originalStats?.height || 1000}
+                    onResize={imageProcessing.handleResize}
+                    onApplyResize={imageProcessing.applyResize}
+                    format={imageProcessing.format}
+                    onFormatChange={imageProcessing.setFormat}
+                    onDownload={imageProcessing.downloadImage}
                   />
 
-                  {hasEdited && <ImageZoomView imageUrl={selectedImage?.url} />}
+                  {imageProcessing.hasEdited && (
+                    <ImageZoomView imageUrl={imageProcessing.previewUrl} />
+                  )}
                 </aside>
               </div>
 
               {/* Image Information Cards */}
               <ImageStatsComponent
-                originalStats={originalStats}
-                newStats={newStats}
-                dataSavings={dataSavings}
-                hasEdited={hasEdited}
-                fileName={selectedImage?.file?.name || "image.png"}
-                format={format}
-                fileType={selectedImage?.file?.type || "image/png"}
+                originalStats={imageProcessing.originalStats}
+                newStats={imageProcessing.newStats}
+                dataSavings={imageProcessing.dataSavings}
+                hasEdited={imageProcessing.hasEdited}
+                fileName={editMode.selectedImage?.file?.name || "image.png"}
+                format={imageProcessing.format}
+                fileType={editMode.selectedImage?.file?.type || "image/png"}
               />
+
+              {/* Hidden canvas for image processing */}
+              <canvas ref={imageProcessing.canvasRef} className="hidden" />
             </div>
           ) : (
             // No image selected - just show a prompt
