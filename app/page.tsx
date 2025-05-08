@@ -336,38 +336,6 @@ export default function HomePage() {
       {!uploadComplete && (
         <div className="flex justify-center items-center flex-1">
           <div className="w-full max-w-md">
-            <ImageControls
-              isEditMode={false}
-              isCropping={false}
-              isBlurring={false}
-              isPainting={false}
-              isTexting={false}
-              isEraser={false}
-              format={format}
-              onFormatChange={setFormat}
-              onToggleEditMode={() => {}}
-              onToggleCropping={() => {}}
-              onToggleBlurring={() => {}}
-              onTogglePainting={() => {}}
-              onToggleTexting={() => {}}
-              onToggleEraser={() => {}}
-              onApplyCrop={() => {}}
-              onApplyBlur={() => {}}
-              onApplyPaint={() => {}}
-              onApplyText={() => {}}
-              onZoomIn={() => {}}
-              onZoomOut={() => {}}
-              onReset={() => {}}
-              onDownload={() => {}}
-              onUploadNew={() => {}}
-              onRemoveAll={() => {}}
-              onCancelBlur={() => {}}
-              onCancelCrop={() => {}}
-              onCancelPaint={() => {}}
-              onCancelText={() => {}}
-              onExitEditMode={() => {}}
-              isStandalone={true}
-            />
             <ImageUploader
               onImagesUploaded={handleImagesUploaded}
               maxImages={MAX_IMAGES}

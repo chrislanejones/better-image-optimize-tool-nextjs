@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import Image from "next/image";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -115,10 +116,19 @@ export default function ImageUploader({
   return (
     <Card className="w-full max-w-md mx-auto shadow-lg">
       <CardHeader className="text-center">
-        <div className="mx-auto bg-primary/10 p-4 rounded-full w-16 h-16 flex items-center justify-center mb-2">
-          <Upload className="h-8 w-8 text-primary" />
+        <div className="mx-auto bg-primary/10 p-6 rounded-full w-100 h-100 flex items-center justify-center mb-2">
+          <Image
+            src="/Image-Edit-Icon.png"
+            alt="Edit Icon"
+            width={100}
+            height={100}
+            className="h-40 w-40"
+          />
         </div>
-        <CardTitle className="text-2xl">Upload Images</CardTitle>
+        {/* <div className="mx-auto bg-primary/10 p-4 rounded-full w-16 h-16 flex items-center justify-center mb-2">
+          <Upload className="h-8 w-8 text-primary" />
+        </div> */}
+        <CardTitle className="text-2xl">Edit and Compress Images</CardTitle>
         <CardDescription>
           Upload multiple images for editing and compression
           <br />
