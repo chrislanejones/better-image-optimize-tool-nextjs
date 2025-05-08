@@ -7,14 +7,16 @@ import {
   Minus,
   Plus,
   Crop,
-  Droplets,
-  Paintbrush,
-  Type,
-  X,
   RotateCcw,
   Download,
+  Check,
+  Images,
+  X,
 } from "lucide-react";
 import { type ImageFile, type MultiImageEditorProps } from "@/types/editor";
+import { type PixelCrop } from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
+import MultiCroppingTool from "./components/multi-cropping-tool";
 
 export default function MultiImageEditor({
   images,
@@ -26,6 +28,7 @@ export default function MultiImageEditor({
   const [isMounted, setIsMounted] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [selectedImage, setSelectedImage] = useState<ImageFile | null>(null);
+  const [isCropping, setIsCropping] = useState(false);
 
   // Set mounted state to prevent hydration mismatch
   useEffect(() => {
@@ -57,6 +60,23 @@ export default function MultiImageEditor({
     setSelectedImage(image);
   };
 
+  // Toggle cropping
+  const toggleCropping = () => {
+    setIsCropping(!isCropping);
+  };
+
+  // Apply crop
+  const handleApplyCrop = (crop: PixelCrop, imageId: string) => {
+    // Here you would implement the actual cropping logic
+    // For now, we'll just exit cropping mode
+    setIsCropping(false);
+  };
+
+  // Cancel crop
+  const handleCancelCrop = () => {
+    setIsCropping(false);
+  };
+
   if (!isMounted) {
     return (
       <div className="animate-pulse">
@@ -72,131 +92,188 @@ export default function MultiImageEditor({
         <div className="flex items-center gap-2">
           {/* Zoom controls */}
           <div className="flex items-center gap-1 mr-2">
-            <Button
-              onClick={zoomOut}
-              variant="outline"
-              size="icon"
-              className="h-9 w-9"
-            >
+            <Button onClick={zoomOut} variant="outline" className="h-9">
               <Minus className="h-4 w-4" />
             </Button>
-            <Button
-              onClick={zoomIn}
-              variant="outline"
-              size="icon"
-              className="h-9 w-9"
-            >
+            <Button onClick={zoomIn} variant="outline" className="h-9">
               <Plus className="h-4 w-4" />
             </Button>
           </div>
 
-          <Button variant="outline">
-            <Crop className="mr-2 h-4 w-4" />
-            Multi Crop
-          </Button>
+          {/* Tool buttons */}
+          {!isCropping ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={toggleCropping}
+                className="h-9"
+              >
+                <Crop className="mr-2 h-4 w-4" />
+                Multi Crop
+              </Button>
 
-          <Button variant="outline">
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Batch Resize
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button onClick={onBackToGallery} variant="outline">
-            <X className="mr-2 h-4 w-4" />
-            Exit Multi Edit
-          </Button>
-        </div>
-      </div>
-
-      {/* Grid layout for multiple images */}
-      <div className="parent grid grid-cols-3 md:grid-cols-6 gap-2">
-        {/* Main selected image - larger */}
-        <div className="div1 col-span-2 row-span-2 relative border rounded-lg overflow-hidden">
-          {selectedImage && (
-            <div className="w-full h-full relative">
-              <img
-                src={selectedImage.url}
-                alt="Selected image"
-                className="w-full h-full object-contain transform origin-center"
-                style={{ transform: `scale(${zoom})` }}
-              />
-            </div>
+              <Button variant="outline" className="h-9">
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Batch Resize
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="default"
+                onClick={() => setIsCropping(false)}
+                className="h-9"
+              >
+                <Check className="mr-2 h-4 w-4" />
+                Apply Crop
+              </Button>
+            </>
           )}
         </div>
 
-        {/* Thumbnail grid for other images */}
-        {images.map((image, index) => {
-          if (selectedImage && image.id === selectedImage.id) return null;
-          if (index >= 11) return null; // Limit to 11 additional images
-
-          // Calculate the grid area class based on index
-          const areaIndex = index + 2; // +2 because we start from div2 (main image is div1)
-          const gridClass = `div${areaIndex}`;
-
-          return (
-            <div
-              key={image.id}
-              className={`${gridClass} relative aspect-square cursor-pointer border rounded-md overflow-hidden ${
-                selectedImage && image.id === selectedImage.id
-                  ? "ring-2 ring-blue-500"
-                  : ""
-              }`}
-              onClick={() => handleSelectImage(image)}
+        <div className="flex items-center gap-2">
+          {isCropping ? (
+            <Button
+              onClick={handleCancelCrop}
+              variant="outline"
+              className="h-9"
             >
-              <Image
-                src={image.url}
-                alt={`Image ${index + 1}`}
-                fill
-                className="object-cover"
-              />
+              <X className="mr-2 h-4 w-4" />
+              Cancel Crop
+            </Button>
+          ) : (
+            <Button onClick={onBackToGallery} variant="outline" className="h-9">
+              <Images className="mr-2 h-4 w-4" />
+              Exit Multi Edit
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Main content area */}
+      <div className="min-h-[75vh]">
+        {isCropping ? (
+          <MultiCroppingTool
+            images={images.map((img) => ({ id: img.id, url: img.url }))}
+            selectedImageId={selectedImage?.id || images[0]?.id || ""}
+            onImageSelect={(id) => {
+              const img = images.find((img) => img.id === id);
+              if (img) handleSelectImage(img);
+            }}
+            onApplyCrop={handleApplyCrop}
+            onCancel={handleCancelCrop}
+            zoom={zoom}
+          />
+        ) : (
+          <div
+            className="parent grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(5, 1fr)",
+              gridTemplateRows: "repeat(7, 1fr)",
+              gap: "8px",
+              height: "75vh",
+            }}
+          >
+            {/* Main selected image - larger */}
+            <div className="div1" style={{ gridArea: "1 / 1 / 4 / 3" }}>
+              {selectedImage && (
+                <div className="w-full h-full relative border rounded-lg overflow-hidden">
+                  <img
+                    src={selectedImage.url}
+                    alt="Selected image"
+                    className="w-full h-full object-contain"
+                    style={{ transform: `scale(${zoom})` }}
+                  />
+                </div>
+              )}
             </div>
-          );
-        })}
+
+            {/* Thumbnail grid for other images */}
+            {images.map((image, index) => {
+              if (selectedImage && image.id === selectedImage.id) return null;
+              if (index >= 14) return null; // Limit to 14 additional images
+
+              // Calculate grid position based on index
+              const position = index + 2; // Start from position 2 (div2)
+              let gridArea = "";
+
+              if (position === 2) gridArea = "1 / 3 / 2 / 4";
+              else if (position === 3) gridArea = "1 / 4 / 2 / 5";
+              else if (position === 4) gridArea = "2 / 3 / 3 / 4";
+              else if (position === 5) gridArea = "2 / 4 / 3 / 5";
+              else if (position === 6) gridArea = "3 / 3 / 4 / 4";
+              else if (position === 7) gridArea = "3 / 4 / 4 / 5";
+              else if (position === 8) gridArea = "4 / 1 / 5 / 2";
+              else if (position === 9) gridArea = "4 / 2 / 5 / 3";
+              else if (position === 10) gridArea = "4 / 3 / 5 / 4";
+              else if (position === 11) gridArea = "4 / 4 / 5 / 5";
+              else if (position === 12) gridArea = "5 / 1 / 6 / 2";
+              else if (position === 13) gridArea = "5 / 2 / 6 / 3";
+              else if (position === 14) gridArea = "5 / 3 / 6 / 4";
+              else if (position === 15) gridArea = "5 / 4 / 6 / 5";
+
+              return (
+                <div
+                  key={image.id}
+                  style={{ gridArea }}
+                  className="relative border rounded-lg overflow-hidden cursor-pointer"
+                  onClick={() => handleSelectImage(image)}
+                >
+                  <img
+                    src={image.url}
+                    alt={`Image ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                    <div className="opacity-0 hover:opacity-100 transition-opacity">
+                      <Button size="sm" variant="default" className="text-xs">
+                        Select
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Controls for multi-image operations */}
-      <div className="grid grid-cols-2 gap-4 p-4 bg-gray-800 rounded-lg">
-        <div>
-          <h3 className="text-lg font-medium mb-2">Batch Operations</h3>
-          <p className="text-sm text-gray-400 mb-4">
-            Apply the same edits to multiple images at once
-          </p>
-          <div className="space-y-2">
-            <Button className="w-full justify-start">
-              <Droplets className="mr-2 h-4 w-4" />
-              Apply Watermark to All
-            </Button>
-            <Button className="w-full justify-start">
-              <Download className="mr-2 h-4 w-4" />
-              Export All Images
-            </Button>
+      {!isCropping && (
+        <div className="grid grid-cols-2 gap-4 p-4 bg-gray-800 rounded-lg">
+          <div>
+            <h3 className="text-lg font-medium mb-2">Batch Operations</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Apply the same edits to multiple images at once
+            </p>
+            <div className="space-y-2">
+              <Button className="w-full justify-start">
+                <Download className="mr-2 h-4 w-4" />
+                Export All Images
+              </Button>
+            </div>
           </div>
-        </div>
 
-        <div>
-          <h3 className="text-lg font-medium mb-2">Selected Image</h3>
-          <p className="text-sm text-gray-400 mb-4">
-            {selectedImage
-              ? `Editing: ${selectedImage.file.name}`
-              : "No image selected"}
-          </p>
-          <div className="space-y-2">
-            <Button className="w-full justify-start" disabled={!selectedImage}>
-              <Paintbrush className="mr-2 h-4 w-4" />
-              Edit Selected Image
-            </Button>
-            <Button
-              className="w-full justify-start"
-              variant="destructive"
-              disabled={!selectedImage}
-            >
-              <X className="mr-2 h-4 w-4" />
-              Remove from Batch
-            </Button>
+          <div>
+            <h3 className="text-lg font-medium mb-2">Selected Image</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              {selectedImage
+                ? `Editing: ${selectedImage.file.name}`
+                : "No image selected"}
+            </p>
+            <div className="space-y-2">
+              <Button
+                className="w-full justify-start"
+                disabled={!selectedImage}
+              >
+                <Crop className="mr-2 h-4 w-4" />
+                Edit Selected Image
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

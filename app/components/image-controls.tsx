@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   Minus,
@@ -18,20 +18,16 @@ import {
   ChevronsLeft,
   ChevronsRight,
   WandSparkles,
-  FolderDown,
   Download,
   Type,
-  Users,
+  Images,
+  Moon,
+  Sun,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ImageControlsProps } from "@/types/editor";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useTheme } from "next-themes";
 
 const ImageControls: React.FC<ImageControlsProps> = ({
   isEditMode,
@@ -62,7 +58,6 @@ const ImageControls: React.FC<ImageControlsProps> = ({
   onCancelCrop,
   onCancelPaint,
   onCancelText,
-  onBackToGallery,
   onExitEditMode,
   isStandalone,
   currentPage = 1,
@@ -70,6 +65,20 @@ const ImageControls: React.FC<ImageControlsProps> = ({
   onPageChange = () => {},
   onToggleMultiEditMode = () => {},
 }) => {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Wait for component to mount to avoid hydration issues
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Toggle theme function
+  const toggleTheme = () => {
+    if (!mounted) return;
+    setTheme(theme === "dark" ? "light" : "dark");
+  };
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
       {/* Left side toolbar */}
@@ -77,12 +86,10 @@ const ImageControls: React.FC<ImageControlsProps> = ({
         {/* Zoom controls - always visible */}
         <div className="flex items-center gap-1 mr-2">
           <Button onClick={onZoomOut} variant="outline" className="h-9">
-            <Minus className="mr-2 h-4 w-4" />
-            Zoom Out
+            <Minus className="h-4 w-2" />
           </Button>
           <Button onClick={onZoomIn} variant="outline" className="h-9">
-            <Plus className="mr-2 h-4 w-4" />
-            Zoom In
+            <Plus className="h-4 w-2" />
           </Button>
         </div>
 
@@ -113,7 +120,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
               variant="outline"
               className="h-9"
             >
-              <Users className="mr-2 h-4 w-4" />
+              <Images className="mr-2 h-4 w-4" />
               Multi Edit
             </Button>
           )}
@@ -261,24 +268,6 @@ const ImageControls: React.FC<ImageControlsProps> = ({
             </div>
           )}
 
-        {/* Format selection - only in view mode */}
-        {!isEditMode &&
-          !isCropping &&
-          !isBlurring &&
-          !isPainting &&
-          !isTexting && (
-            <Select value={format} onValueChange={onFormatChange}>
-              <SelectTrigger className="w-28">
-                <SelectValue placeholder="Format" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="jpeg">JPEG</SelectItem>
-                <SelectItem value="png">PNG</SelectItem>
-                <SelectItem value="webp">WebP</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-
         {/* Cancel buttons for tool modes */}
         {isCropping && (
           <Button onClick={onCancelCrop} variant="outline" className="h-9">
@@ -333,10 +322,11 @@ const ImageControls: React.FC<ImageControlsProps> = ({
                 Reset
               </Button>
 
-              <Button onClick={onDownload} variant="outline" className="h-9">
-                <Download className="mr-2 h-4 w-4" />
-                Download
-              </Button>
+              {onDownload && (
+                <Button onClick={onDownload} variant="outline" className="h-9">
+                  <Download className="h-4 w-4" />
+                </Button>
+              )}
 
               {!isStandalone && (
                 <>
@@ -350,26 +340,36 @@ const ImageControls: React.FC<ImageControlsProps> = ({
                   </Button>
 
                   <Button
-                    onClick={onBackToGallery}
-                    variant="outline"
-                    className="h-9"
-                  >
-                    <FolderDown className="mr-2 h-4 w-4" />
-                    Back to Gallery
-                  </Button>
-
-                  <Button
                     onClick={onRemoveAll}
                     variant="destructive"
                     className="h-9"
                   >
-                    <Trash2 className="mr-2 h-4 w-4" />
+                    <Trash2 className="h-4 w-4" />
                     Remove All
                   </Button>
                 </>
               )}
             </>
           )}
+
+        {/* Theme toggle button */}
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={toggleTheme}
+          className="h-9 w-9"
+        >
+          {mounted && theme === "dark" ? (
+            <Moon className="h-4 w-4" />
+          ) : (
+            <Sun className="h-4 w-4" />
+          )}
+        </Button>
+
+        {/* User button (disabled) */}
+        <Button variant="outline" size="icon" disabled className="h-9 w-9">
+          <User className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   );

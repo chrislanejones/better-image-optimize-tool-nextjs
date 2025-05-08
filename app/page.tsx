@@ -9,7 +9,7 @@ import {
   Maximize2,
   Trash2,
   Upload,
-  Users,
+  Images,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -335,10 +335,44 @@ export default function HomePage() {
       {/* Image uploader shown when no images have been uploaded - centered */}
       {!uploadComplete && (
         <div className="flex justify-center items-center flex-1">
-          <ImageUploader
-            onImagesUploaded={handleImagesUploaded}
-            maxImages={MAX_IMAGES}
-          />
+          <div className="w-full max-w-md">
+            <ImageControls
+              isEditMode={false}
+              isCropping={false}
+              isBlurring={false}
+              isPainting={false}
+              isTexting={false}
+              isEraser={false}
+              format={format}
+              onFormatChange={setFormat}
+              onToggleEditMode={() => {}}
+              onToggleCropping={() => {}}
+              onToggleBlurring={() => {}}
+              onTogglePainting={() => {}}
+              onToggleTexting={() => {}}
+              onToggleEraser={() => {}}
+              onApplyCrop={() => {}}
+              onApplyBlur={() => {}}
+              onApplyPaint={() => {}}
+              onApplyText={() => {}}
+              onZoomIn={() => {}}
+              onZoomOut={() => {}}
+              onReset={() => {}}
+              onDownload={() => {}}
+              onUploadNew={() => {}}
+              onRemoveAll={() => {}}
+              onCancelBlur={() => {}}
+              onCancelCrop={() => {}}
+              onCancelPaint={() => {}}
+              onCancelText={() => {}}
+              onExitEditMode={() => {}}
+              isStandalone={true}
+            />
+            <ImageUploader
+              onImagesUploaded={handleImagesUploaded}
+              maxImages={MAX_IMAGES}
+            />
+          </div>
         </div>
       )}
 
@@ -349,10 +383,21 @@ export default function HomePage() {
           {isEditMode || isMultiEditMode ? (
             <div className="grid grid-cols-5 md:grid-cols-10 gap-2 p-4 bg-gray-800 rounded-lg opacity-50 max-h-12 overflow-hidden transition-all duration-300 scale-90 transform origin-top">
               <div className="absolute inset-0 flex items-center justify-center z-10">
-                <Lock className="h-6 w-6 text-white opacity-70" />
-                <span className="ml-2 text-white text-sm opacity-90">
-                  Editing Mode Active
-                </span>
+                {isMultiEditMode ? (
+                  <>
+                    <Images className="h-6 w-6 text-white opacity-70" />
+                    <span className="ml-2 text-white text-sm opacity-90">
+                      Multi-editing Mode Active
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-6 w-6 text-white opacity-70" />
+                    <span className="ml-2 text-white text-sm opacity-90">
+                      Editing Mode Active
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -433,7 +478,6 @@ export default function HomePage() {
                 onCancelCrop={() => {}}
                 onCancelPaint={() => {}}
                 onCancelText={() => {}}
-                onBackToGallery={() => {}}
                 onExitEditMode={exitEditMode}
                 onToggleMultiEditMode={() => {}}
               />
@@ -508,7 +552,6 @@ export default function HomePage() {
                 onCancelCrop={() => {}}
                 onCancelPaint={() => {}}
                 onCancelText={() => {}}
-                onBackToGallery={() => {}}
                 onExitEditMode={() => {}}
                 totalPages={totalPages}
                 currentPage={currentPage}
@@ -562,7 +605,7 @@ export default function HomePage() {
                     }}
                   />
 
-                  <ImageZoomView imageUrl={selectedImage?.url} />
+                  {hasEdited && <ImageZoomView imageUrl={selectedImage?.url} />}
                 </aside>
               </div>
 
