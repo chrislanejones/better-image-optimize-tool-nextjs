@@ -23,7 +23,7 @@ import {
   Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { ImageControlsProps } from "@/types/props";
+import type { ImageControlsProps } from "@/types/editor";
 import {
   Select,
   SelectContent,
@@ -60,9 +60,9 @@ const ImageControls: React.FC<ImageControlsProps> = ({
   onBackToGallery,
   onExitEditMode,
   isStandalone,
-  currentPage,
-  totalPages,
-  onPageChange,
+  currentPage = 1, // Provide default values to prevent undefined errors
+  totalPages = 1,
+  onPageChange = () => {}, // Default empty function
 }) => {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">

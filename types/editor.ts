@@ -18,6 +18,20 @@ export interface ImageStats {
   format: string;
 }
 
+export interface ImageFile {
+  id: string;
+  file: File;
+  url: string;
+  isNew?: boolean;
+}
+
+export interface ImageStats {
+  width: number;
+  height: number;
+  size: number;
+  format: string;
+}
+
 // Component ref types
 export interface BlurBrushCanvasRef {
   getCanvasDataUrl: () => string | null;
@@ -67,6 +81,9 @@ export interface PaintToolProps {
   onToggleEraser: () => void;
   isEraser: boolean;
   zoom?: number;
+  // Add these new props:
+  brushColor?: string;
+  brushSize?: number;
 }
 
 export interface ImageControlsProps {
@@ -100,4 +117,29 @@ export interface ImageControlsProps {
   currentPage?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;
+}
+export interface ImagePreviewProps {
+  imageUrl: string;
+  isCropping: boolean;
+  isBlurring: boolean;
+  isPainting: boolean;
+  isEraser: boolean;
+  zoom?: number;
+  crop?: CropType;
+  onCropChange: (crop: CropType) => void;
+  onZoomChange: (zoom: number) => void;
+}
+
+export interface OptimizeApiRequest {
+  image: ImageFile;
+  options: {
+    quality: number;
+    format: "jpeg" | "png" | "webp" | "avif";
+  };
+}
+
+export interface OptimizeApiResponse {
+  success: boolean;
+  optimizedImage?: ImageFile;
+  error?: string;
 }

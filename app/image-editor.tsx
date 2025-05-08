@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import ReactCrop, { type PixelCrop } from "react-image-crop";
+import ReactCrop, { type PixelCrop, type Crop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import ImageControls from "./components/image-controls";
 import CroppingTool from "./components/cropping-tool";
@@ -23,13 +23,11 @@ import { getMimeType, getFileFormat } from "./utils/image-utils";
 // Import the types from editor.ts
 import {
   type ImageFile,
-  type ImageCropperProps,
-  type ImageStats, // This is the type definition
+  type ImageEditorProps,
+  type ImageStats,
   type BlurBrushCanvasRef,
   type PaintToolRef,
 } from "@/types/editor";
-
-// Remove the interface definitions from here since they're now in editor.ts
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
@@ -44,7 +42,7 @@ export default function ImageCropper({
   currentPage = 1,
   totalPages = 1,
   onPageChange = () => {},
-}: ImageCropperProps) {
+}: ImageEditorProps) {
   // Basic state
   const [width, setWidth] = useState<number>(0);
   const [height, setHeight] = useState<number>(0);
@@ -68,7 +66,6 @@ export default function ImageCropper({
   const [isEraser, setIsEraser] = useState<boolean>(false);
 
   // Stats states
-  // Use the imported type
   const [originalStats, setOriginalStats] = useState<ImageStats | null>(null);
   const [newStats, setNewStats] = useState<ImageStats | null>(null);
   const [dataSavings, setDataSavings] = useState<number>(0);
@@ -155,7 +152,7 @@ export default function ImageCropper({
     }
   }, [isCropping, isBlurring, isPainting, isEditMode]);
 
-  // Save edited image to IndexedDB - MOVED UP BEFORE IT'S USED
+  // Save edited image to IndexedDB
   const saveEditedImage = useCallback(
     async (url: string, blob: Blob) => {
       if (!image?.id || !image?.file?.name) return;
@@ -258,7 +255,7 @@ export default function ImageCropper({
   const handleBackToGallery = useCallback(() => {
     if (onBackToGallery) {
       onBackToGallery();
-    } else {
+    } else if (onUploadNew) {
       // If no handler provided, just go back to upload state
       onUploadNew();
     }
@@ -396,6 +393,16 @@ export default function ImageCropper({
       saveEditedImage,
     ]
   );
+  // Add this near your other state variables
+  const [crop, setCrop] = useState<Crop>({
+    unit: "%",
+    width: 100,
+    height: 100,
+    x: 0,
+    y: 0,
+  });
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
+  const cropImgRef = useRef<HTMLImageElement | null>(null);
 
   // Define handleBlurApply and handlePaintApply after saveEditedImage
   const handleBlurApply = useCallback(
@@ -662,15 +669,19 @@ export default function ImageCropper({
         onToggleBlurring={toggleBlurring}
         onTogglePainting={togglePainting}
         onToggleEraser={() => setIsEraser(!isEraser)}
-        onApplyCrop={() => {}}
+        onApplyCrop={() => {
+          if (completedCrop && cropImgRef.current) {
+            handleCropComplete(completedCrop, cropImgRef.current);
+          }
+        }}
         onApplyBlur={handleApplyBlur}
         onApplyPaint={handleApplyPaint}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
         onReset={resetImage}
         onDownload={downloadImage}
-        onUploadNew={onUploadNew}
-        onRemoveAll={onRemoveAll}
+        onUploadNew={onUploadNew ?? (() => {})}
+        onRemoveAll={onRemoveAll ?? (() => {})}
         onCancelBlur={cancelBlur}
         onCancelCrop={cancelCrop}
         onCancelPaint={cancelPaint}
@@ -683,25 +694,13 @@ export default function ImageCropper({
       />
 
       {/* Display appropriate tool controls based on active tool */}
-      {isBlurring && (
-        <BlurBrushCanvas
-          ref={blurCanvasRef}
-          imageUrl={previewUrl}
-          blurAmount={blurAmount}
-          blurRadius={blurRadius}
-          onApply={handleBlurApply}
-          onCancel={cancelBlur}
-          onBlurAmountChange={setBlurAmount}
-          onBlurRadiusChange={setBlurRadius}
-        />
-      )}
 
       {isPainting && (
         <PaintControls
           brushSize={brushSize}
           brushColor={brushColor}
           onBrushSizeChange={setBrushSize}
-          onBrushColorChange={setBrushColor}
+          onBrushColorChange={setBrushColor} // Make sure this is correctly connected
         />
       )}
 
@@ -718,12 +717,23 @@ export default function ImageCropper({
                 ref={imageContainerRef}
               >
                 {isCropping ? (
-                  <CroppingTool
-                    imageUrl={previewUrl}
-                    onApplyCrop={handleCropComplete}
-                    onCancel={cancelCrop}
-                    zoom={zoom} // Pass zoom prop
-                  />
+                  <ReactCrop
+                    crop={crop}
+                    onChange={(c) => setCrop(c)}
+                    onComplete={(c) => setCompletedCrop(c)}
+                    aspect={undefined}
+                  >
+                    <img
+                      ref={cropImgRef}
+                      src={previewUrl}
+                      alt="Image for cropping"
+                      className="max-w-full"
+                      style={{
+                        transform: `scale(${zoom})`,
+                        transformOrigin: "top left",
+                      }}
+                    />
+                  </ReactCrop>
                 ) : isBlurring ? (
                   <BlurBrushCanvas
                     ref={blurCanvasRef}
@@ -744,7 +754,9 @@ export default function ImageCropper({
                     onCancel={cancelPaint}
                     onToggleEraser={() => setIsEraser(!isEraser)}
                     isEraser={isEraser}
-                    zoom={zoom} // Pass zoom prop
+                    brushColor={brushColor} // Make sure this prop is passed
+                    brushSize={brushSize} // Make sure this prop is passed
+                    zoom={zoom}
                   />
                 ) : (
                   // Regular image view

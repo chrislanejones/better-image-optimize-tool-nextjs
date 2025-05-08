@@ -49,7 +49,7 @@ export default function CroppingTool({
           }}
         />
       </ReactCrop>
-      {/* Removed the bottom buttons */}
+      {/* We'll let the parent component handle the buttons */}
     </div>
   );
 }

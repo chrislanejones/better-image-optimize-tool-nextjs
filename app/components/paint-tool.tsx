@@ -10,9 +10,18 @@ import {
 import { type PaintToolProps, type PaintToolRef } from "@/types/editor";
 
 const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
-  ({ imageUrl, onApplyPaint, onCancel, onToggleEraser, isEraser }, ref) => {
-    const [brushColor, setBrushColor] = useState<string>("#ff0000");
-    const [brushSize, setBrushSize] = useState<number>(10);
+  (
+    {
+      imageUrl,
+      onApplyPaint,
+      onCancel,
+      onToggleEraser,
+      isEraser,
+      brushColor = "#ff0000",
+      brushSize = 10,
+    },
+    ref
+  ) => {
     const [isDrawing, setIsDrawing] = useState<boolean>(false);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const contextRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -54,8 +63,12 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
       };
     }, [imageUrl]);
 
+    // Update context settings when eraser or brush properties change
     useEffect(() => {
       if (!contextRef.current) return;
+
+      contextRef.current.lineWidth = brushSize;
+      contextRef.current.lineCap = "round";
 
       if (isEraser) {
         contextRef.current.globalCompositeOperation = "destination-out";
@@ -63,7 +76,7 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
         contextRef.current.globalCompositeOperation = "source-over";
         contextRef.current.strokeStyle = brushColor;
       }
-    }, [isEraser, brushColor]);
+    }, [isEraser, brushColor, brushSize]);
 
     const startDrawing = ({ nativeEvent }: React.MouseEvent) => {
       if (!contextRef.current) return;
@@ -72,12 +85,17 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
 
       contextRef.current.beginPath();
       contextRef.current.moveTo(offsetX, offsetY);
+
+      // Set these properties every time drawing starts
       contextRef.current.lineWidth = brushSize;
       contextRef.current.lineCap = "round";
-      contextRef.current.strokeStyle = isEraser ? "#ffffff" : brushColor; // Ensure color is updated here
-      contextRef.current.globalCompositeOperation = isEraser
-        ? "destination-out"
-        : "source-over";
+
+      if (isEraser) {
+        contextRef.current.globalCompositeOperation = "destination-out";
+      } else {
+        contextRef.current.globalCompositeOperation = "source-over";
+        contextRef.current.strokeStyle = brushColor;
+      }
 
       setIsDrawing(true);
     };

@@ -317,7 +317,4 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
   }
 );
 
-// Add display name for better debugging
-BlurBrushCanvas.displayName = "BlurBrushCanvas";
-
 export default BlurBrushCanvas;

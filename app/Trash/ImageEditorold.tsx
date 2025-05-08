@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { BlurControls, PaintControls } from "@/app/components/editor-controls";
-import BlurBrushCanvas from "./blur-canvas";
+import BlurBrushCanvas from "../components/blur-canvas";
 import { type BlurBrushCanvasRef, type PaintToolRef } from "@/types/editor";
 import PaintTool from "@/app/components/paint-tool";
 
