@@ -165,7 +165,7 @@ body {
   }
 }
 
-.polaroid-card {
+/* .polaroid-card {
   background: white;
   padding: 10px 10px 20px 10px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -176,8 +176,27 @@ body {
   animation: polaroid-slide-down 1.5s ease-out forwards;
 }
 
-/* Dark mode support for polaroid cards */
+/* Dark mode support for polaroid cards */ /*
 .dark .polaroid-card {
   background: hsl(0, 0%, 10%);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+} */
+
+.polaroid-card {
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+  padding-bottom: 20px;
+}
+
+.throw-away {
+  animation: throw-away 0.5s ease forwards;
+}
+
+@keyframes throw-away {
+  to {
+    transform: rotate(40deg) translateX(200%) translateY(-50%);
+    opacity: 0;
+  }
 }

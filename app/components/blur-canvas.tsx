@@ -20,9 +20,7 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
       imageUrl,
       blurAmount,
       blurRadius,
-      zoom = 1, // Add zoom prop with default value
-      onApply,
-      onCancel,
+      zoom = 1,
       onBlurAmountChange,
       onBlurRadiusChange,
     },

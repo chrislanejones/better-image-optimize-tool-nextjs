@@ -72,6 +72,7 @@ export default function ImageGallery({
   standalone = false,
 }: ImageGalleryProps) {
   const [images, setImages] = useState<ImageFile[]>([]);
+  const [throwingId, setThrowingId] = useState<string | null>(null);
   const [uploadComplete, setUploadComplete] = useState(false);
   const [newImageAdded, setNewImageAdded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -199,15 +200,17 @@ export default function ImageGallery({
   const handleUploadClick = () => fileInputRef.current?.click();
 
   const removeImage = async (id: string) => {
-    const imageToRemove = images.find((img) => img.id === id);
-    if (imageToRemove?.url) URL.revokeObjectURL(imageToRemove.url);
-    setImages(images.filter((img) => img.id !== id));
-    try {
-      await imageDB.deleteImage(id);
-    } catch (error) {
-      console.error("Error deleting image:", error);
-    }
-    if (images.length <= 1) setUploadComplete(false);
+    setThrowingId(id);
+    setTimeout(async () => {
+      const imageToRemove = images.find((img) => img.id === id);
+      if (imageToRemove?.url) URL.revokeObjectURL(imageToRemove.url);
+      setImages((prev) => prev.filter((img) => img.id !== id));
+      try {
+        await imageDB.deleteImage(id);
+      } catch (error) {
+        console.error("Error deleting image:", error);
+      }
+    }, 500);
   };
 
   const selectImage = (image: ImageFile) => {
@@ -508,58 +511,14 @@ export default function ImageGallery({
     );
   }
 
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      {images.map((image) => (
-        <Card
-          key={image.id}
-          className={`group relative overflow-hidden polaroid-card ${
-            image.isNew ? "polaroid-new" : ""
-          } cursor-pointer`}
-        >
-          <div className="relative aspect-square w-full">
-            <Image
-              src={image.url}
-              alt={image.file.name}
-              fill
-              sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-              className="object-cover"
-              placeholder="blur"
-              blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiNlMmUyZTIiLz48L3N2Zz4="
-            />
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <ImagePlaceholder className="w-full h-full" />
-            </div>
-          </div>
-          <div className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400 truncate px-2">
-            {image.file.name}
-          </div>
-          <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              variant="default"
-              size="icon"
-              className="p-1 bg-blue-500 text-white rounded-full"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleEditImage(image);
-              }}
-            >
-              <Edit2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="destructive"
-              size="icon"
-              className="p-1 bg-red-500 text-white rounded-full"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeImage(image.id);
-              }}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
+  {
+    images.map((image, index) => {
+      const delay = index * 9000; // 1 image every 200ms
+      const delayClass = image.isNew ? `animate-fade-scale-in` : "";
+
+      return (
+       
+      );
+    });
+  }
 }

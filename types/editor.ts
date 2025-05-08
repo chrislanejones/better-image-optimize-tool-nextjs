@@ -2,8 +2,6 @@
 import { type Crop as CropType, type PixelCrop } from "react-image-crop";
 
 // Base types
-export type EditorMode = "view" | "edit" | "crop" | "blur" | "paint" | "text";
-
 export interface ImageFile {
   id: string;
   file: File;
@@ -33,17 +31,38 @@ export interface TextToolRef {
 }
 
 // Component prop interfaces
+export interface ImageUploaderProps {
+  onImagesUploaded: (images: ImageFile[]) => void;
+  maxImages?: number;
+}
+
+export interface ImageGalleryProps {
+  images: ImageFile[];
+  onSelectImage: (image: ImageFile) => void;
+  onRemoveImage: (id: string) => void;
+  onUploadNew: () => void;
+  onRemoveAll: () => void;
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  isGalleryMinimized?: boolean;
+  newImageAdded?: boolean;
+}
+
 export interface ImageEditorProps {
-  image?: ImageFile;
-  onUploadNew?: () => void;
-  onRemoveAll?: () => void;
+  image: ImageFile;
+  onUploadNew: () => void;
+  onRemoveAll: () => void;
   onBackToGallery?: () => void;
   isStandalone?: boolean;
   onEditModeChange?: (isEditing: boolean) => void;
-  // Pagination props
-  currentPage?: number;
-  totalPages?: number;
-  onPageChange?: (page: number) => void;
+}
+
+export interface MultiImageEditorProps {
+  images: ImageFile[];
+  onUploadNew: () => void;
+  onRemoveAll: () => void;
+  onBackToGallery?: () => void;
 }
 
 export interface CroppingToolProps {
@@ -100,7 +119,7 @@ export interface ImageControlsProps {
   isCropping: boolean;
   isBlurring: boolean;
   isPainting: boolean;
-  isTexting?: boolean; // New prop for text tool state
+  isTexting?: boolean;
   isEraser: boolean;
   format: string;
   onFormatChange: (format: string) => void;
@@ -108,12 +127,12 @@ export interface ImageControlsProps {
   onToggleCropping: () => void;
   onToggleBlurring: () => void;
   onTogglePainting: () => void;
-  onToggleTexting?: () => void; // New function for text tool toggle
+  onToggleTexting?: () => void;
   onToggleEraser: () => void;
   onApplyCrop: () => void;
   onApplyBlur: () => void;
   onApplyPaint: () => void;
-  onApplyText?: () => void; // New function for applying text
+  onApplyText?: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onReset: () => void;
@@ -123,7 +142,7 @@ export interface ImageControlsProps {
   onCancelBlur: () => void;
   onCancelCrop: () => void;
   onCancelPaint: () => void;
-  onCancelText?: () => void; // New function for canceling text tool
+  onCancelText?: () => void;
   onBackToGallery?: () => void;
   onExitEditMode: () => void;
   isStandalone?: boolean;
@@ -132,29 +151,28 @@ export interface ImageControlsProps {
   onPageChange?: (page: number) => void;
 }
 
-export interface ImagePreviewProps {
+export interface ImageResizerProps {
+  width: number;
+  height: number;
+  maxWidth: number;
+  maxHeight: number;
+  onResize: (width: number, height: number) => void;
+  onApplyResize: () => void;
+  format: string;
+  onFormatChange: (format: string) => void;
+  onDownload: () => void;
+}
+
+export interface ImageZoomViewProps {
   imageUrl: string;
-  isCropping: boolean;
-  isBlurring: boolean;
-  isPainting: boolean;
-  isTexting?: boolean; // New prop for text tool state
-  isEraser: boolean;
-  zoom?: number;
-  crop?: CropType;
-  onCropChange: (crop: CropType) => void;
-  onZoomChange: (zoom: number) => void;
 }
 
-export interface OptimizeApiRequest {
-  image: ImageFile;
-  options: {
-    quality: number;
-    format: "jpeg" | "png" | "webp" | "avif";
-  };
-}
-
-export interface OptimizeApiResponse {
-  success: boolean;
-  optimizedImage?: ImageFile;
-  error?: string;
+export interface ImageStatsProps {
+  originalStats: ImageStats | null;
+  newStats: ImageStats | null;
+  dataSavings: number;
+  hasEdited: boolean;
+  fileName: string;
+  format: string;
+  fileType: string;
 }
