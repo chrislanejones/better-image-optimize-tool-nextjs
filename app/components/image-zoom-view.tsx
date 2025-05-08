@@ -1,36 +1,28 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Minus, Plus, MousePointer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-interface ImageZoomViewProps {
-  imageUrl: string;
-}
-
-interface MousePosition {
-  x: number;
-  y: number;
-}
+import { type ImageZoomViewProps } from "@/types/editor";
 
 export default function ImageZoomView({ imageUrl }: ImageZoomViewProps) {
   const [magnifierZoom, setMagnifierZoom] = useState<number>(3);
-  const [mousePosition, setMousePosition] = useState<MousePosition>({
-    x: 0.5,
-    y: 0.5,
-  });
+  const [mousePosition, setMousePosition] = useState({ x: 0.5, y: 0.5 });
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Increase magnifier zoom level
   const increaseMagnifierZoom = () => {
     setMagnifierZoom((prev) => Math.min(prev + 0.5, 6));
   };
 
+  // Decrease magnifier zoom level
   const decreaseMagnifierZoom = () => {
     setMagnifierZoom((prev) => Math.max(prev - 0.5, 1.5));
   };
 
+  // Handle mouse movement to update position
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
 
@@ -41,6 +33,7 @@ export default function ImageZoomView({ imageUrl }: ImageZoomViewProps) {
     setMousePosition({ x, y });
   };
 
+  // Track mouse enter/leave
   const handleMouseEnter = () => {
     setIsHovering(true);
   };
@@ -49,6 +42,7 @@ export default function ImageZoomView({ imageUrl }: ImageZoomViewProps) {
     setIsHovering(false);
   };
 
+  // Calculate background position based on mouse position
   const getBackgroundPosition = () => {
     if (isHovering) {
       return `${mousePosition.x * 100}% ${mousePosition.y * 100}%`;
@@ -110,6 +104,7 @@ export default function ImageZoomView({ imageUrl }: ImageZoomViewProps) {
                 </div>
               </div>
             </div>
+
             {!isHovering && (
               <div className="absolute bottom-2 left-0 right-0 text-center">
                 <p className="text-xs text-white bg-black bg-opacity-50 py-1 px-2 rounded-md inline-block">

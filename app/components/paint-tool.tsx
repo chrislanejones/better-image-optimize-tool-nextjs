@@ -19,6 +19,7 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
       isEraser,
       brushColor = "#ff0000",
       brushSize = 10,
+      zoom = 1,
     },
     ref
   ) => {
@@ -79,9 +80,16 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
     }, [isEraser, brushColor, brushSize]);
 
     const startDrawing = ({ nativeEvent }: React.MouseEvent) => {
-      if (!contextRef.current) return;
+      if (!contextRef.current || !canvasRef.current) return;
 
-      const { offsetX, offsetY } = nativeEvent;
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      // Account for zoom
+      const offsetX = (nativeEvent.offsetX * scaleX) / zoom;
+      const offsetY = (nativeEvent.offsetY * scaleY) / zoom;
 
       contextRef.current.beginPath();
       contextRef.current.moveTo(offsetX, offsetY);
@@ -108,9 +116,16 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
     };
 
     const draw = ({ nativeEvent }: React.MouseEvent) => {
-      if (!isDrawing || !contextRef.current) return;
+      if (!isDrawing || !contextRef.current || !canvasRef.current) return;
 
-      const { offsetX, offsetY } = nativeEvent;
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      // Account for zoom
+      const offsetX = (nativeEvent.offsetX * scaleX) / zoom;
+      const offsetY = (nativeEvent.offsetY * scaleY) / zoom;
 
       contextRef.current.lineTo(offsetX, offsetY);
       contextRef.current.stroke();
@@ -126,6 +141,10 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
             onMouseMove={draw}
             onMouseLeave={finishDrawing}
             className="max-w-full cursor-crosshair"
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: "top left",
+            }}
           />
         </div>
       </div>

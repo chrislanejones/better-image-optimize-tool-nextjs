@@ -42,6 +42,8 @@ export interface ImageGalleryProps {
   onRemoveImage: (id: string) => void;
   onUploadNew: () => void;
   onRemoveAll: () => void;
+  onToggleEditMode?: () => void; // New prop for toggling edit mode
+  onToggleMultiEditMode?: () => void; // New prop for toggling multi-edit mode
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
@@ -56,6 +58,9 @@ export interface ImageEditorProps {
   onBackToGallery?: () => void;
   isStandalone?: boolean;
   onEditModeChange?: (isEditing: boolean) => void;
+  currentPage?: number;
+  totalPages?: number;
+  onPageChange?: (page: number) => void;
 }
 
 export interface MultiImageEditorProps {
@@ -63,6 +68,7 @@ export interface MultiImageEditorProps {
   onUploadNew: () => void;
   onRemoveAll: () => void;
   onBackToGallery?: () => void;
+  selectedImageId?: string;
 }
 
 export interface CroppingToolProps {
@@ -145,6 +151,7 @@ export interface ImageControlsProps {
   onCancelText?: () => void;
   onBackToGallery?: () => void;
   onExitEditMode: () => void;
+  onToggleMultiEditMode?: () => void;
   isStandalone?: boolean;
   currentPage?: number;
   totalPages?: number;

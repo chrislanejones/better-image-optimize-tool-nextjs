@@ -1,6 +1,7 @@
 "use client";
 
 import { base64ToBlob, getFileFormat } from "./image-utils";
+import { type ImageFile } from "@/types/editor";
 
 // IndexedDB configuration
 const DB_CONFIG = {
@@ -223,7 +224,7 @@ export const imageDB = {
   /**
    * Save an image to IndexedDB
    */
-  async saveImage(image: ImageRecord): Promise<void> {
+  async saveImage(image: ImageFile): Promise<void> {
     try {
       // Convert file to base64
       const fileData = await fileToBase64(image.file);
@@ -234,10 +235,7 @@ export const imageDB = {
         name: image.file.name,
         type: image.file.type,
         fileData,
-        width: image.width,
-        height: image.height,
         lastModified: image.file.lastModified,
-        metadata: image.metadata,
       };
 
       // Save to IndexedDB
@@ -251,7 +249,7 @@ export const imageDB = {
   /**
    * Get all images from IndexedDB
    */
-  async getAllImages(): Promise<ImageRecord[]> {
+  async getAllImages(): Promise<ImageFile[]> {
     try {
       const storedImages = await imageStore.getAll();
 
@@ -274,9 +272,6 @@ export const imageDB = {
           id: img.id,
           file,
           url,
-          width: img.width,
-          height: img.height,
-          metadata: img.metadata,
         };
       });
     } catch (error) {
@@ -288,7 +283,7 @@ export const imageDB = {
   /**
    * Get an image by ID
    */
-  async getImageById(id: string): Promise<ImageRecord | null> {
+  async getImage(id: string): Promise<ImageFile | null> {
     try {
       const img = await imageStore.get(id);
 
@@ -313,9 +308,6 @@ export const imageDB = {
         id: img.id,
         file,
         url,
-        width: img.width,
-        height: img.height,
-        metadata: img.metadata,
       };
     } catch (error) {
       console.error(`Error getting image ${id}:`, error);

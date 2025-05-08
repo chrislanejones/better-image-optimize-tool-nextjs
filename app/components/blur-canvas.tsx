@@ -162,7 +162,7 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
           setError("Error applying blur effect");
         }
       },
-      [isDrawing, blurAmount, blurRadius]
+      [isDrawing, blurAmount, blurRadius, baseImage]
     );
 
     // Mouse event handlers
@@ -176,13 +176,13 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
           const rect = canvas.getBoundingClientRect();
           const scaleX = canvas.width / rect.width;
           const scaleY = canvas.height / rect.height;
-          const x = (e.clientX - rect.left) * scaleX;
-          const y = (e.clientY - rect.top) * scaleY;
+          const x = ((e.clientX - rect.left) * scaleX) / zoom;
+          const y = ((e.clientY - rect.top) * scaleY) / zoom;
 
           applyBlurEffect(x, y);
         }
       },
-      [applyBlurEffect]
+      [applyBlurEffect, zoom]
     );
 
     const finishDrawing = useCallback(() => {
@@ -200,12 +200,12 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
+        const x = ((e.clientX - rect.left) * scaleX) / zoom;
+        const y = ((e.clientY - rect.top) * scaleY) / zoom;
 
         applyBlurEffect(x, y);
       },
-      [applyBlurEffect]
+      [applyBlurEffect, zoom]
     );
 
     // Handle blur amount change
@@ -230,57 +230,6 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
 
     return (
       <div className="flex flex-col gap-4 w-full h-full">
-        {/* Blur controls */}
-        {(onBlurAmountChange || onBlurRadiusChange) && (
-          <div className="flex items-center gap-4 mb-4 bg-gray-700 p-2 rounded-lg">
-            <div className="grid grid-cols-2 gap-6 w-full">
-              {onBlurAmountChange && (
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <label
-                      htmlFor="blur-amount"
-                      className="text-sm font-medium text-white"
-                    >
-                      Blur Amount: {blurAmount}px
-                    </label>
-                  </div>
-                  <Slider
-                    id="blur-amount"
-                    min={1}
-                    max={20}
-                    step={1}
-                    value={[blurAmount]}
-                    onValueChange={handleBlurAmountChange}
-                    className="[&>.slider-track]:bg-gray-500"
-                  />
-                </div>
-              )}
-
-              {onBlurRadiusChange && (
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <label
-                      htmlFor="blur-radius"
-                      className="text-sm font-medium text-white"
-                    >
-                      Brush Size: {blurRadius}px
-                    </label>
-                  </div>
-                  <Slider
-                    id="blur-radius"
-                    min={1}
-                    max={30}
-                    step={1}
-                    value={[blurRadius]}
-                    onValueChange={handleBlurRadiusChange}
-                    className="[&>.slider-track]:bg-gray-500"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Canvas area */}
         <div className="relative flex-1 border rounded-lg overflow-hidden bg-gray-900 flex items-center justify-center">
           {error && (
@@ -314,5 +263,7 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
     );
   }
 );
+
+BlurBrushCanvas.displayName = "BlurBrushCanvas";
 
 export default BlurBrushCanvas;

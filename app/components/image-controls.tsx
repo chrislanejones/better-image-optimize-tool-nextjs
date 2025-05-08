@@ -1,4 +1,3 @@
-// image-controls.tsx
 "use client";
 
 import React from "react";
@@ -22,6 +21,7 @@ import {
   FolderDown,
   Download,
   Type,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ImageControlsProps } from "@/types/editor";
@@ -38,7 +38,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
   isCropping,
   isBlurring,
   isPainting,
-  isTexting = false, // New prop with default value
+  isTexting = false,
   isEraser,
   format,
   onFormatChange,
@@ -46,12 +46,12 @@ const ImageControls: React.FC<ImageControlsProps> = ({
   onToggleCropping,
   onToggleBlurring,
   onTogglePainting,
-  onToggleTexting, // New function for text tool toggle
+  onToggleTexting,
   onToggleEraser,
   onApplyCrop,
   onApplyBlur,
   onApplyPaint,
-  onApplyText, // New function for applying text
+  onApplyText,
   onZoomIn,
   onZoomOut,
   onReset,
@@ -61,13 +61,14 @@ const ImageControls: React.FC<ImageControlsProps> = ({
   onCancelBlur,
   onCancelCrop,
   onCancelPaint,
-  onCancelText, // New function for canceling text tool
+  onCancelText,
   onBackToGallery,
   onExitEditMode,
   isStandalone,
-  currentPage = 1, // Provide default values to prevent undefined errors
+  currentPage = 1,
   totalPages = 1,
-  onPageChange = () => {}, // Default empty function
+  onPageChange = () => {},
+  onToggleMultiEditMode = () => {},
 }) => {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
@@ -75,21 +76,13 @@ const ImageControls: React.FC<ImageControlsProps> = ({
       <div className="flex items-center gap-2">
         {/* Zoom controls - always visible */}
         <div className="flex items-center gap-1 mr-2">
-          <Button
-            onClick={onZoomOut}
-            variant="outline"
-            size="icon"
-            className="h-9 w-9"
-          >
-            <Minus className="h-4 w-4" />
+          <Button onClick={onZoomOut} variant="outline" className="h-9">
+            <Minus className="mr-2 h-4 w-4" />
+            Zoom Out
           </Button>
-          <Button
-            onClick={onZoomIn}
-            variant="outline"
-            size="icon"
-            className="h-9 w-9"
-          >
-            <Plus className="h-4 w-4" />
+          <Button onClick={onZoomIn} variant="outline" className="h-9">
+            <Plus className="mr-2 h-4 w-4" />
+            Zoom In
           </Button>
         </div>
 
@@ -99,9 +92,29 @@ const ImageControls: React.FC<ImageControlsProps> = ({
           !isBlurring &&
           !isPainting &&
           !isTexting && (
-            <Button onClick={onToggleEditMode} variant="outline">
+            <Button
+              onClick={onToggleEditMode}
+              variant="outline"
+              className="h-9"
+            >
               <WandSparkles className="mr-2 h-4 w-4" />
               Edit Image
+            </Button>
+          )}
+
+        {/* Multi-image edit button - only when not in edit mode */}
+        {!isEditMode &&
+          !isCropping &&
+          !isBlurring &&
+          !isPainting &&
+          !isTexting && (
+            <Button
+              onClick={onToggleMultiEditMode}
+              variant="outline"
+              className="h-9"
+            >
+              <Users className="mr-2 h-4 w-4" />
+              Multi Edit
             </Button>
           )}
 
@@ -112,24 +125,40 @@ const ImageControls: React.FC<ImageControlsProps> = ({
           !isPainting &&
           !isTexting && (
             <>
-              <Button onClick={onToggleCropping} variant="outline">
+              <Button
+                onClick={onToggleCropping}
+                variant="outline"
+                className="h-9"
+              >
                 <Crop className="mr-2 h-4 w-4" />
                 Crop Image
               </Button>
 
-              <Button onClick={onToggleBlurring} variant="outline">
+              <Button
+                onClick={onToggleBlurring}
+                variant="outline"
+                className="h-9"
+              >
                 <Droplets className="mr-2 h-4 w-4" />
                 Blur Tool
               </Button>
 
-              <Button onClick={onTogglePainting} variant="outline">
+              <Button
+                onClick={onTogglePainting}
+                variant="outline"
+                className="h-9"
+              >
                 <Paintbrush className="mr-2 h-4 w-4" />
                 Paint Tool
               </Button>
 
               {/* Add Text Tool button */}
               {onToggleTexting && (
-                <Button onClick={onToggleTexting} variant="outline">
+                <Button
+                  onClick={onToggleTexting}
+                  variant="outline"
+                  className="h-9"
+                >
                   <Type className="mr-2 h-4 w-4" />
                   Text Tool
                 </Button>
@@ -139,13 +168,13 @@ const ImageControls: React.FC<ImageControlsProps> = ({
 
         {/* Apply buttons for specific tools */}
         {isCropping && (
-          <Button onClick={onApplyCrop} variant="default">
+          <Button onClick={onApplyCrop} variant="default" className="h-9">
             <Check className="mr-2 h-4 w-4" />
             Apply Crop
           </Button>
         )}
         {isBlurring && !isCropping && (
-          <Button onClick={onApplyBlur} variant="default">
+          <Button onClick={onApplyBlur} variant="default" className="h-9">
             <Check className="mr-2 h-4 w-4" />
             Apply Blur
           </Button>
@@ -153,7 +182,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
 
         {isPainting && !isCropping && (
           <>
-            <Button onClick={onApplyPaint} variant="default">
+            <Button onClick={onApplyPaint} variant="default" className="h-9">
               <Check className="mr-2 h-4 w-4" />
               Apply Paint
             </Button>
@@ -162,6 +191,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
               <Button
                 onClick={onToggleEraser}
                 variant={isEraser ? "default" : "outline"}
+                className="h-9"
               >
                 <Eraser className="mr-2 h-4 w-4" />
                 {isEraser ? "Brush" : "Eraser"}
@@ -172,7 +202,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
 
         {/* Text tool apply button */}
         {isTexting && onApplyText && (
-          <Button onClick={onApplyText} variant="default">
+          <Button onClick={onApplyText} variant="default" className="h-9">
             <Check className="mr-2 h-4 w-4" />
             Apply Text
           </Button>
@@ -231,23 +261,41 @@ const ImageControls: React.FC<ImageControlsProps> = ({
             </div>
           )}
 
+        {/* Format selection - only in view mode */}
+        {!isEditMode &&
+          !isCropping &&
+          !isBlurring &&
+          !isPainting &&
+          !isTexting && (
+            <Select value={format} onValueChange={onFormatChange}>
+              <SelectTrigger className="w-28">
+                <SelectValue placeholder="Format" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="jpeg">JPEG</SelectItem>
+                <SelectItem value="png">PNG</SelectItem>
+                <SelectItem value="webp">WebP</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
         {/* Cancel buttons for tool modes */}
         {isCropping && (
-          <Button onClick={onCancelCrop} variant="outline">
+          <Button onClick={onCancelCrop} variant="outline" className="h-9">
             <X className="mr-2 h-4 w-4" />
             Cancel Crop
           </Button>
         )}
 
         {isBlurring && !isCropping && (
-          <Button onClick={onCancelBlur} variant="outline">
+          <Button onClick={onCancelBlur} variant="outline" className="h-9">
             <X className="mr-2 h-4 w-4" />
             Cancel Blur
           </Button>
         )}
 
         {isPainting && !isCropping && (
-          <Button onClick={onCancelPaint} variant="outline">
+          <Button onClick={onCancelPaint} variant="outline" className="h-9">
             <X className="mr-2 h-4 w-4" />
             Cancel Paint
           </Button>
@@ -255,7 +303,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
 
         {/* Cancel text tool */}
         {isTexting && onCancelText && (
-          <Button onClick={onCancelText} variant="outline">
+          <Button onClick={onCancelText} variant="outline" className="h-9">
             <X className="mr-2 h-4 w-4" />
             Cancel Text
           </Button>
@@ -267,7 +315,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
           !isBlurring &&
           !isPainting &&
           !isTexting && (
-            <Button onClick={onExitEditMode} variant="outline">
+            <Button onClick={onExitEditMode} variant="outline" className="h-9">
               <X className="mr-2 h-4 w-4" />
               Exit Edit Mode
             </Button>
@@ -280,29 +328,41 @@ const ImageControls: React.FC<ImageControlsProps> = ({
           !isPainting &&
           !isTexting && (
             <>
-              <Button onClick={onReset} variant="outline">
+              <Button onClick={onReset} variant="outline" className="h-9">
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Reset
               </Button>
 
-              <Button onClick={onDownload} variant="outline">
+              <Button onClick={onDownload} variant="outline" className="h-9">
                 <Download className="mr-2 h-4 w-4" />
                 Download
               </Button>
 
               {!isStandalone && (
                 <>
-                  <Button onClick={onUploadNew} variant="outline">
+                  <Button
+                    onClick={onUploadNew}
+                    variant="outline"
+                    className="h-9"
+                  >
                     <Upload className="mr-2 h-4 w-4" />
                     Upload New
                   </Button>
 
-                  <Button onClick={onBackToGallery} variant="outline">
+                  <Button
+                    onClick={onBackToGallery}
+                    variant="outline"
+                    className="h-9"
+                  >
                     <FolderDown className="mr-2 h-4 w-4" />
-                    Add From Files
+                    Back to Gallery
                   </Button>
 
-                  <Button onClick={onRemoveAll} variant="destructive">
+                  <Button
+                    onClick={onRemoveAll}
+                    variant="destructive"
+                    className="h-9"
+                  >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Remove All
                   </Button>

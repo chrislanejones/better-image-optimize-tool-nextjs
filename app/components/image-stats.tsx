@@ -22,23 +22,7 @@ import {
   FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-interface ImageStats {
-  width: number;
-  height: number;
-  size: number;
-  format: string;
-}
-
-interface ImageStatsProps {
-  originalStats: ImageStats | null;
-  newStats: ImageStats | null;
-  dataSavings: number;
-  hasEdited: boolean;
-  fileName: string;
-  format: string;
-  fileType: string;
-}
+import { type ImageStatsProps } from "@/types/editor";
 
 const formatBytes = (bytes: number, decimals = 2) => {
   if (bytes === 0) return "0 Bytes";
@@ -50,7 +34,7 @@ const formatBytes = (bytes: number, decimals = 2) => {
   );
 };
 
-export default function ImageStats({
+export default function ImageStatsComponent({
   originalStats,
   newStats,
   dataSavings,

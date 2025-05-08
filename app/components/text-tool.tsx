@@ -202,8 +202,8 @@ const TextTool = forwardRef<TextToolRef, TextToolProps>(
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
-      const x = (e.clientX - rect.left) * scaleX;
-      const y = (e.clientY - rect.top) * scaleY;
+      const x = ((e.clientX - rect.left) * scaleX) / zoom;
+      const y = ((e.clientY - rect.top) * scaleY) / zoom;
 
       // Check if any text was clicked
       const clickedText = [...texts].reverse().find((text) => {
@@ -258,8 +258,8 @@ const TextTool = forwardRef<TextToolRef, TextToolProps>(
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
-      const x = (e.clientX - rect.left) * scaleX;
-      const y = (e.clientY - rect.top) * scaleY;
+      const x = ((e.clientX - rect.left) * scaleX) / zoom;
+      const y = ((e.clientY - rect.top) * scaleY) / zoom;
 
       const dx = x - dragStart.x;
       const dy = y - dragStart.y;

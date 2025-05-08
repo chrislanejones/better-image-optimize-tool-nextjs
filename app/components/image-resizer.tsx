@@ -1,4 +1,5 @@
-// Modified ImageResizer.tsx with equal-width buttons and improved slider
+"use client";
+
 import { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,18 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-interface ImageResizerProps {
-  width: number;
-  height: number;
-  maxWidth: number;
-  maxHeight: number;
-  onResize: (width: number, height: number) => void;
-  onApplyResize: () => void;
-  format: string;
-  onFormatChange: (format: string) => void;
-  onDownload: () => void;
-}
+import type { ImageResizerProps } from "@/types/editor";
 
 export default function ImageResizer({
   width,
