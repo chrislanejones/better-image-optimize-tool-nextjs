@@ -1,3 +1,4 @@
+// app/components/multi-cropping-tool.tsx
 "use client";
 
 import { useRef, useState, useEffect } from "react";
@@ -7,18 +8,7 @@ import ReactCrop, {
 } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import Image from "next/image";
-
-interface MultiCroppingToolProps {
-  images: Array<{
-    id: string;
-    url: string;
-  }>;
-  selectedImageId: string;
-  onImageSelect: (id: string) => void;
-  onApplyCrop: (crop: PixelCrop, imageId: string) => void;
-  onCancel: () => void;
-  zoom?: number;
-}
+import { type MultiCroppingToolProps } from "@/types/editor";
 
 export default function MultiCroppingTool({
   images,
@@ -88,9 +78,9 @@ export default function MultiCroppingTool({
 
   return (
     <div className="w-full h-full">
-      <div className="grid grid-cols-5 grid-rows-7 gap-2 h-full">
-        {/* Main image with active cropping */}
-        <div className="col-span-2 row-span-4 relative border rounded-lg overflow-hidden">
+      <div className="grid grid-cols-3 gap-4 h-full">
+        {/* Main image with active cropping - takes 2/3 of the screen */}
+        <div className="col-span-2 h-full relative border rounded-lg overflow-hidden">
           <ReactCrop
             crop={crop}
             onChange={(c) => setCrop(c)}
@@ -110,60 +100,55 @@ export default function MultiCroppingTool({
           </ReactCrop>
         </div>
 
-        {/* Preview images with crop outline */}
-        {otherImages.slice(0, 14).map((image, index) => {
-          // Calculate grid position based on index
-          const position = index + 2; // Start from position 2 (div2)
-          let gridArea = "";
+        {/* Grid of other images on the right side */}
+        <div className="col-span-1 h-full overflow-auto">
+          <div className="grid grid-cols-2 gap-2">
+            {otherImages.map((image) => (
+              <div
+                key={image.id}
+                className="relative border rounded-lg overflow-hidden cursor-pointer aspect-square"
+                onClick={() => onImageSelect(image.id)}
+              >
+                <img
+                  src={image.url}
+                  alt="Preview image"
+                  className="w-full h-full object-cover"
+                />
 
-          if (position === 2) gridArea = "1 / 3 / 2 / 4";
-          else if (position === 3) gridArea = "1 / 4 / 2 / 5";
-          else if (position === 4) gridArea = "2 / 3 / 3 / 4";
-          else if (position === 5) gridArea = "2 / 4 / 3 / 5";
-          else if (position === 6) gridArea = "3 / 3 / 4 / 4";
-          else if (position === 7) gridArea = "3 / 4 / 4 / 5";
-          else if (position === 8) gridArea = "4 / 1 / 5 / 2";
-          else if (position === 9) gridArea = "4 / 2 / 5 / 3";
-          else if (position === 10) gridArea = "4 / 3 / 5 / 4";
-          else if (position === 11) gridArea = "4 / 4 / 5 / 5";
-          else if (position === 12) gridArea = "5 / 1 / 6 / 2";
-          else if (position === 13) gridArea = "5 / 2 / 6 / 3";
-          else if (position === 14) gridArea = "5 / 3 / 6 / 4";
-          else if (position === 15) gridArea = "5 / 4 / 6 / 5";
+                {/* Preview mask overlay */}
+                {previewMasks[image.id] && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div
+                      className="absolute border-2 border-blue-500 bg-blue-500/10 pointer-events-none"
+                      style={{
+                        left: `${previewMasks[image.id].x}%`,
+                        top: `${previewMasks[image.id].y}%`,
+                        width: `${previewMasks[image.id].width}%`,
+                        height: `${previewMasks[image.id].height}%`,
+                      }}
+                    />
+                  </div>
+                )}
 
-          return (
-            <div
-              key={image.id}
-              style={{ gridArea }}
-              className="relative border rounded-lg overflow-hidden cursor-pointer"
-              onClick={() => onImageSelect(image.id)}
-            >
-              <img
-                src={image.url}
-                alt={`Preview image ${index + 1}`}
-                className="w-full h-full object-cover"
-              />
+                {/* Selection indicator */}
+                <div className="absolute inset-0 bg-blue-500/20 opacity-0 hover:opacity-100 transition-opacity" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-              {/* Preview mask overlay */}
-              {previewMasks[image.id] && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div
-                    className="absolute border-2 border-blue-500 bg-blue-500/10 pointer-events-none"
-                    style={{
-                      left: `${previewMasks[image.id].x}%`,
-                      top: `${previewMasks[image.id].y}%`,
-                      width: `${previewMasks[image.id].width}%`,
-                      height: `${previewMasks[image.id].height}%`,
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Selection indicator */}
-              <div className="absolute inset-0 bg-blue-500/20 opacity-0 hover:opacity-100 transition-opacity" />
-            </div>
-          );
-        })}
+      {/* Action buttons */}
+      <div className="flex justify-end mt-4 gap-2">
+        <button
+          onClick={handleApplyCrop}
+          className="px-4 py-2 bg-blue-500 text-white rounded-md"
+        >
+          Apply Crop to All
+        </button>
+        <button onClick={onCancel} className="px-4 py-2 bg-gray-300 rounded-md">
+          Cancel
+        </button>
       </div>
     </div>
   );

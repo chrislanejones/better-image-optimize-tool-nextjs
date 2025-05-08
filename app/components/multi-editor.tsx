@@ -17,7 +17,7 @@ import {
 import { type ImageFile, type MultiImageEditorProps } from "@/types/editor";
 import { type PixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
-import MultiCroppingTool from "./components/multi-cropping-tool";
+import MultiCroppingTool from "../components/multi-cropping-tool";
 
 export default function MultiImageEditor({
   images,
@@ -59,14 +59,6 @@ export default function MultiImageEditor({
   // Handle image selection
   const handleSelectImage = (image: ImageFile) => {
     setSelectedImage(image);
-  };
-
-  // Function to handle selection by ID
-  const handleSelectImageById = (id: string) => {
-    const image = images.find((img) => img.id === id);
-    if (image) {
-      handleSelectImage(image);
-    }
   };
 
   // Toggle cropping
@@ -165,7 +157,10 @@ export default function MultiImageEditor({
           <MultiCroppingTool
             images={images.map((img) => ({ id: img.id, url: img.url }))}
             selectedImageId={selectedImage?.id || images[0]?.id || ""}
-            onImageSelect={handleSelectImageById}
+            onImageSelect={(id) => {
+              const img = images.find((img) => img.id === id);
+              if (img) handleSelectImage(img);
+            }}
             onApplyCrop={handleApplyCrop}
             onCancel={handleCancelCrop}
             zoom={zoom}

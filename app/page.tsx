@@ -1,7 +1,8 @@
+// app/page.tsx - Complete implementation with fixed Edit Image button functionality
+
 "use client";
 
-// Import the updated components
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import MultiImageEditor from "./multi-editor";
 import {
@@ -12,6 +13,9 @@ import {
   Images,
   WandSparkles,
   X,
+  Moon,
+  Sun,
+  User,
 } from "lucide-react";
 import { imageDB } from "./utils/indexedDB";
 import { type ImageFile, type ImageStats } from "@/types/editor";
@@ -20,6 +24,14 @@ import ImageControls from "./components/image-controls";
 import ImageResizer from "./components/image-resizer";
 import ImageZoomView from "./components/image-zoom-view";
 import ImageStatsComponent from "./components/image-stats";
+import dynamic from "next/dynamic";
+import { useTheme } from "next-themes";
+import { Button } from "@/components/ui/button";
+
+// Dynamically import the ImageEditor component
+const ImageEditor = dynamic(() => import("./image-editor"), {
+  ssr: false,
+});
 
 // Constants for pagination
 const IMAGES_PER_PAGE = 10;
@@ -44,6 +56,9 @@ export default function HomePage() {
   const [newStats, setNewStats] = useState<ImageStats | null>(null);
   const [dataSavings, setDataSavings] = useState(0);
   const [zoom, setZoom] = useState<number>(1);
+
+  // Theme state
+  const { theme, setTheme } = useTheme();
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -143,18 +158,25 @@ export default function HomePage() {
     setNewStats(null);
   };
 
-  // Toggle advanced edit mode
-  const handleToggleEditMode = () => {
+  // Toggle advanced edit mode - FIXED IMPLEMENTATION
+  const handleToggleEditMode = useCallback(() => {
+    console.log("handleToggleEditMode called");
+
     if (selectedImage) {
+      console.log("Setting edit mode to true for selected image");
       setIsEditMode(true);
       setIsGalleryMinimized(true);
+      setIsMultiEditMode(false);
     } else if (images.length > 0) {
-      // Select the first image when entering edit mode
+      console.log(
+        "No image selected, selecting first image and entering edit mode"
+      );
       setSelectedImage(images[0]);
       setIsEditMode(true);
       setIsGalleryMinimized(true);
+      setIsMultiEditMode(false);
     }
-  };
+  }, [selectedImage, images]);
 
   // Toggle multi-edit mode
   const handleToggleMultiEditMode = () => {
@@ -409,64 +431,58 @@ export default function HomePage() {
                     </button>
                   </div>
                 ))}
+
+              {/* Gallery controls */}
+              <div className="absolute bottom-2 right-2 flex items-center gap-2">
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1 p-1 bg-black bg-opacity-70 rounded">
+                    <span className="mx-1 text-xs text-white">
+                      {currentPage} / {totalPages}
+                    </span>
+                  </div>
+                )}
+                <Button onClick={handleUploadMore} variant="outline" size="sm">
+                  <Upload className="mr-1 h-3 w-3" />
+                  Upload
+                </Button>
+                <Button
+                  onClick={handleRemoveAll}
+                  variant="destructive"
+                  size="sm"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                >
+                  {theme === "dark" ? (
+                    <Sun className="h-3 w-3" />
+                  ) : (
+                    <Moon className="h-3 w-3" />
+                  )}
+                </Button>
+                <Button variant="outline" size="sm" disabled>
+                  <User className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
           )}
 
           {/* Main content area based on current state */}
           {isEditMode && selectedImage ? (
             // Full edit mode with proper controls
-            <div className="space-y-6">
-              {/* Use ImageControls component properly */}
-              <ImageControls
-                isEditMode={true}
-                isCropping={false}
-                isBlurring={false}
-                isPainting={false}
-                isTexting={false}
-                isEraser={false}
-                format={format}
-                onFormatChange={setFormat}
-                onToggleEditMode={() => {}}
-                onToggleCropping={() => {}}
-                onToggleBlurring={() => {}}
-                onTogglePainting={() => {}}
-                onToggleTexting={() => {}}
-                onToggleEraser={() => {}}
-                onApplyCrop={() => {}}
-                onApplyBlur={() => {}}
-                onApplyPaint={() => {}}
-                onApplyText={() => {}}
-                onZoomIn={zoomIn}
-                onZoomOut={zoomOut}
-                onReset={() => {}}
-                onDownload={() => {}}
-                onUploadNew={() => {}}
-                onRemoveAll={() => {}}
-                onCancelBlur={() => {}}
-                onCancelCrop={() => {}}
-                onCancelPaint={() => {}}
-                onCancelText={() => {}}
-                onExitEditMode={exitEditMode}
-                onToggleMultiEditMode={() => {}}
-              />
-
-              {/* Edit Mode Content */}
-              <div className="relative border rounded-lg overflow-hidden">
-                <div
-                  className="overflow-auto"
-                  style={{ maxHeight: "700px", height: "70vh" }}
-                >
-                  {selectedImage && (
-                    <img
-                      src={selectedImage.url || "/placeholder.svg"}
-                      alt="Image being edited"
-                      className="max-w-full transform origin-center"
-                      style={{ transform: `scale(${zoom})` }}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
+            <ImageEditor
+              image={selectedImage}
+              onUploadNew={handleUploadMore}
+              onRemoveAll={handleRemoveAll}
+              onBackToGallery={exitEditMode}
+              onEditModeChange={(newEditMode) => {
+                console.log("Edit mode changed to:", newEditMode);
+                setIsEditMode(newEditMode);
+              }}
+            />
           ) : isMultiEditMode ? (
             // Multi-edit mode
             <MultiImageEditor
@@ -474,14 +490,14 @@ export default function HomePage() {
               onUploadNew={handleUploadMore}
               onRemoveAll={handleRemoveAll}
               onBackToGallery={exitEditMode}
-              selectedImageId={selectedImage?.id}
+              selectedImageId={selectedImage?.id || ""}
             />
           ) : selectedImage ? (
             // Basic view mode with selected image
             <div className="space-y-6">
               {/* Use ImageControls component for normal view */}
               <ImageControls
-                isEditMode={false}
+                isEditMode={isEditMode}
                 isCropping={false}
                 isBlurring={false}
                 isPainting={false}
@@ -489,7 +505,7 @@ export default function HomePage() {
                 isEraser={false}
                 format={format}
                 onFormatChange={setFormat}
-                onToggleEditMode={handleToggleEditMode}
+                onToggleEditMode={handleToggleEditMode} // This is the critical line
                 onToggleCropping={() => {}}
                 onToggleBlurring={() => {}}
                 onTogglePainting={() => {}}
@@ -520,7 +536,7 @@ export default function HomePage() {
                 onCancelCrop={() => {}}
                 onCancelPaint={() => {}}
                 onCancelText={() => {}}
-                onExitEditMode={() => {}}
+                onExitEditMode={exitEditMode}
                 totalPages={totalPages}
                 currentPage={currentPage}
                 onPageChange={handlePageChange}

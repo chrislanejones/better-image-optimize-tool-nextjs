@@ -1,7 +1,9 @@
+// app/image-editor.tsx - Complete file with fixes for the TypeScript errors
+
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import ReactCrop, { type PixelCrop, type Crop } from "react-image-crop";
+import { type PixelCrop, type Crop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import ImageControls from "./components/image-controls";
 import CroppingTool from "./components/cropping-tool";
@@ -86,6 +88,17 @@ export default function ImageEditor({
   const blurCanvasRef = useRef<BlurBrushCanvasRef>(null);
   const paintToolRef = useRef<PaintToolRef>(null);
   const textToolRef = useRef<TextToolRef>(null);
+
+  // Define crop state for crop tool
+  const [crop, setCrop] = useState<Crop>({
+    unit: "%",
+    width: 100,
+    height: 100,
+    x: 0,
+    y: 0,
+  });
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
+  const cropImgRef = useRef<HTMLImageElement | null>(null);
 
   // Set mounted state to prevent hydration mismatch
   useEffect(() => {
@@ -205,15 +218,28 @@ export default function ImageEditor({
 
   // Toggle functions
   const toggleEditMode = useCallback(() => {
+    console.log("toggleEditMode called, current state:", isEditMode);
+
     if (!isStandalone) {
       setIsEditMode((prev) => !prev);
+
+      // If we're entering edit mode, make sure other tools are closed
+      if (!isEditMode) {
+        setIsBlurring(false);
+        setIsCropping(false);
+        setIsPainting(false);
+        setIsTexting(false);
+      }
     }
 
-    setIsBlurring(false);
-    setIsCropping(false);
-    setIsPainting(false);
-    setIsTexting(false);
-  }, [isStandalone]);
+    // If we're exiting edit mode, close all tool states
+    if (isEditMode) {
+      setIsBlurring(false);
+      setIsCropping(false);
+      setIsPainting(false);
+      setIsTexting(false);
+    }
+  }, [isEditMode, isStandalone]);
 
   const toggleCropping = useCallback(() => {
     if (!isEditMode && !isStandalone) {
@@ -425,17 +451,6 @@ export default function ImageEditor({
       saveEditedImage,
     ]
   );
-
-  // Add this near your other state variables
-  const [crop, setCrop] = useState<Crop>({
-    unit: "%",
-    width: 100,
-    height: 100,
-    x: 0,
-    y: 0,
-  });
-  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
-  const cropImgRef = useRef<HTMLImageElement | null>(null);
 
   // Define handleBlurApply and handlePaintApply after saveEditedImage
   const handleBlurApply = useCallback(
@@ -764,7 +779,6 @@ export default function ImageEditor({
           </div>
         </div>
       )}
-
       <ImageControls
         isEditMode={isEditMode}
         isCropping={isCropping}
@@ -805,9 +819,7 @@ export default function ImageEditor({
         totalPages={totalPages}
         onPageChange={onPageChange}
       />
-
       {/* Display appropriate tool controls based on active tool */}
-
       {isPainting && (
         <PaintControls
           brushSize={brushSize}
@@ -816,7 +828,56 @@ export default function ImageEditor({
           onBrushColorChange={setBrushColor}
         />
       )}
-
+      {/* When using BlurBrushCanvas, ensure you're passing the required props */}
+      {isBlurring && (
+        <div>
+          <div className="flex items-center gap-4 mb-4 bg-gray-700 p-2 rounded-lg">
+            <div className="grid grid-cols-2 gap-6 w-full">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-white block">
+                  Blur Amount: {blurAmount}px
+                </label>
+                <div className="[&>.slider-track]:bg-gray-500">
+                  <input
+                    type="range"
+                    min="1"
+                    max="20"
+                    value={blurAmount}
+                    onChange={(e) => setBlurAmount(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-white block">
+                  Brush Size: {blurRadius}px
+                </label>
+                <div className="[&>.slider-track]:bg-gray-500">
+                  <input
+                    type="range"
+                    min="5"
+                    max="50"
+                    value={blurRadius}
+                    onChange={(e) => setBlurRadius(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <BlurBrushCanvas
+            ref={blurCanvasRef}
+            imageUrl={previewUrl}
+            blurAmount={blurAmount}
+            blurRadius={blurRadius}
+            onBlurAmountChange={setBlurAmount}
+            onBlurRadiusChange={setBlurRadius}
+            zoom={zoom}
+            onApply={handleApplyBlur} // Add missing prop
+            onCancel={cancelBlur} // Add missing prop
+          />
+        </div>
+      )}
       {/* Add Text Controls */}
       {isTexting && (
         <TextControls
@@ -828,7 +889,6 @@ export default function ImageEditor({
           onTextColorChange={setTextColor}
         />
       )}
-
       <div className="flex flex-col gap-6">
         <div
           className={`grid grid-cols-1 ${
@@ -842,34 +902,23 @@ export default function ImageEditor({
                 ref={imageContainerRef}
               >
                 {isCropping ? (
-                  <ReactCrop
-                    crop={crop}
-                    onChange={(c) => setCrop(c)}
-                    onComplete={(c) => setCompletedCrop(c)}
-                    aspect={undefined}
-                  >
-                    <img
-                      ref={cropImgRef}
-                      src={previewUrl}
-                      alt="Image for cropping"
-                      className="max-w-full"
-                      style={{
-                        transform: `scale(${zoom})`,
-                        transformOrigin: "top left",
-                      }}
-                    />
-                  </ReactCrop>
+                  <CroppingTool
+                    imageUrl={previewUrl}
+                    onApplyCrop={handleCropComplete}
+                    onCancel={cancelCrop}
+                    zoom={zoom}
+                  />
                 ) : isBlurring ? (
                   <BlurBrushCanvas
                     ref={blurCanvasRef}
                     imageUrl={previewUrl}
                     blurAmount={blurAmount}
                     blurRadius={blurRadius}
-                    onApply={handleBlurApply}
-                    onCancel={cancelBlur}
                     onBlurAmountChange={setBlurAmount}
                     onBlurRadiusChange={setBlurRadius}
-                    zoom={zoom} // Pass zoom prop
+                    zoom={zoom}
+                    onApply={handleApplyBlur} // Add missing prop
+                    onCancel={cancelBlur} // Add missing prop
                   />
                 ) : isPainting ? (
                   <PaintTool

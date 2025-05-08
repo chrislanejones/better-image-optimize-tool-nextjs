@@ -1,5 +1,4 @@
 // types/editor.ts
-import { type Crop as CropType, type PixelCrop } from "react-image-crop";
 
 // Base types
 export interface ImageFile {
@@ -73,7 +72,25 @@ export interface MultiImageEditorProps {
 
 export interface CroppingToolProps {
   imageUrl: string;
-  onApplyCrop: (crop: PixelCrop, imageRef: HTMLImageElement) => void;
+  onApplyCrop: (
+    crop: import("react-image-crop").PixelCrop,
+    imageRef: HTMLImageElement
+  ) => void;
+  onCancel: () => void;
+  zoom?: number;
+}
+
+export interface MultiCroppingToolProps {
+  images: Array<{
+    id: string;
+    url: string;
+  }>;
+  selectedImageId: string;
+  onImageSelect: (id: string) => void;
+  onApplyCrop: (
+    crop: import("react-image-crop").PixelCrop,
+    imageId: string
+  ) => void;
   onCancel: () => void;
   zoom?: number;
 }
@@ -98,6 +115,14 @@ export interface PaintToolProps {
   zoom?: number;
   brushColor?: string;
   brushSize?: number;
+}
+
+export interface PaintControlsProps {
+  brushSize: number;
+  brushColor: string;
+  onBrushSizeChange: (size: number) => void;
+  onBrushColorChange: (color: string) => void;
+  className?: string;
 }
 
 export interface TextToolProps {

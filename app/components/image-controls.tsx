@@ -1,3 +1,4 @@
+// app/components/image-controls.tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -79,6 +80,16 @@ const ImageControls: React.FC<ImageControlsProps> = ({
     setTheme(theme === "dark" ? "light" : "dark");
   };
 
+  // Handle edit mode button click - ensure this function explicitly calls the passed handler
+  const handleEditModeToggle = () => {
+    console.log("Edit button clicked - calling onToggleEditMode");
+    if (onToggleEditMode) {
+      onToggleEditMode();
+    } else {
+      console.error("onToggleEditMode is not defined");
+    }
+  };
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
       {/* Left side toolbar */}
@@ -86,10 +97,10 @@ const ImageControls: React.FC<ImageControlsProps> = ({
         {/* Zoom controls - always visible */}
         <div className="flex items-center gap-1 mr-2">
           <Button onClick={onZoomOut} variant="outline" className="h-9">
-            <Minus className="h-4 w-2" />
+            <Minus className="h-4 w-4" />
           </Button>
           <Button onClick={onZoomIn} variant="outline" className="h-9">
-            <Plus className="h-4 w-2" />
+            <Plus className="h-4 w-4" />
           </Button>
         </div>
 
@@ -100,7 +111,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
           !isPainting &&
           !isTexting && (
             <Button
-              onClick={onToggleEditMode}
+              onClick={handleEditModeToggle}
               variant="outline"
               className="h-9"
             >
@@ -349,27 +360,31 @@ const ImageControls: React.FC<ImageControlsProps> = ({
                   </Button>
                 </>
               )}
+
+              {/* Theme and user buttons - Only shown in main view, not in edit modes */}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={toggleTheme}
+                className="h-9 w-9"
+              >
+                {mounted && theme === "dark" ? (
+                  <Moon className="h-4 w-4" />
+                ) : (
+                  <Sun className="h-4 w-4" />
+                )}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="icon"
+                disabled
+                className="h-9 w-9"
+              >
+                <User className="h-4 w-4" />
+              </Button>
             </>
           )}
-
-        {/* Theme toggle button */}
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={toggleTheme}
-          className="h-9 w-9"
-        >
-          {mounted && theme === "dark" ? (
-            <Moon className="h-4 w-4" />
-          ) : (
-            <Sun className="h-4 w-4" />
-          )}
-        </Button>
-
-        {/* User button (disabled) */}
-        <Button variant="outline" size="icon" disabled className="h-9 w-9">
-          <User className="h-4 w-4" />
-        </Button>
       </div>
     </div>
   );
