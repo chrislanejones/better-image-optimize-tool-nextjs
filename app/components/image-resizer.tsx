@@ -1,10 +1,10 @@
-// Modified ImageResizer.tsx with equal-width buttons and improved slider
+// Updated ImageResizer.tsx with removed pagination controls
 import { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Maximize2, Gauge, Download } from "lucide-react";
+import { Maximize2, Gauge, Download, Image } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -18,18 +18,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-interface ImageResizerProps {
-  width: number;
-  height: number;
-  maxWidth: number;
-  maxHeight: number;
-  onResize: (width: number, height: number) => void;
-  onApplyResize: () => void;
-  format: string;
-  onFormatChange: (format: string) => void;
-  onDownload: () => void;
-}
+import { ImageResizerProps } from "@/types/types";
 
 export default function ImageResizer({
   width,
@@ -41,22 +30,23 @@ export default function ImageResizer({
   format,
   onFormatChange,
   onDownload,
+  // Other props
+  isCompressing,
 }: ImageResizerProps) {
   const [currentWidth, setCurrentWidth] = useState(width);
   const [currentHeight, setCurrentHeight] = useState(height);
   const [keepAspectRatio, setKeepAspectRatio] = useState(true);
   const [aspectRatio, setAspectRatio] = useState(width / height);
-  // State to track button animation
   const [isOptimizing, setIsOptimizing] = useState(false);
 
-  // Update local state when props change
+  // Update state on props change
   useEffect(() => {
     setCurrentWidth(width);
     setCurrentHeight(height);
     setAspectRatio(width / height);
   }, [width, height]);
 
-  // Handle width change
+  // Width change handler
   const handleWidthChange = (value: number[]) => {
     const newWidth = value[0];
     setCurrentWidth(newWidth);
@@ -70,7 +60,7 @@ export default function ImageResizer({
     }
   };
 
-  // Handle height change
+  // Height change handler
   const handleHeightChange = (value: number[]) => {
     const newHeight = value[0];
     setCurrentHeight(newHeight);
@@ -84,45 +74,45 @@ export default function ImageResizer({
     }
   };
 
-  // Optimize for Core Web Vitals with animation
+  // Core Web Vitals optimization
   const optimizeForCoreWebVitals = () => {
-    // Start animation
     setIsOptimizing(true);
 
-    // Calculate optimal dimensions based on original aspect ratio
-    // Aim for a file size that helps with LCP (Largest Contentful Paint)
-
-    // General recommendation is to keep images under 1000px wide for most websites
-    // unless they're hero/banner images, while maintaining the aspect ratio
     const MAX_RECOMMENDED_WIDTH = 1000;
     const MAX_RECOMMENDED_HEIGHT = 800;
 
     let optimalWidth = Math.min(currentWidth, MAX_RECOMMENDED_WIDTH);
     let optimalHeight = Math.round(optimalWidth / aspectRatio);
 
-    // If height exceeds recommended, adjust dimensions
     if (optimalHeight > MAX_RECOMMENDED_HEIGHT) {
       optimalHeight = MAX_RECOMMENDED_HEIGHT;
       optimalWidth = Math.round(optimalHeight * aspectRatio);
     }
 
-    // Apply optimal dimensions
     setCurrentWidth(optimalWidth);
     setCurrentHeight(optimalHeight);
     onResize(optimalWidth, optimalHeight);
 
-    // Auto-apply resize after animation completes
     setTimeout(() => {
       onApplyResize();
-      // End animation
       setIsOptimizing(false);
-    }, 800); // Delay to allow animation to complete
+    }, 800);
   };
 
   return (
     <Card className="bg-gray-800 text-white border-gray-700">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Resize</CardTitle>
+        <CardTitle className="text-base flex justify-between items-center">
+          <div className="flex items-center">
+            <Image className="h-4 w-4 mr-2" />
+            <span>Resize & Optimize</span>
+          </div>
+          {isCompressing && (
+            <span className="text-xs text-gray-300 bg-gray-700 px-2 py-1 rounded-full animate-pulse">
+              Compressing...
+            </span>
+          )}
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -199,7 +189,6 @@ export default function ImageResizer({
           </Tooltip>
         </TooltipProvider>
 
-        {/* Modified layout: Apply Resize button and Format dropdown equally sized */}
         <div className="grid grid-cols-2 gap-2">
           <Button onClick={onApplyResize}>
             <Maximize2 className="h-4 w-4 mr-2" />
@@ -218,7 +207,6 @@ export default function ImageResizer({
           </Select>
         </div>
 
-        {/* Download button on its own row at full width */}
         <Button onClick={onDownload} variant="outline" className="w-full">
           <Download className="mr-2 h-4 w-4" />
           Download

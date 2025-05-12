@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Minus, Plus, MousePointer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Slider } from "@/components/ui/slider";
 
 interface ImageZoomViewProps {
   imageUrl: string;
@@ -22,14 +23,6 @@ export default function ImageZoomView({ imageUrl }: ImageZoomViewProps) {
   });
   const [isHovering, setIsHovering] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const increaseMagnifierZoom = () => {
-    setMagnifierZoom((prev) => Math.min(prev + 0.5, 6));
-  };
-
-  const decreaseMagnifierZoom = () => {
-    setMagnifierZoom((prev) => Math.max(prev - 0.5, 1.5));
-  };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
@@ -58,66 +51,87 @@ export default function ImageZoomView({ imageUrl }: ImageZoomViewProps) {
   };
 
   return (
-    <Card className="bg-gray-800 text-white border-gray-700">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center justify-between">
-          <span className="text-base">Zoom View</span>
+    <Card className="bg-gray-800 text-white border-gray-700 shadow-md">
+      <CardHeader className="p-3 pb-0">
+        <CardTitle className="flex items-center justify-between text-base">
+          <span>Zoom Preview</span>
           <div className="flex items-center gap-1">
-            <Button
-              onClick={decreaseMagnifierZoom}
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0"
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
-            <span className="text-xs">{magnifierZoom.toFixed(1)}x</span>
-            <Button
-              onClick={increaseMagnifierZoom}
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
+            <span className="text-xs font-mono">
+              {magnifierZoom.toFixed(1)}x
+            </span>
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div
-          className="relative w-full aspect-video rounded-lg overflow-hidden border-2 border-gray-700 shadow-lg"
-          ref={containerRef}
-          onMouseMove={handleMouseMove}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-        >
+      <CardContent className="p-3">
+        <div className="space-y-2">
+          {/* Zoom slider */}
+          <div className="flex items-center gap-2 mb-2">
+            <Button
+              onClick={() =>
+                setMagnifierZoom(Math.max(magnifierZoom - 0.5, 1.5))
+              }
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 p-0"
+            >
+              <Minus className="h-3 w-3" />
+            </Button>
+
+            <Slider
+              value={[magnifierZoom]}
+              min={1.5}
+              max={6}
+              step={0.5}
+              onValueChange={(values) => setMagnifierZoom(values[0])}
+              className="w-full [&>.slider-track]:bg-blue-500"
+            />
+
+            <Button
+              onClick={() => setMagnifierZoom(Math.min(magnifierZoom + 0.5, 6))}
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 p-0"
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+
+          {/* Magnifier preview */}
           <div
-            className="w-full h-full"
-            style={{
-              backgroundImage: `url(${imageUrl})`,
-              backgroundPosition: getBackgroundPosition(),
-              backgroundSize: `${magnifierZoom * 100}%`,
-              backgroundRepeat: "no-repeat",
-            }}
+            className="relative w-full aspect-video rounded-lg overflow-hidden border border-gray-700 shadow-md"
+            ref={containerRef}
+            onMouseMove={handleMouseMove}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
           >
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="relative">
-                {/* Crosshair */}
-                <div className="absolute w-[1px] h-16 bg-red-500 left-1/2 -translate-x-1/2"></div>
-                <div className="absolute h-[1px] w-16 bg-red-500 top-1/2 -translate-y-1/2"></div>
-                <div className="w-16 h-16 rounded-sm border border-red-500 flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+            <div
+              className="w-full h-full transition-all duration-100"
+              style={{
+                backgroundImage: `url(${imageUrl})`,
+                backgroundPosition: getBackgroundPosition(),
+                backgroundSize: `${magnifierZoom * 100}%`,
+                backgroundRepeat: "no-repeat",
+              }}
+            >
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="relative">
+                  {/* Crosshair */}
+                  <div className="absolute w-[1px] h-12 bg-red-500 left-1/2 -translate-x-1/2"></div>
+                  <div className="absolute h-[1px] w-12 bg-red-500 top-1/2 -translate-y-1/2"></div>
+                  <div className="w-12 h-12 rounded-full border border-red-500 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                  </div>
                 </div>
               </div>
+              {!isHovering && (
+                <div className="absolute bottom-2 left-0 right-0 text-center">
+                  <p className="text-xs text-white bg-black bg-opacity-50 py-1 px-2 rounded-md inline-block">
+                    <MousePointer className="h-3 w-3 inline mr-1" />
+                    Hover to zoom
+                  </p>
+                </div>
+              )}
             </div>
-            {!isHovering && (
-              <div className="absolute bottom-2 left-0 right-0 text-center">
-                <p className="text-xs text-white bg-black bg-opacity-50 py-1 px-2 rounded-md inline-block">
-                  <MousePointer className="h-3 w-3 inline mr-1" />
-                  Mouse over image to navigate
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </CardContent>

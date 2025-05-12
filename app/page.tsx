@@ -1,6 +1,5 @@
 "use client";
 
-import { CardFooter } from "@/components/ui/card";
 import {
   useState,
   useRef,
@@ -8,10 +7,19 @@ import {
   type DragEvent,
   useEffect,
   type ClipboardEvent,
-  useMemo,
+  useCallback,
 } from "react";
 import Image from "next/image";
-import { X, Maximize2, Upload, ImageIcon, Info, Lock } from "lucide-react";
+import {
+  X,
+  Maximize2,
+  Upload,
+  ImageIcon,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,63 +27,60 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
-import ImageCropper from "./image-cropper";
+import { ImageFile } from "@/types/types";
+import ImageEditor from "@/app/image-editor"; // Import the fixed ImageEditor component
 
-interface ImageFile {
-  id: string;
-  file: File;
-  url: string;
-}
+// Constants for pagination
+const IMAGES_PER_PAGE = 10;
 
 export default function ImageUploader() {
+  // Main state
   const [images, setImages] = useState<ImageFile[]>([]);
   const [uploadComplete, setUploadComplete] = useState(false);
   const [selectedImage, setSelectedImage] = useState<ImageFile | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [newImageAdded, setNewImageAdded] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isGalleryMinimized, setIsGalleryMinimized] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const IMAGES_PER_PAGE = 10;
-  const MAX_IMAGES = 50;
-
-  // Calculate total pages
-  const totalPages = useMemo(
-    () => Math.ceil(images.length / IMAGES_PER_PAGE),
-    [images.length]
-  );
+  const totalPages = Math.ceil(images.length / IMAGES_PER_PAGE);
 
   // Get current page images
-  const currentImages = useMemo(() => {
+  const getCurrentPageImages = useCallback(() => {
     const startIndex = (currentPage - 1) * IMAGES_PER_PAGE;
     const endIndex = startIndex + IMAGES_PER_PAGE;
     return images.slice(startIndex, endIndex);
   }, [images, currentPage]);
 
-  // Handle page change
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
+  // Current images to display
+  const currentImages = getCurrentPageImages();
 
+  // Reset the new image added flag after animation completes
+  useEffect(() => {
+    if (newImageAdded) {
+      const timer = setTimeout(() => {
+        setNewImageAdded(false);
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [newImageAdded]);
+
+  // File handling
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-
     addFiles(files);
   };
 
   const addFiles = (files: FileList) => {
     const newImages: ImageFile[] = [];
 
-    // Calculate how many more images we can add
-    const remainingSlots = MAX_IMAGES - images.length;
-    const filesToProcess = Math.min(files.length, remainingSlots);
-
-    // Process files up to the limit
-    for (let i = 0; i < filesToProcess; i++) {
+    // Process all files
+    for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (file.type.startsWith("image/")) {
         newImages.push({
@@ -91,57 +96,55 @@ export default function ImageUploader() {
       setUploadComplete(true);
       setNewImageAdded(true);
 
-      // If we're adding images and not on the last page, go to the last page
-      if (images.length + newImages.length > currentPage * IMAGES_PER_PAGE) {
-        const newTotalPages = Math.ceil(
-          (images.length + newImages.length) / IMAGES_PER_PAGE
-        );
-        setCurrentPage(newTotalPages);
+      // Auto-select first image if none is selected
+      if (!selectedImage && newImages.length > 0) {
+        setSelectedImage(newImages[0]);
+        setCurrentPage(1);
       }
     }
   };
 
-  // Reset the new image added flag after animation completes
-  useEffect(() => {
-    if (newImageAdded) {
-      const timer = setTimeout(() => {
-        setNewImageAdded(false);
-      }, 800); // Match this to the animation duration
-      return () => clearTimeout(timer);
-    }
-  }, [newImageAdded]);
-
   const handleUploadClick = () => {
-    // Check if we've reached the maximum number of images
-    if (images.length >= MAX_IMAGES) {
-      alert(
-        `Maximum limit of ${MAX_IMAGES} images reached. Please remove some images before uploading more.`
-      );
-      return;
-    }
     fileInputRef.current?.click();
   };
 
   const removeImage = (id: string) => {
-    setImages(images.filter((image) => image.id !== id));
+    // Find image index before removing
+    const imageIndex = images.findIndex((img) => img.id === id);
+
+    // Filter out the image
+    const updatedImages = images.filter((image) => image.id !== id);
+    setImages(updatedImages);
+
+    // Handle selected image changes
     if (selectedImage?.id === id) {
-      setSelectedImage(null);
+      if (updatedImages.length > 0) {
+        // Try to select the next image, or previous if it was the last one
+        const nextIndex = Math.min(imageIndex, updatedImages.length - 1);
+        setSelectedImage(updatedImages[nextIndex]);
+
+        // Update page if needed
+        const newPage = Math.floor(nextIndex / IMAGES_PER_PAGE) + 1;
+        setCurrentPage(newPage);
+      } else {
+        setSelectedImage(null);
+      }
     }
 
-    // If we're removing an image and the current page becomes empty, go to the previous page
-    const newImagesLength = images.filter((image) => image.id !== id).length;
-    const newTotalPages = Math.ceil(newImagesLength / IMAGES_PER_PAGE);
-    if (currentPage > newTotalPages && newTotalPages > 0) {
-      setCurrentPage(newTotalPages);
-    }
-
-    if (newImagesLength === 0) {
+    if (updatedImages.length === 0) {
       setUploadComplete(false);
     }
   };
 
-  const expandImage = (image: ImageFile) => {
+  const selectImage = (image: ImageFile) => {
     setSelectedImage(image);
+
+    // Update page to show the selected image
+    const imageIndex = images.findIndex((img) => img.id === image.id);
+    if (imageIndex !== -1) {
+      const newPage = Math.floor(imageIndex / IMAGES_PER_PAGE) + 1;
+      setCurrentPage(newPage);
+    }
   };
 
   const resetUpload = () => {
@@ -158,6 +161,71 @@ export default function ImageUploader() {
       fileInputRef.current.value = "";
     }
   };
+
+  // Handle image change from editor
+  const handleImageChange = (newImageUrl: string) => {
+    if (!selectedImage) return;
+
+    // In a full implementation, we would save this to indexedDB or similar
+    // For now, just update the URL
+    setImages(
+      images.map((img) =>
+        img.id === selectedImage.id ? { ...img, url: newImageUrl } : img
+      )
+    );
+
+    // Update selected image with new URL
+    setSelectedImage({ ...selectedImage, url: newImageUrl });
+  };
+
+  // Navigation handlers
+  const handleNavigateImage = useCallback(
+    (direction: "next" | "prev" | "first" | "last") => {
+      if (images.length === 0 || !selectedImage) return;
+
+      const currentIndex = images.findIndex(
+        (img) => img.id === selectedImage.id
+      );
+      if (currentIndex === -1) return;
+
+      let newIndex;
+
+      switch (direction) {
+        case "next":
+          newIndex = (currentIndex + 1) % images.length;
+          break;
+        case "prev":
+          newIndex = (currentIndex - 1 + images.length) % images.length;
+          break;
+        case "first":
+          newIndex = 0;
+          break;
+        case "last":
+          newIndex = images.length - 1;
+          break;
+        default:
+          return;
+      }
+
+      // Update selected image
+      setSelectedImage(images[newIndex]);
+
+      // Update page if necessary
+      const newPage = Math.floor(newIndex / IMAGES_PER_PAGE) + 1;
+      if (newPage !== currentPage) {
+        setCurrentPage(newPage);
+      }
+    },
+    [images, selectedImage, currentPage]
+  );
+
+  const handlePageChange = useCallback(
+    (page: number) => {
+      if (page < 1 || page > totalPages) return;
+      setCurrentPage(page);
+    },
+    [totalPages]
+  );
 
   // Drag and drop handlers
   const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
@@ -183,36 +251,20 @@ export default function ImageUploader() {
     e.stopPropagation();
     setIsDragging(false);
 
-    // Check if we've reached the maximum number of images
-    if (images.length >= MAX_IMAGES) {
-      alert(
-        `Maximum limit of ${MAX_IMAGES} images reached. Please remove some images before uploading more.`
-      );
-      return;
-    }
-
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       addFiles(e.dataTransfer.files);
     }
   };
 
-  // Add useEffect to listen for paste events globally
+  // Paste event handler
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
-      // Check if we've reached the maximum number of images
-      if (images.length >= MAX_IMAGES) {
-        alert(
-          `Maximum limit of ${MAX_IMAGES} images reached. Please remove some images before uploading more.`
-        );
-        return;
-      }
-
       if (e.clipboardData && e.clipboardData.files.length > 0) {
         e.preventDefault();
         addFiles(e.clipboardData.files);
       } else if (e.clipboardData && e.clipboardData.items) {
         const items = e.clipboardData.items;
-        const imageItems = [];
+        const imageItems: any[] = [];
 
         for (let i = 0; i < items.length; i++) {
           if (items[i].type.indexOf("image") !== -1) {
@@ -232,175 +284,311 @@ export default function ImageUploader() {
       }
     };
 
-    // Add the event listener to the document
     document.addEventListener("paste", handlePaste as unknown as EventListener);
-
-    // Clean up
     return () => {
       document.removeEventListener(
         "paste",
         handlePaste as unknown as EventListener
       );
     };
-  }, [images.length]); // Added images.length to dependency array
+  }, []);
 
-  const toggleGalleryMinimized = (minimized: boolean) => {
-    setIsGalleryMinimized(minimized);
-  };
-
-  return (
-    <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col">
-      {!uploadComplete ? (
-        <div className="flex-1 flex items-center justify-center">
-          <Card className="w-full max-w-md shadow-lg">
-            <CardHeader className="text-center">
-              <div className="mx-auto bg-primary/10 p-4 rounded-full w-16 h-16 flex items-center justify-center mb-2">
-                <ImageIcon className="h-8 w-8 text-primary" />
-              </div>
-              <CardTitle className="text-2xl">Upload Images</CardTitle>
-              <CardDescription>
-                Upload multiple images for editing and compression
-                <br />
-                <span className="text-sm text-muted-foreground">
-                  Maximum {MAX_IMAGES} images allowed, {IMAGES_PER_PAGE} per
-                  page
-                </span>
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div
-                className={`flex flex-col items-center justify-center p-8 border-2 border-dashed ${
-                  isDragging
-                    ? "border-primary bg-primary/10"
-                    : "border-primary/20 bg-primary/5"
-                } rounded-lg hover:bg-primary/10 transition-colors cursor-pointer`}
-                onClick={handleUploadClick}
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              >
-                <Upload className="h-10 w-10 text-primary/60 mb-4" />
-                <p className="text-sm text-muted-foreground text-center">
-                  Drag and drop your images here, click to browse, or paste from
-                  clipboard
-                </p>
-              </div>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                multiple
-                accept="image/*"
-                className="hidden"
-              />
-            </CardContent>
-            <CardFooter>
+  // Upload View (first state)
+  if (!uploadComplete) {
+    return (
+      <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center justify-center">
+        <Card className="w-full max-w-md shadow-lg">
+          <CardHeader className="text-center">
+            <div className="mx-auto bg-primary/10 p-4 rounded-full w-16 h-16 flex items-center justify-center mb-2">
+              <ImageIcon className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="text-2xl">Upload Images</CardTitle>
+            <CardDescription>
+              Upload multiple images for editing and compression
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div
+              className={`flex flex-col items-center justify-center p-8 border-2 border-dashed ${
+                isDragging
+                  ? "border-primary bg-primary/10"
+                  : "border-primary/20 bg-primary/5"
+              } rounded-lg hover:bg-primary/10 transition-colors cursor-pointer`}
+              onClick={handleUploadClick}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <Upload className="h-10 w-10 text-primary/60 mb-4" />
+              <p className="text-sm text-muted-foreground text-center">
+                Drag and drop your images here, click to browse, or paste from
+                clipboard
+              </p>
+            </div>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              multiple
+              accept="image/*"
+              className="hidden"
+            />
+          </CardContent>
+          <CardFooter>
+            <div className="flex flex-col items-center justify-center w-full">
               <Button onClick={handleUploadClick} className="w-full" size="lg">
                 Select Images
               </Button>
-            </CardFooter>
-          </Card>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          <div
-            className={`grid grid-cols-5 md:grid-cols-10 gap-2 p-4 bg-gray-800 rounded-lg ${
-              newImageAdded ? "animate-pulse-once" : ""
-            } ${
-              isGalleryMinimized
-                ? "opacity-50 max-h-12 overflow-hidden transition-all duration-300 scale-90 transform origin-top"
-                : "transition-all duration-300"
-            }`}
-          >
-            {isGalleryMinimized ? (
-              // When in edit mode, show only the container with the "Editing Mode Active" message
-              <div className="absolute inset-0 flex items-center justify-center z-10">
-                <Lock className="h-6 w-6 text-white opacity-70" />
-                <span className="ml-2 text-white text-sm opacity-90">
-                  Editing Mode Active
-                </span>
-              </div>
-            ) : (
-              // When not in edit mode, show the images
-              currentImages.map((image, index) => (
-                <div
-                  key={image.id}
-                  className="relative group aspect-square animate-fade-scale-in"
-                  style={{ animationDelay: `${index * 0.05}s` }}
+
+              {images.length > 0 && (
+                <Button
+                  onClick={() => setUploadComplete(true)}
+                  className="w-full mt-2"
+                  variant="default"
                 >
-                  <Image
-                    src={image.url || "/placeholder.svg"}
-                    alt="Uploaded image"
-                    fill
-                    className="object-cover rounded-md"
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <button
-                      onClick={() => expandImage(image)}
-                      className="p-2 bg-blue-500 text-white rounded-full transform transition-transform group-hover:scale-110"
-                      aria-label="Expand image"
-                    >
-                      <Maximize2 size={20} />
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => removeImage(image.id)}
-                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                    aria-label="Remove image"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-
-          {!selectedImage && (
-            <div className="flex items-center justify-center p-12 text-center">
-              <div className="max-w-md">
-                <Info className="h-12 w-12 text-primary mx-auto mb-4" />
-                <h3 className="text-xl font-medium mb-2">
-                  Click on an image to compress and edit
-                </h3>
-                <p className="text-muted-foreground">
-                  Select any image from the gallery above to start editing,
-                  resizing, or converting it.
-                </p>
-                {images.length > IMAGES_PER_PAGE && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Showing page {currentPage} of {totalPages} ({images.length}{" "}
-                    images total)
-                  </p>
-                )}
-              </div>
+                  Return to Images ({images.length})
+                </Button>
+              )}
             </div>
-          )}
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
 
-          {selectedImage && (
-            <div className="mt-8">
-              <ImageCropper
-                image={selectedImage}
-                onUploadNew={handleUploadClick}
-                onRemoveAll={resetUpload}
-                onEditModeChange={toggleGalleryMinimized}
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
+  // Image Editor View (when an image is selected)
+  if (selectedImage) {
+    return (
+      <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col">
+        {/* Thumbnail strip */}
+        <div className="grid grid-cols-5 md:grid-cols-10 gap-2 p-2 bg-gray-800 rounded-lg mb-6">
+          {currentImages.map((image, index) => (
+            <div
+              key={image.id}
+              className={`relative group aspect-square animate-fade-scale-in ${
+                selectedImage?.id === image.id ? "ring-2 ring-blue-500" : ""
+              }`}
+              style={{ animationDelay: `${index * 0.05}s` }}
+              onClick={() => selectImage(image)}
+            >
+              <Image
+                src={image.url}
+                alt="Uploaded image"
+                fill
+                className="object-cover rounded-md"
+              />
+              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <button
+                  className="p-2 bg-blue-500 text-white rounded-full transform transition-transform group-hover:scale-110"
+                  aria-label="Expand image"
+                >
+                  <Maximize2 size={20} />
+                </button>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeImage(image.id);
+                }}
+                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="Remove image"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Image Editor */}
+        <ImageEditor
+          imageUrl={selectedImage.url}
+          onImageChange={handleImageChange}
+          onReset={() => {
+            // In a real app, we might reload the original image from a database
+            // For now, let's do nothing as we don't have the original stored
+          }}
+          onDownload={() => {
+            const a = document.createElement("a");
+            a.href = selectedImage.url;
+            a.download = selectedImage.file.name || "image.png";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }}
+          onClose={() => setUploadComplete(false)}
+          fileName={selectedImage.file.name}
+          fileType={selectedImage.file.type}
+          fileSize={selectedImage.file.size}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onNavigateImage={handleNavigateImage}
+          onRemoveAll={resetUpload}
+          onUploadNew={handleUploadClick}
+        />
+
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          multiple
+          accept="image/*"
+          className="hidden"
+        />
+      </div>
+    );
+  }
+
+  // Gallery View (when images are uploaded but none is selected)
+  return (
+    <div className="container mx-auto px-4 py-8 min-h-screen">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Image Gallery</h1>
+        <div className="flex gap-2">
+          <Button onClick={handleUploadClick}>
+            <Upload className="mr-2 h-4 w-4" />
+            Upload More
+          </Button>
+          <Button variant="destructive" onClick={resetUpload}>
+            <X className="mr-2 h-4 w-4" />
+            Remove All
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {currentImages.map((image) => (
+          <Card
+            key={image.id}
+            className="group relative overflow-hidden cursor-pointer"
+            onClick={() => selectImage(image)}
+          >
+            <div className="relative aspect-square w-full">
+              <Image
+                src={image.url}
+                alt={image.file.name}
+                fill
+                className="object-cover"
               />
             </div>
-          )}
+            <div className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400 truncate px-2">
+              {image.file.name}
+            </div>
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button
+                variant="destructive"
+                size="icon"
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeImage(image.id);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </Card>
+        ))}
+      </div>
 
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            multiple
-            accept="image/*"
-            className="hidden"
-          />
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-6">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              onClick={() => {
+                // Back 10 images (or to the first page)
+                const newPage = Math.max(1, currentPage - 1);
+                setCurrentPage(newPage);
+              }}
+              disabled={currentPage === 1}
+              className="h-9 px-3"
+              title="Back 10 images"
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                // If there's a selected image, select the previous one
+                if (selectedImage) {
+                  const currentIndex = images.findIndex(
+                    (img) => img.id === selectedImage.id
+                  );
+                  if (currentIndex > 0) {
+                    selectImage(images[currentIndex - 1]);
+                  }
+                } else {
+                  // Otherwise just go to previous page
+                  handlePageChange(Math.max(1, currentPage - 1));
+                }
+              }}
+              disabled={
+                currentPage === 1 &&
+                (!selectedImage ||
+                  images.findIndex((img) => img.id === selectedImage.id) === 0)
+              }
+              className="h-9 px-3"
+              title="Select image to the left"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm px-2">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              onClick={() => {
+                // If there's a selected image, select the next one
+                if (selectedImage) {
+                  const currentIndex = images.findIndex(
+                    (img) => img.id === selectedImage.id
+                  );
+                  if (currentIndex < images.length - 1) {
+                    selectImage(images[currentIndex + 1]);
+                  }
+                } else {
+                  // Otherwise just go to next page
+                  handlePageChange(Math.min(totalPages, currentPage + 1));
+                }
+              }}
+              disabled={
+                currentPage === totalPages &&
+                (!selectedImage ||
+                  images.findIndex((img) => img.id === selectedImage.id) ===
+                    images.length - 1)
+              }
+              className="h-9 px-3"
+              title="Select image to the right"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                // Forward 10 images (or to the last page)
+                const newPage = Math.min(totalPages, currentPage + 1);
+                setCurrentPage(newPage);
+              }}
+              disabled={currentPage === totalPages}
+              className="h-9 px-3"
+              title="Forward 10 images"
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
+
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        multiple
+        accept="image/*"
+        className="hidden"
+      />
     </div>
   );
 }

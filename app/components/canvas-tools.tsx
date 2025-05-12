@@ -8,26 +8,36 @@ import React, {
   useImperativeHandle,
   useCallback,
 } from "react";
-import { Slider } from "@/components/ui/slider";
-import { Button } from "@/components/ui/button";
+import { BlurControls, PaintControls } from "@/app/components/toolbar";
+import {
+  BlurBrushCanvasRef,
+  PaintToolRef,
+  BlurControlsProps,
+  PaintControlsProps,
+} from "@/types/types";
 
-// Export the ref type so it can be imported by other components
-export interface BlurBrushCanvasRef {
-  getCanvasDataUrl: () => string | null;
-  clear: () => void;
-}
-
-interface BlurBrushCanvasProps {
+// Base canvas tool props shared by all canvas tools
+interface BaseCanvasToolProps {
   imageUrl: string;
-  blurAmount: number;
-  blurRadius: number;
-  onApply: (blurredImageUrl: string) => void;
+  onApply: (resultImageUrl: string) => void;
   onCancel: () => void;
-  onBlurAmountChange?: (value: number) => void;
-  onBlurRadiusChange?: (value: number) => void;
+  className?: string;
 }
 
-const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
+// Common canvas ref interface
+export interface CanvasToolRef {
+  getCanvasDataUrl: () => string | null;
+  clear?: () => void;
+}
+
+/**
+ * BlurBrushCanvas Component
+ * Canvas tool for applying blur effects to specific areas of an image
+ */
+export const BlurBrushCanvas = forwardRef<
+  BlurBrushCanvasRef,
+  BaseCanvasToolProps & BlurControlsProps
+>(
   (
     {
       imageUrl,
@@ -37,6 +47,7 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
       onCancel,
       onBlurAmountChange,
       onBlurRadiusChange,
+      className,
     },
     ref
   ) => {
@@ -222,77 +233,16 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
       [applyBlurEffect]
     );
 
-    // Handle blur amount change
-    const handleBlurAmountChange = useCallback(
-      (value: number[]) => {
-        if (onBlurAmountChange) {
-          onBlurAmountChange(value[0]);
-        }
-      },
-      [onBlurAmountChange]
-    );
-
-    // Handle blur radius change
-    const handleBlurRadiusChange = useCallback(
-      (value: number[]) => {
-        if (onBlurRadiusChange) {
-          onBlurRadiusChange(value[0]);
-        }
-      },
-      [onBlurRadiusChange]
-    );
-
     return (
-      <div className="flex flex-col gap-4 w-full h-full">
+      <div className={`flex flex-col gap-4 w-full h-full ${className}`}>
         {/* Blur controls */}
-        {(onBlurAmountChange || onBlurRadiusChange) && (
-          <div className="flex items-center gap-4 mb-4 bg-gray-700 p-2 rounded-lg">
-            <div className="grid grid-cols-2 gap-6 w-full">
-              {onBlurAmountChange && (
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <label
-                      htmlFor="blur-amount"
-                      className="text-sm font-medium text-white"
-                    >
-                      Blur Amount: {blurAmount}px
-                    </label>
-                  </div>
-                  <Slider
-                    id="blur-amount"
-                    min={1}
-                    max={20}
-                    step={1}
-                    value={[blurAmount]}
-                    onValueChange={handleBlurAmountChange}
-                    className="[&>.slider-track]:bg-gray-500"
-                  />
-                </div>
-              )}
-
-              {onBlurRadiusChange && (
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <label
-                      htmlFor="blur-radius"
-                      className="text-sm font-medium text-white"
-                    >
-                      Brush Size: {blurRadius}px
-                    </label>
-                  </div>
-                  <Slider
-                    id="blur-radius"
-                    min={1}
-                    max={30}
-                    step={1}
-                    value={[blurRadius]}
-                    onValueChange={handleBlurRadiusChange}
-                    className="[&>.slider-track]:bg-gray-500"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
+        {onBlurAmountChange && onBlurRadiusChange && (
+          <BlurControls
+            blurAmount={blurAmount}
+            blurRadius={blurRadius}
+            onBlurAmountChange={onBlurAmountChange}
+            onBlurRadiusChange={onBlurRadiusChange}
+          />
         )}
 
         {/* Canvas area */}
@@ -311,7 +261,7 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
 
           <canvas
             ref={canvasRef}
-            className="w-full max-w-full h-auto rounded border"
+            className="w-full max-w-full h-auto rounded"
             onMouseDown={startDrawing}
             onMouseUp={finishDrawing}
             onMouseMove={draw}
@@ -322,30 +272,186 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
             }}
           />
         </div>
+      </div>
+    );
+  }
+);
 
-        {/* Action buttons */}
-        <div className="flex justify-end gap-2">
-          <Button onClick={onCancel} variant="outline">
-            Cancel
-          </Button>
-          <Button
-            onClick={() => {
-              const dataUrl = canvasRef.current?.toDataURL("image/jpeg", 0.9);
-              if (dataUrl) {
-                onApply(dataUrl);
-              }
+BlurBrushCanvas.displayName = "BlurBrushCanvas";
+
+/**
+ * PaintTool Component
+ * Canvas tool for painting and drawing on an image
+ */
+export const PaintTool = forwardRef<
+  PaintToolRef,
+  BaseCanvasToolProps & PaintControlsProps & { isEraser: boolean }
+>(
+  (
+    {
+      imageUrl,
+      brushSize,
+      brushColor,
+      isEraser,
+      onApply,
+      onCancel,
+      onBrushSizeChange,
+      onBrushColorChange,
+      className,
+    },
+    ref
+  ) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const contextRef = useRef<CanvasRenderingContext2D | null>(null);
+    const [isDrawing, setIsDrawing] = useState<boolean>(false);
+    const [isImageLoaded, setIsImageLoaded] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    // Expose the getCanvasDataUrl method via ref
+    useImperativeHandle(ref, () => ({
+      getCanvasDataUrl: () => {
+        if (!canvasRef.current) return null;
+        try {
+          return canvasRef.current.toDataURL("image/jpeg", 0.9);
+        } catch (err) {
+          setError("Failed to get canvas data");
+          return null;
+        }
+      },
+    }));
+
+    // Load and setup the image
+    useEffect(() => {
+      if (!imageUrl) {
+        setError("No image URL provided");
+        return;
+      }
+
+      if (!canvasRef.current) return;
+
+      const canvas = canvasRef.current;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        setError("Canvas context not available");
+        return;
+      }
+
+      contextRef.current = context;
+
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+
+      image.onload = () => {
+        // Set canvas dimensions to match image
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        canvas.style.width = "100%";
+        canvas.style.height = "auto";
+
+        // Draw the image onto the canvas
+        context.drawImage(image, 0, 0);
+        setIsImageLoaded(true);
+        setError(null);
+      };
+
+      image.onerror = () => {
+        setError("Failed to load image");
+      };
+
+      image.src = imageUrl;
+    }, [imageUrl]);
+
+    useEffect(() => {
+      if (!contextRef.current) return;
+
+      if (isEraser) {
+        contextRef.current.globalCompositeOperation = "destination-out";
+      } else {
+        contextRef.current.globalCompositeOperation = "source-over";
+        contextRef.current.strokeStyle = brushColor;
+      }
+    }, [isEraser, brushColor]);
+
+    const startDrawing = ({ nativeEvent }: React.MouseEvent) => {
+      if (!contextRef.current) return;
+
+      const { offsetX, offsetY } = nativeEvent;
+
+      contextRef.current.beginPath();
+      contextRef.current.moveTo(offsetX, offsetY);
+      contextRef.current.lineWidth = brushSize;
+      contextRef.current.lineCap = "round";
+      contextRef.current.strokeStyle = isEraser ? "#ffffff" : brushColor;
+      contextRef.current.globalCompositeOperation = isEraser
+        ? "destination-out"
+        : "source-over";
+
+      setIsDrawing(true);
+    };
+
+    const finishDrawing = () => {
+      if (!contextRef.current) return;
+
+      contextRef.current.closePath();
+      setIsDrawing(false);
+    };
+
+    const draw = ({ nativeEvent }: React.MouseEvent) => {
+      if (!isDrawing || !contextRef.current) return;
+
+      const { offsetX, offsetY } = nativeEvent;
+
+      contextRef.current.lineTo(offsetX, offsetY);
+      contextRef.current.stroke();
+    };
+
+    return (
+      <div className={`flex flex-col gap-4 w-full h-full ${className}`}>
+        {/* Paint controls */}
+        {onBrushSizeChange && onBrushColorChange && (
+          <PaintControls
+            brushSize={brushSize}
+            brushColor={brushColor}
+            onBrushSizeChange={onBrushSizeChange}
+            onBrushColorChange={onBrushColorChange}
+          />
+        )}
+
+        {/* Canvas area */}
+        <div className="relative flex-1 border rounded-lg overflow-hidden bg-gray-900 flex items-center justify-center">
+          {error && (
+            <div className="absolute inset-0 flex items-center justify-center bg-red-900/20 text-white">
+              <p className="bg-red-600 px-4 py-2 rounded">{error}</p>
+            </div>
+          )}
+
+          {!isImageLoaded && !error && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+            </div>
+          )}
+
+          <canvas
+            ref={canvasRef}
+            className="w-full max-w-full h-auto rounded"
+            onMouseDown={startDrawing}
+            onMouseUp={finishDrawing}
+            onMouseMove={draw}
+            onMouseLeave={finishDrawing}
+            style={{
+              display: isImageLoaded ? "block" : "none",
+              cursor: "crosshair",
             }}
-            variant="default"
-          >
-            Apply Blur
-          </Button>
+          />
         </div>
       </div>
     );
   }
 );
 
-// Add display name for better debugging
-BlurBrushCanvas.displayName = "BlurBrushCanvas";
+PaintTool.displayName = "PaintTool";
 
-export default BlurBrushCanvas;
+export default {
+  BlurBrushCanvas,
+  PaintTool,
+};

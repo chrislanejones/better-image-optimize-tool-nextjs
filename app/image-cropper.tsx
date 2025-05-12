@@ -3,16 +3,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { type PixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
-import ImageControls from "./components/image-controls";
-import ImageStats from "./components/image-stats"; // Using the existing image-stats.tsx
-import CroppingTool from "./components/cropping-tool";
+// Import components
+import Toolbar, { BlurControls, PaintControls } from "./components/toolbar";
+import ImageStats from "./components/image-stats";
+import CroppingTool, { type CroppingToolRef } from "./components/cropping-tool";
+import PaintTool from "./components/paint-tool";
 import ImageResizer from "./components/image-resizer";
 import ImageZoomView from "./components/image-zoom-view";
-import { PaintControls } from "./components/editor-controls";
-import BlurBrushCanvas, {
-  type BlurBrushCanvasRef,
-} from "./components/BlurBrushCanvas";
-import PaintTool, { type PaintToolRef } from "./components/paint-tool";
+import BlurBrushCanvas from "./components/blur-tool";
 
 import {
   cropImage,
@@ -20,39 +18,8 @@ import {
   safeRevokeURL,
 } from "./utils/image-transformations";
 import { getMimeType, getFileFormat } from "./utils/image-utils";
-import { imageDB } from "./utils/indexedDB";
-
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  PieChart,
-  Pie,
-  Cell,
-  Text,
-} from "recharts";
-
-interface ImageFile {
-  id: string;
-  file: File;
-  url: string;
-}
-
-// Update the ImageCropperProps interface in image-cropper.tsxinterface
-interface ImageCropperProps {
-  image: ImageFile;
-  onUploadNew: () => void;
-  onRemoveAll: () => void;
-  onBackToGallery?: () => void;
-  isStandalone?: boolean;
-  onEditModeChange?: (isEditing: boolean) => void;
-  // Add these new pagination props
-  currentPage?: number;
-  totalPages?: number;
-  onPageChange?: (page: number) => void;
-}
+import { ImageFile, ImageCropperProps } from "@/types/types";
+import imageDB from "@/app/utils/indexedDB";
 
 interface ImageStats {
   width: number;
@@ -61,41 +28,12 @@ interface ImageStats {
   format: string;
 }
 
-// Define the interface for ImageControls props
-interface ImageControlsProps {
-  isEditMode: boolean;
-  isCropping: boolean;
-  isBlurring: boolean;
-  isPainting: boolean;
-  isEraser: boolean;
-  format: string;
-  onFormatChange: (format: string) => void;
-  onToggleEditMode: () => void;
-  onToggleCropping: () => void;
-  onToggleBlurring: () => void;
-  onTogglePainting: () => void;
-  onToggleEraser: () => void;
-  onApplyCrop: () => void;
-  onApplyBlur: () => void;
-  onApplyPaint: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onReset: () => void;
-  onDownload: () => void;
-  onUploadNew: () => void;
-  onRemoveAll: () => void;
-  onCancelBlur: () => void;
-  onCancelCrop: () => void;
-  onCancelPaint: () => void;
-  onBackToGallery: () => void;
-  onExitEditMode: () => void;
-  isStandalone: boolean;
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-}
-
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
+
+// Update the ImageCropperProps in your types file to include onCompressionStateChange
+interface ExtendedImageCropperProps extends ImageCropperProps {
+  onCompressionStateChange?: (isCompressing: boolean) => void;
+}
 
 export default function ImageCropper({
   image,
@@ -104,11 +42,13 @@ export default function ImageCropper({
   onBackToGallery,
   isStandalone = false,
   onEditModeChange,
-  // Add these new props with default values
+  onCompressionStateChange, // New handler for compression state
+  // Pagination props
   currentPage = 1,
   totalPages = 1,
-  onPageChange = () => {},
-}: ImageCropperProps) {
+  onPageChange,
+  onNavigateImage,
+}: ExtendedImageCropperProps) {
   // Basic state
   const [width, setWidth] = useState<number>(0);
   const [height, setHeight] = useState<number>(0);
@@ -123,6 +63,8 @@ export default function ImageCropper({
   const [isCropping, setIsCropping] = useState<boolean>(false);
   const [isBlurring, setIsBlurring] = useState<boolean>(false);
   const [isPainting, setIsPainting] = useState<boolean>(false);
+  // Compression state
+  const [isCompressing, setIsCompressing] = useState<boolean>(false);
 
   // Tool states
   const [blurAmount, setBlurAmount] = useState<number>(5);
@@ -141,8 +83,9 @@ export default function ImageCropper({
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
-  const blurCanvasRef = useRef<BlurBrushCanvasRef>(null);
-  const paintToolRef = useRef<PaintToolRef>(null);
+  const blurCanvasRef = useRef<any>(null);
+  const paintToolRef = useRef<any>(null);
+  const cropToolRef = useRef<CroppingToolRef>(null);
 
   // Set mounted state to prevent hydration mismatch
   useEffect(() => {
@@ -155,6 +98,13 @@ export default function ImageCropper({
       onEditModeChange(isEditMode);
     }
   }, [isEditMode, onEditModeChange]);
+
+  // Notify parent when compression state changes
+  useEffect(() => {
+    if (onCompressionStateChange) {
+      onCompressionStateChange(isCompressing);
+    }
+  }, [isCompressing, onCompressionStateChange]);
 
   // Initialize image when component mounts or image changes
   useEffect(() => {
@@ -173,6 +123,7 @@ export default function ImageCropper({
       setIsCropping(false);
       setIsBlurring(false);
       setIsPainting(false);
+      setIsCompressing(false);
     }
 
     setZoom(1);
@@ -211,51 +162,6 @@ export default function ImageCropper({
     };
   }, [image, isStandalone, isMounted]);
 
-  // Update isEditMode when editing tools are activated
-  useEffect(() => {
-    if ((isCropping || isBlurring || isPainting) && !isEditMode) {
-      setIsEditMode(true);
-    }
-  }, [isCropping, isBlurring, isPainting, isEditMode]);
-
-  // Save edited image to IndexedDB - MOVED UP BEFORE IT'S USED
-  const saveEditedImage = useCallback(
-    async (url: string, blob: Blob) => {
-      if (!image?.id || !image?.file?.name) return;
-
-      try {
-        setIsSaving(true);
-        // Create a file from the blob
-        const fileName = image.file.name;
-        const fileType = getMimeType(format);
-
-        // Convert the blob to base64
-        const base64Data = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(blob);
-          reader.onloadend = () => {
-            resolve(reader.result as string);
-          };
-        });
-
-        // Update in IndexedDB
-        await imageDB.updateImage(image.id, {
-          fileData: base64Data,
-          type: fileType,
-          width: width || 0,
-          height: height || 0,
-          lastModified: new Date().getTime(),
-        });
-
-        setIsSaving(false);
-      } catch (error) {
-        console.error("Error saving edited image:", error);
-        setIsSaving(false);
-      }
-    },
-    [image, format, width, height]
-  );
-
   // Toggle functions
   const toggleEditMode = useCallback(() => {
     if (!isStandalone) {
@@ -265,6 +171,7 @@ export default function ImageCropper({
     setIsBlurring(false);
     setIsCropping(false);
     setIsPainting(false);
+    setIsCompressing(false);
   }, [isStandalone]);
 
   const toggleCropping = useCallback(() => {
@@ -274,6 +181,7 @@ export default function ImageCropper({
     setIsCropping((prev) => !prev);
     setIsBlurring(false);
     setIsPainting(false);
+    setIsCompressing(false);
   }, [isEditMode, isStandalone]);
 
   const toggleBlurring = useCallback(() => {
@@ -283,6 +191,7 @@ export default function ImageCropper({
     setIsBlurring((prev) => !prev);
     setIsCropping(false);
     setIsPainting(false);
+    setIsCompressing(false);
   }, [isEditMode, isStandalone]);
 
   const togglePainting = useCallback(() => {
@@ -292,26 +201,15 @@ export default function ImageCropper({
     setIsPainting((prev) => !prev);
     setIsCropping(false);
     setIsBlurring(false);
+    setIsCompressing(false);
   }, [isEditMode, isStandalone]);
-
-  // Cancel functions
-  const cancelBlur = useCallback(() => {
-    setIsBlurring(false);
-  }, []);
-
-  const cancelCrop = useCallback(() => {
-    setIsCropping(false);
-  }, []);
-
-  const cancelPaint = useCallback(() => {
-    setIsPainting(false);
-  }, []);
 
   // Exit edit mode completely
   const exitEditMode = useCallback(() => {
     setIsCropping(false);
     setIsBlurring(false);
     setIsPainting(false);
+    setIsCompressing(false);
     if (!isStandalone) {
       setIsEditMode(false);
     }
@@ -335,6 +233,9 @@ export default function ImageCropper({
       // We just set the dimensions, but don't apply them yet
       setWidth(newWidth);
       setHeight(newHeight);
+
+      // Enter compression mode when starting to resize
+      setIsCompressing(true);
     },
     []
   );
@@ -384,8 +285,14 @@ export default function ImageCropper({
       if (oldPreviewUrl !== PLACEHOLDER_IMAGE && oldPreviewUrl !== image?.url) {
         safeRevokeURL(oldPreviewUrl);
       }
+
+      // Set a timeout to exit compression mode after resize is applied
+      setTimeout(() => {
+        setIsCompressing(false);
+      }, 800);
     } catch (error) {
       console.error("Error applying resize:", error);
+      setIsCompressing(false);
     }
   }, [
     imgRef,
@@ -396,34 +303,40 @@ export default function ImageCropper({
     originalStats,
     isStandalone,
     image?.url,
-    saveEditedImage,
   ]);
 
-  const handleCropComplete = useCallback(
-    async (crop: PixelCrop, imgElement: HTMLImageElement) => {
-      try {
-        // Get the current image URL
-        const oldPreviewUrl = previewUrl;
+  // Handle image navigation
+  const handleNavigateImage = useCallback(
+    (direction: "next" | "prev" | "first" | "last") => {
+      if (onNavigateImage) {
+        onNavigateImage(direction);
+      }
+    },
+    [onNavigateImage]
+  );
 
-        // Apply the crop
-        const croppedUrl = await cropImage(imgElement, crop, format);
+  // Remaining handlers (cropping, blur, paint, etc.)
+  const handleApplyCrop = useCallback(
+    (croppedImageUrl: string) => {
+      if (!croppedImageUrl) return;
 
-        // Update dimensions after crop
-        setWidth(crop.width);
-        setHeight(crop.height);
+      // Update the preview URL with the cropped image
+      setPreviewUrl(croppedImageUrl);
+      setIsCropping(false);
+      setHasEdited(true);
 
-        // Update the preview
-        setPreviewUrl(croppedUrl);
-        setIsCropping(false);
-        setHasEdited(true);
+      // Get image dimensions and update stats
+      const img = new Image();
+      img.src = croppedImageUrl;
 
+      img.onload = async () => {
         // Fetch the blob to calculate size
-        const blob = await fetch(croppedUrl).then((r) => r.blob());
+        const blob = await fetch(croppedImageUrl).then((r) => r.blob());
 
         // Update stats
         setNewStats({
-          width: crop.width,
-          height: crop.height,
+          width: img.width,
+          height: img.height,
           size: blob.size,
           format: format || "unknown",
         });
@@ -434,33 +347,29 @@ export default function ImageCropper({
           setDataSavings(savings);
         }
 
-        // Update the stored image if in standalone mode
+        // Update stored image if in standalone mode
         if (isStandalone) {
-          await saveEditedImage(croppedUrl, blob);
+          await saveEditedImage(croppedImageUrl, blob);
         }
-
-        // Clean up old URL if needed
-        if (
-          oldPreviewUrl !== PLACEHOLDER_IMAGE &&
-          oldPreviewUrl !== image?.url
-        ) {
-          safeRevokeURL(oldPreviewUrl);
-        }
-      } catch (error) {
-        console.error("Error applying crop:", error);
-      }
+      };
     },
-    [
-      previewUrl,
-      format,
-      originalStats,
-      isStandalone,
-      image?.url,
-      saveEditedImage,
-    ]
+    [format, originalStats, isStandalone]
   );
 
-  // Define handleBlurApply and handlePaintApply after saveEditedImage
+  // Cancel functions
+  const cancelBlur = useCallback(() => {
+    setIsBlurring(false);
+  }, []);
+
+  const cancelCrop = useCallback(() => {
+    setIsCropping(false);
+  }, []);
+
+  const cancelPaint = useCallback(() => {
+    setIsPainting(false);
+  }, []);
+
+  // Other handlers (blur, paint, zoom, etc.)
   const handleBlurApply = useCallback(
     async (blurredImageUrl: string) => {
       if (!blurredImageUrl || typeof blurredImageUrl !== "string") return;
@@ -515,14 +424,7 @@ export default function ImageCropper({
         console.error("Error applying blur:", error);
       }
     },
-    [
-      previewUrl,
-      format,
-      originalStats,
-      isStandalone,
-      image?.url,
-      saveEditedImage,
-    ]
+    [previewUrl, format, originalStats, isStandalone, image?.url]
   );
 
   const handlePaintApply = useCallback(
@@ -579,34 +481,8 @@ export default function ImageCropper({
         console.error("Error applying paint:", error);
       }
     },
-    [
-      previewUrl,
-      format,
-      originalStats,
-      isStandalone,
-      image?.url,
-      saveEditedImage,
-    ]
+    [previewUrl, format, originalStats, isStandalone, image?.url]
   );
-
-  // Then define these functions that use the above functions
-  const handleApplyBlur = useCallback(() => {
-    if (blurCanvasRef.current) {
-      const dataUrl = blurCanvasRef.current.getCanvasDataUrl();
-      if (dataUrl) {
-        handleBlurApply(dataUrl);
-      }
-    }
-  }, [handleBlurApply]);
-
-  const handleApplyPaint = useCallback(() => {
-    if (paintToolRef.current) {
-      const dataUrl = paintToolRef.current.getCanvasDataUrl();
-      if (dataUrl) {
-        handlePaintApply(dataUrl);
-      }
-    }
-  }, [handlePaintApply]);
 
   // Zoom in/out functions
   const zoomIn = useCallback(() => {
@@ -616,6 +492,44 @@ export default function ImageCropper({
   const zoomOut = useCallback(() => {
     setZoom((prev) => Math.max(prev - 0.1, 0.5));
   }, []);
+
+  // Save edited image to IndexedDB
+  const saveEditedImage = useCallback(
+    async (url: string, blob: Blob) => {
+      if (!image?.id || !image?.file?.name) return;
+
+      try {
+        setIsSaving(true);
+        // Create a file from the blob
+        const fileName = image.file.name;
+        const fileType = getMimeType(format);
+
+        // Convert the blob to base64
+        const base64Data = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(blob);
+          reader.onloadend = () => {
+            resolve(reader.result as string);
+          };
+        });
+
+        // Update in IndexedDB
+        await imageDB.updateImage(image.id, {
+          fileData: base64Data,
+          type: fileType,
+          width: width || 0,
+          height: height || 0,
+          lastModified: new Date().getTime(),
+        });
+
+        setIsSaving(false);
+      } catch (error) {
+        console.error("Error saving edited image:", error);
+        setIsSaving(false);
+      }
+    },
+    [image, format, width, height]
+  );
 
   // Download current image
   const downloadImage = useCallback(() => {
@@ -676,6 +590,7 @@ export default function ImageCropper({
     setIsCropping(false);
     setIsBlurring(false);
     setIsPainting(false);
+    setIsCompressing(false);
     setHasEdited(false);
     setNewStats(null);
 
@@ -712,12 +627,14 @@ export default function ImageCropper({
         </div>
       )}
 
-      <ImageControls
+      {/* Pass isCompressing to Toolbar */}
+      <Toolbar
         isEditMode={isEditMode}
         isCropping={isCropping}
         isBlurring={isBlurring}
         isPainting={isPainting}
         isEraser={isEraser}
+        isCompressing={isCompressing} // Pass the compression state
         format={format}
         onFormatChange={setFormat}
         onToggleEditMode={toggleEditMode}
@@ -725,9 +642,13 @@ export default function ImageCropper({
         onToggleBlurring={toggleBlurring}
         onTogglePainting={togglePainting}
         onToggleEraser={() => setIsEraser(!isEraser)}
-        onApplyCrop={() => {}}
-        onApplyBlur={handleApplyBlur}
-        onApplyPaint={handleApplyPaint}
+        onApplyCrop={() => {
+          if (cropToolRef.current) {
+            cropToolRef.current.applyCrop();
+          }
+        }}
+        onApplyBlur={handleBlurApply}
+        onApplyPaint={handlePaintApply}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
         onReset={resetImage}
@@ -740,15 +661,16 @@ export default function ImageCropper({
         onBackToGallery={handleBackToGallery}
         onExitEditMode={exitEditMode}
         isStandalone={isStandalone}
+        // Always pass pagination props
         currentPage={currentPage}
         totalPages={totalPages}
         onPageChange={onPageChange}
+        onNavigateImage={handleNavigateImage}
       />
 
       {/* Display appropriate tool controls based on active tool */}
       {isBlurring && (
         <BlurBrushCanvas
-          ref={blurCanvasRef}
           imageUrl={previewUrl}
           blurAmount={blurAmount}
           blurRadius={blurRadius}
@@ -780,41 +702,45 @@ export default function ImageCropper({
                 className="relative border rounded-lg overflow-hidden"
                 ref={imageContainerRef}
               >
-                {
-                  isCropping ? (
-                    <CroppingTool
-                      imageUrl={previewUrl}
-                      onApplyCrop={handleCropComplete}
-                      onCancel={cancelCrop}
+                {isCropping ? (
+                  <CroppingTool
+                    ref={cropToolRef}
+                    imageUrl={previewUrl}
+                    onApply={handleApplyCrop}
+                    onCancel={cancelCrop}
+                  />
+                ) : isBlurring ? (
+                  <BlurControls
+                    blurAmount={blurAmount}
+                    blurRadius={blurRadius}
+                    onBlurAmountChange={setBlurAmount}
+                    onBlurRadiusChange={setBlurRadius}
+                  />
+                ) : isPainting ? (
+                  <PaintTool
+                    imageUrl={previewUrl}
+                    onApplyPaint={handlePaintApply}
+                    onCancel={cancelPaint}
+                    onToggleEraser={() => setIsEraser(!isEraser)}
+                    isEraser={isEraser}
+                  />
+                ) : (
+                  <div
+                    className="overflow-auto"
+                    style={{
+                      maxHeight: isEditMode ? "85vh" : "700px",
+                      height: isEditMode ? "85vh" : "70vh",
+                    }}
+                  >
+                    <img
+                      ref={imgRef}
+                      src={previewUrl || PLACEHOLDER_IMAGE}
+                      alt="Edited image"
+                      className="max-w-full transform origin-top-left"
+                      style={{ transform: `scale(${zoom})` }}
                     />
-                  ) : isPainting ? (
-                    <PaintTool
-                      ref={paintToolRef}
-                      imageUrl={previewUrl}
-                      onApplyPaint={handlePaintApply}
-                      onCancel={cancelPaint}
-                      onToggleEraser={() => setIsEraser(!isEraser)}
-                      isEraser={isEraser}
-                    />
-                  ) : !isBlurring ? (
-                    // Only show the regular image view when NOT in blur mode
-                    <div
-                      className="overflow-auto"
-                      style={{
-                        maxHeight: isEditMode ? "85vh" : "700px",
-                        height: isEditMode ? "85vh" : "70vh",
-                      }}
-                    >
-                      <img
-                        ref={imgRef}
-                        src={previewUrl || PLACEHOLDER_IMAGE}
-                        alt="Edited image"
-                        className="max-w-full transform origin-top-left"
-                        style={{ transform: `scale(${zoom})` }}
-                      />
-                    </div>
-                  ) : null /* Don't render anything in the main area when blurring */
-                }
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -831,6 +757,12 @@ export default function ImageCropper({
                 format={format}
                 onFormatChange={setFormat}
                 onDownload={downloadImage}
+                // Always pass pagination props
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onNavigateImage={handleNavigateImage}
+                // Pass isCompressing flag
+                isCompressing={isCompressing}
               />
 
               {hasEdited && <ImageZoomView imageUrl={previewUrl} />}
