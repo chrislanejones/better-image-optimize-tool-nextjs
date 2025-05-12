@@ -41,7 +41,8 @@ export default function ImageEditor() {
     const loadImage = async () => {
       try {
         setLoading(true);
-        const foundImage = await imageDB.getImageById(imageId);
+        // Change this from getImageById to getImage
+        const foundImage = await imageDB.getImage(imageId);
 
         if (foundImage) {
           // Process the base64 data
@@ -83,7 +84,6 @@ export default function ImageEditor() {
         setLoading(false);
       }
     };
-
     loadImage();
 
     // Clean up object URL when component unmounts

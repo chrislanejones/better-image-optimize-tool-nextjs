@@ -2,6 +2,24 @@
 
 "use client";
 
+// Add a throttle/debounce function to prevent multiple rapid edit mode changes
+function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  return (...args: Parameters<F>): ReturnType<F> | undefined => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+
+    timeout = setTimeout(() => {
+      timeout = null;
+      return func(...args);
+    }, waitFor);
+
+    return undefined;
+  };
+}
+
 import { useState, useRef, useEffect, useCallback } from "react";
 import { type PixelCrop, type Crop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
@@ -99,6 +117,21 @@ export default function ImageEditor({
   });
   const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
   const cropImgRef = useRef<HTMLImageElement | null>(null);
+
+  const handleEditModeChange = useCallback(
+    debounce((newEditMode: boolean) => {
+      console.log("Debounced handleEditModeChange called with:", newEditMode);
+      console.log("Edit button clicked");
+
+      // Only notify parent if the state is actually different
+      if (newEditMode !== isEditMode) {
+        if (onEditModeChange) {
+          onEditModeChange(newEditMode);
+        }
+      }
+    }, 300),
+    [isEditMode, onEditModeChange]
+  );
 
   // Set mounted state to prevent hydration mismatch
   useEffect(() => {

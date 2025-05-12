@@ -1,7 +1,6 @@
-// app/page.tsx
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { imageDB } from "./utils/indexedDB";
@@ -13,6 +12,14 @@ import ImageZoomView from "./components/image-zoom-view";
 import ImageStatsComponent from "./components/image-stats";
 import { useEditMode } from "@/hooks/use-edit-mode";
 import { useImageProcessing } from "@/hooks/use-image-processing";
+import EmergencyEditButton from "./components/emergency-edit-button";
+
+// Define global type for emergency edit mode function
+declare global {
+  interface Window {
+    __EMERGENCY_EDIT_MODE?: () => void;
+  }
+}
 
 // Dynamically import the MultiImageEditor component
 const MultiImageEditor = dynamic(() => import("./multi-editor"), {
@@ -36,6 +43,9 @@ export default function HomePage() {
   const [uploadComplete, setUploadComplete] = useState(false);
   const [newImageAdded, setNewImageAdded] = useState(false);
 
+  // Track if we're in emergency mode to prevent interruptions
+  const [isEmergencyMode, setIsEmergencyMode] = useState(false);
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(images.length / IMAGES_PER_PAGE);
@@ -54,6 +64,119 @@ export default function HomePage() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Add global handler for emergency edit mode
+  useEffect(() => {
+    // Function to handle emergency edit mode
+    const handleEmergencyEditMode = () => {
+      console.log("EMERGENCY EDIT MODE ACTIVATED");
+
+      // Set emergency mode flag
+      setIsEmergencyMode(true);
+
+      // Ensure we have an image selected
+      if (!editMode.selectedImage && images.length > 0) {
+        console.log("Setting selected image in emergency mode");
+        editMode.setSelectedImage(images[0]);
+      }
+
+      // Use the hook's protected force function instead of regular state change
+      editMode.forceEditModeOn();
+
+      // Monitor the edit mode to keep it on for a period
+      const checkCount = { current: 0 };
+      const maxChecks = 20; // 4 seconds maximum (20 * 200ms)
+
+      const intervalId = setInterval(() => {
+        checkCount.current++;
+
+        if (!editMode.isEditMode) {
+          console.log(
+            "EMERGENCY OVERRIDE: Edit mode was turned off, forcing back on"
+          );
+          editMode.forceEditModeOn();
+        }
+
+        // Stop checking after max attempts
+        if (checkCount.current >= maxChecks) {
+          clearInterval(intervalId);
+          setIsEmergencyMode(false);
+          console.log("Emergency mode monitoring completed");
+        }
+      }, 200);
+
+      // Clear the emergency mode after a fixed timeout
+      setTimeout(() => {
+        clearInterval(intervalId);
+        setIsEmergencyMode(false);
+        console.log("Emergency mode timeout completed");
+      }, 4000);
+    };
+
+    // Register this as a global function
+    window.__EMERGENCY_EDIT_MODE = handleEmergencyEditMode;
+
+    return () => {
+      // Clean up
+      delete window.__EMERGENCY_EDIT_MODE;
+    };
+  }, [editMode, images]);
+
+  // Ensure edit button works reliably with protection against interruption
+  const handleEditButtonClick = useCallback(() => {
+    console.log("Edit button click handler in page.tsx");
+
+    // If we're in emergency mode, use the force function
+    if (isEmergencyMode) {
+      console.log("Using emergency force method");
+      editMode.forceEditModeOn();
+      return;
+    }
+
+    // Make sure we have an image selected
+    if (!editMode.selectedImage && images.length > 0) {
+      editMode.setSelectedImage(images[0]);
+    }
+
+    // Call the toggle function directly after ensuring an image is selected
+    editMode.toggleEditMode();
+  }, [editMode, images, isEmergencyMode]);
+
+  // Block any action that would exit edit mode during emergency mode
+  useEffect(() => {
+    if (isEmergencyMode) {
+      // Force edit mode on whenever emergency mode is active
+      if (!editMode.isEditMode) {
+        console.log("Emergency mode is active - enforcing edit mode");
+        editMode.forceEditModeOn();
+      }
+    }
+  }, [isEmergencyMode, editMode]);
+
+  // Handler for edit mode changes coming from child components
+  const handleEditModeChange = useCallback(
+    (newEditMode: boolean) => {
+      console.log("handleEditModeChange called with:", newEditMode);
+
+      // Block turning off edit mode during emergency mode
+      if (isEmergencyMode && !newEditMode) {
+        console.log("BLOCKED: Cannot turn off edit mode during emergency");
+        return;
+      }
+
+      // Process edit mode change from child component
+      if (newEditMode) {
+        // Make sure we have an image selected
+        if (!editMode.selectedImage && images.length > 0) {
+          editMode.setSelectedImage(images[0]);
+        }
+        editMode.setIsEditMode(true);
+      } else {
+        editMode.exitEditMode();
+      }
+    },
+    [editMode, images, isEmergencyMode]
+  );
 
   // Load images from IndexedDB on component mount
   useEffect(() => {
@@ -108,14 +231,23 @@ export default function HomePage() {
   };
 
   // Handle image selection for viewing/basic editing
-  const handleSelectImage = (image: ImageFile) => {
-    editMode.setSelectedImage(image);
-    editMode.setIsEditMode(false);
-    editMode.exitEditMode();
-  };
+  const handleSelectImage = useCallback(
+    (image: ImageFile) => {
+      // Block changes during emergency mode
+      if (isEmergencyMode) return;
+
+      editMode.setSelectedImage(image);
+      editMode.setIsEditMode(false);
+      editMode.exitEditMode();
+    },
+    [editMode, isEmergencyMode]
+  );
 
   // Handle image removal
   const handleRemoveImage = async (id: string) => {
+    // Block changes during emergency mode
+    if (isEmergencyMode) return;
+
     const imageToRemove = images.find((img) => img.id === id);
     if (imageToRemove?.url) URL.revokeObjectURL(imageToRemove.url);
 
@@ -146,6 +278,9 @@ export default function HomePage() {
 
   // Handle clearing all images
   const handleRemoveAll = async () => {
+    // Block changes during emergency mode
+    if (isEmergencyMode) return;
+
     // Revoke all object URLs
     images.forEach((image) => {
       if (image.url) URL.revokeObjectURL(image.url);
@@ -166,8 +301,24 @@ export default function HomePage() {
 
   // Handle page change for pagination
   const handlePageChange = (page: number) => {
+    // Block changes during emergency mode
+    if (isEmergencyMode) return;
+
     setCurrentPage(page);
   };
+
+  // Force edit mode handler for emergency button
+  const handleForceEditMode = useCallback(() => {
+    console.log("Force edit mode called from emergency button");
+
+    // Ensure we have an image selected
+    if (!editMode.selectedImage && images.length > 0) {
+      editMode.setSelectedImage(images[0]);
+    }
+
+    // Force edit mode on
+    editMode.forceEditModeOn();
+  }, [editMode, images]);
 
   // Don't render until client-side
   if (!isMounted) {
@@ -181,6 +332,36 @@ export default function HomePage() {
   // Render the main interface
   return (
     <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col">
+      {/* Add the emergency edit button if needed */}
+      {!editMode.isEditMode && (
+        <EmergencyEditButton
+          selectedImage={editMode.selectedImage}
+          images={images}
+          onForceEditMode={handleForceEditMode}
+          onSelectImage={editMode.setSelectedImage}
+        />
+      )}
+
+      {/* Show emergency mode indicator */}
+      {isEmergencyMode && (
+        <div
+          style={{
+            position: "fixed",
+            top: "20px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+            backgroundColor: "rgba(255, 0, 0, 0.8)",
+            color: "white",
+            padding: "8px 16px",
+            borderRadius: "4px",
+            fontWeight: "bold",
+          }}
+        >
+          EMERGENCY MODE ACTIVE
+        </div>
+      )}
+
       {/* Image uploader shown when no images have been uploaded - centered */}
       {!uploadComplete && (
         <div className="flex justify-center items-center flex-1">
@@ -321,10 +502,7 @@ export default function HomePage() {
               onUploadNew={() => {}} // Add proper handler
               onRemoveAll={handleRemoveAll}
               onBackToGallery={editMode.exitEditMode}
-              onEditModeChange={(newEditMode) => {
-                console.log("Edit mode changed to:", newEditMode);
-                editMode.setIsEditMode(newEditMode);
-              }}
+              onEditModeChange={handleEditModeChange} // Use our improved handler
             />
           ) : editMode.isMultiEditMode ? (
             // Multi-edit mode
@@ -348,7 +526,7 @@ export default function HomePage() {
                 isEraser={editMode.isEraser}
                 format={imageProcessing.format}
                 onFormatChange={imageProcessing.setFormat}
-                onToggleEditMode={editMode.toggleEditMode}
+                onToggleEditMode={handleEditButtonClick} // Use our stable handler
                 onToggleCropping={editMode.toggleCropping}
                 onToggleBlurring={editMode.toggleBlurring}
                 onTogglePainting={editMode.togglePainting}

@@ -41,7 +41,7 @@ export interface ImageGalleryProps {
   onRemoveImage: (id: string) => void;
   onUploadNew: () => void;
   onRemoveAll: () => void;
-  onToggleEditMode?: () => void; // New prop for toggling edit mode
+  onToggleEditMode: (forceEnable?: boolean) => void;
   onToggleMultiEditMode?: () => void; // New prop for toggling multi-edit mode
   currentPage: number;
   totalPages: number;
@@ -154,7 +154,7 @@ export interface ImageControlsProps {
   isEraser: boolean;
   format: string;
   onFormatChange: (format: string) => void;
-  onToggleEditMode: () => void;
+  onToggleEditMode: (forceEnable?: boolean) => void;
   onToggleCropping: () => void;
   onToggleBlurring: () => void;
   onTogglePainting: () => void;
@@ -174,13 +174,13 @@ export interface ImageControlsProps {
   onCancelCrop: () => void;
   onCancelPaint: () => void;
   onCancelText?: () => void;
-  onBackToGallery?: () => void;
   onExitEditMode: () => void;
-  onToggleMultiEditMode?: () => void;
+  onBackToGallery?: () => void; // Add this missing property
   isStandalone?: boolean;
   currentPage?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;
+  onToggleMultiEditMode?: () => void;
 }
 
 export interface ImageResizerProps {

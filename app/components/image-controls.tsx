@@ -1,7 +1,6 @@
-// app/components/image-controls.tsx
-"use client";
+// Update this in your image-controls.tsx file
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   X,
   Minus,
@@ -69,6 +68,9 @@ const ImageControls: React.FC<ImageControlsProps> = ({
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
+  // Remove the isActivatingEditMode state and related lock
+  // We'll use a more reliable approach
+
   // Wait for component to mount to avoid hydration issues
   useEffect(() => {
     setMounted(true);
@@ -80,15 +82,15 @@ const ImageControls: React.FC<ImageControlsProps> = ({
     setTheme(theme === "dark" ? "light" : "dark");
   };
 
-  // Direct handler for Edit Image button - no intermediate function
-  const handleEditButtonClick = () => {
-    console.log("Edit button clicked directly - calling onToggleEditMode");
+  // Improved edit button handler
+  const handleEditButtonClick = useCallback(() => {
+    console.log("Edit button clicked");
+
+    // Use a direct function call with no debounce or locking
     if (typeof onToggleEditMode === "function") {
       onToggleEditMode();
-    } else {
-      console.error("onToggleEditMode is not a function");
     }
-  };
+  }, [onToggleEditMode]);
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
@@ -114,6 +116,7 @@ const ImageControls: React.FC<ImageControlsProps> = ({
               onClick={handleEditButtonClick}
               variant="outline"
               className="h-9"
+              data-testid="edit-image-button"
             >
               <WandSparkles className="mr-2 h-4 w-4" />
               Edit Image
