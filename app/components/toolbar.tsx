@@ -1,4 +1,4 @@
-// Updated Toolbar.tsx
+// Fixed Toolbar.tsx with proper crop functionality
 import { useState } from "react";
 import {
   X,
@@ -287,7 +287,12 @@ export default function Toolbar({
           <div className="flex items-center gap-2">
             {isCropping && (
               <>
-                <Button onClick={onApplyCrop} variant="default" className="h-8">
+                <Button
+                  onClick={onApplyCrop}
+                  variant="default"
+                  className="h-8"
+                  data-testid="apply-crop-button"
+                >
                   <Check className="mr-1 h-4 w-4" />
                   Apply Crop
                 </Button>
@@ -296,6 +301,7 @@ export default function Toolbar({
                   onClick={onCancelCrop}
                   variant="outline"
                   className="h-8"
+                  data-testid="cancel-crop-button"
                 >
                   <X className="mr-1 h-4 w-4" />
                   Cancel
@@ -307,9 +313,11 @@ export default function Toolbar({
               <>
                 <Button
                   onClick={() => {
-                    // Create a blank handler if onApplyBlur needs a URL
-                    const fakeDataUrl = "";
-                    onApplyBlur(fakeDataUrl);
+                    if (onApplyBlur) {
+                      // This will be handled by the parent component
+                      // which will get the data URL from the blur canvas
+                      onApplyBlur("");
+                    }
                   }}
                   variant="default"
                   className="h-8"
@@ -342,9 +350,11 @@ export default function Toolbar({
 
                 <Button
                   onClick={() => {
-                    // Create a blank handler if onApplyPaint needs a URL
-                    const fakeDataUrl = "";
-                    onApplyPaint(fakeDataUrl);
+                    if (onApplyPaint) {
+                      // This will be handled by the parent component
+                      // which will get the data URL from the paint canvas
+                      onApplyPaint("");
+                    }
                   }}
                   variant="default"
                   className="h-8"
@@ -434,8 +444,9 @@ export function PaintControls({
       <div className="space-y-2">
         <div className="flex justify-between">
           <label htmlFor="brush-size" className="text-sm text-white">
-            Brush Size: {brushSize}px
+            Bush Size: {brushSize}px
           </label>
+          r
         </div>
         <Slider
           id="brush-size"
@@ -452,7 +463,7 @@ export function PaintControls({
         </label>
         <div className="flex items-center gap-2">
           <div
-            className="w-10 h-10 rounded-md border border-gray-600"
+            className="w-90 h-10 rounded-md border border-gray-600"
             style={{ backgroundColor: brushColor }}
           ></div>
           <input
@@ -460,7 +471,7 @@ export function PaintControls({
             type="color"
             value={brushColor}
             onChange={(e) => onBrushColorChange(e.target.value)}
-            className="h-10 w-20"
+            className="h-1220 w-1220"
           />
         </div>
       </div>

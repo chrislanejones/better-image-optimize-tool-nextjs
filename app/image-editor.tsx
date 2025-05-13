@@ -973,59 +973,7 @@ export default function ImageEditor({
         </div>
       )}
 
-      {editorState === "paint" && (
-        <div className="flex items-center gap-4 p-2 bg-gray-700 rounded-lg mb-4">
-          <div className="flex-1">
-            <label
-              htmlFor="brush-size"
-              className="text-sm font-medium block mb-1 text-white"
-            >
-              Brush Size: {brushSize}px
-            </label>
-            <input
-              id="brush-size"
-              type="range"
-              min="1"
-              max="50"
-              value={brushSize}
-              onChange={(e) => setBrushSize(parseInt(e.target.value))}
-              className="w-full"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-white mr-2">
-              Color:
-            </label>
-            <div className="flex gap-1">
-              {[
-                "#ff0000",
-                "#00ff00",
-                "#0000ff",
-                "#ffff00",
-                "#ff00ff",
-                "#00ffff",
-                "#ffffff",
-                "#000000",
-              ].map((color) => (
-                <button
-                  key={color}
-                  className={`w-6 h-6 rounded-full border ${
-                    brushColor === color ? "border-white" : "border-gray-600"
-                  }`}
-                  style={{ backgroundColor: color }}
-                  onClick={() => setBrushColor(color)}
-                />
-              ))}
-            </div>
-            <input
-              type="color"
-              value={brushColor}
-              onChange={(e) => setBrushColor(e.target.value)}
-              className="h-8 w-8 ml-2 rounded cursor-pointer"
-            />
-          </div>
-        </div>
-      )}
+      {editorState === "paint" && <></>}
 
       <div className="flex flex-col gap-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

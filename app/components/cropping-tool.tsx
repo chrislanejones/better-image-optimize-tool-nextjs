@@ -1,3 +1,4 @@
+// Fixed cropping-tool.tsx with improved functionality
 "use client";
 
 import React, {
@@ -6,6 +7,7 @@ import React, {
   forwardRef,
   useImperativeHandle,
   useCallback,
+  useEffect,
 } from "react";
 import ReactCrop, {
   type Crop as CropType,
@@ -13,6 +15,8 @@ import ReactCrop, {
 } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import { Button } from "@/components/ui/button";
+import { Info } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 export interface CroppingToolRef {
   getCanvasDataUrl: () => string | null;
@@ -33,14 +37,45 @@ const CroppingTool = forwardRef<CroppingToolRef, CroppingToolProps>(
   ({ imageUrl, onApply, onCancel, className, aspectRatio }, ref) => {
     const [crop, setCrop] = useState<CropType>({
       unit: "%",
-      width: 100,
-      height: 100,
-      x: 0,
-      y: 0,
+      width: 50, // Start with a smaller selection (50% of image)
+      height: 50,
+      x: 25, // Center the crop box
+      y: 25,
     });
     const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
+    const [imageLoaded, setImageLoaded] = useState<boolean>(false);
     const imgRef = useRef<HTMLImageElement>(null);
     const [error, setError] = useState<string | null>(null);
+    const [showHelp, setShowHelp] = useState<boolean>(true);
+
+    // Hide help message after 6 seconds
+    useEffect(() => {
+      if (showHelp) {
+        const timer = setTimeout(() => {
+          setShowHelp(false);
+        }, 6000);
+        return () => clearTimeout(timer);
+      }
+    }, [showHelp]);
+
+    // Handle image load event
+    const onImageLoad = useCallback(() => {
+      setImageLoaded(true);
+    }, []);
+
+    // Initialize crop when image loads
+    useEffect(() => {
+      // Reset crop state when image URL changes
+      setCrop({
+        unit: "%",
+        width: 50,
+        height: 50,
+        x: 25,
+        y: 25,
+      });
+      setCompletedCrop(null);
+      setImageLoaded(false);
+    }, [imageUrl]);
 
     // Function to create a cropped canvas
     const createCroppedCanvas = (
@@ -56,9 +91,11 @@ const CroppingTool = forwardRef<CroppingToolRef, CroppingToolProps>(
         return null;
       }
 
+      // Set the canvas dimensions to the cropped area size
       canvas.width = pixelCrop.width;
       canvas.height = pixelCrop.height;
 
+      // Draw the cropped portion of the image onto the canvas
       ctx.drawImage(
         image,
         pixelCrop.x,
@@ -78,6 +115,11 @@ const CroppingTool = forwardRef<CroppingToolRef, CroppingToolProps>(
     const getCroppedImageUrl = (): string | null => {
       if (!completedCrop || !imgRef.current) {
         setError("No crop area or image selected");
+        useToast().toast({
+          title: "Error",
+          description: "No crop area or image selected",
+          variant: "destructive",
+        });
         return null;
       }
 
@@ -92,15 +134,39 @@ const CroppingTool = forwardRef<CroppingToolRef, CroppingToolProps>(
       }
     };
 
-    // Function to apply the crop
+    // Function to apply the crop - this is called from the parent component
     const applyCrop = useCallback(() => {
+      if (!completedCrop) {
+        setError("Please select an area to crop first");
+        const toast = useToast();
+        toast.toast({
+          title: "Error",
+          description: "Please select an area to crop first",
+          variant: "destructive",
+        });
+        setTimeout(() => setError(null), 3000); // Clear error after 3 seconds
+        return;
+      }
+
       const croppedUrl = getCroppedImageUrl();
       if (croppedUrl) {
         onApply(croppedUrl);
+        const toast = useToast();
+        toast.toast({
+          title: "Success",
+          description: "Crop applied successfully",
+          variant: "default",
+        });
       } else {
         setError("Failed to apply crop");
+        const toast = useToast();
+        toast.toast({
+          title: "Error",
+          description: "Failed to apply crop",
+          variant: "destructive",
+        });
       }
-    }, [onApply]);
+    }, [completedCrop, onApply]);
 
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
@@ -119,6 +185,12 @@ const CroppingTool = forwardRef<CroppingToolRef, CroppingToolProps>(
             </div>
           )}
 
+          {!imageLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+            </div>
+          )}
+
           <ReactCrop
             crop={crop}
             onChange={(c) => setCrop(c)}
@@ -132,22 +204,20 @@ const CroppingTool = forwardRef<CroppingToolRef, CroppingToolProps>(
               alt="Image for cropping"
               className="max-w-full max-h-full object-contain"
               crossOrigin="anonymous"
+              onLoad={onImageLoad}
             />
           </ReactCrop>
+
+          {/* Help message */}
+          {showHelp && imageLoaded && (
+            <div className="crop-help-text">
+              <Info className="inline-block mr-1 h-4 w-4" /> Drag to adjust crop
+              area. Use toolbar buttons to apply or cancel.
+            </div>
+          )}
         </div>
 
-        <div className="flex justify-end gap-2 mt-4">
-          <Button onClick={onCancel} variant="outline">
-            Cancel
-          </Button>
-          <Button
-            onClick={applyCrop}
-            variant="default"
-            disabled={!completedCrop}
-          >
-            Apply Crop
-          </Button>
-        </div>
+        {/* Removed bottom buttons - using only toolbar buttons */}
       </div>
     );
   }
