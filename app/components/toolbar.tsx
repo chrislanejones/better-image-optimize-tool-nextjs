@@ -1,27 +1,22 @@
-"use client";
-
-import React from "react";
-import { Button } from "@/components/ui/button";
+// Updated Toolbar.tsx
+import { useState } from "react";
 import {
-  Pencil,
-  RefreshCw,
-  Trash2,
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Minus,
-  Plus,
+  X,
   Crop,
   Droplets,
   Paintbrush,
-  X,
+  Eraser,
   Download,
+  RefreshCw,
+  ArrowLeft,
+  Trash2,
   Upload,
-  Lock,
+  Minus,
+  Plus,
+  Edit,
+  Check,
 } from "lucide-react";
-import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -29,55 +24,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { ToolbarProps, NavigationDirection } from "@/types/types";
 
-// Toolbar props interface
-interface ToolbarProps {
-  // Mode flags
-  isEditMode: boolean;
-  isCropping: boolean;
-  isBlurring: boolean;
-  isPainting: boolean;
-  isEraser: boolean;
-  isCompressing?: boolean;
-
-  // Format
-  format: string;
-  onFormatChange: (format: string) => void;
-
-  // Mode toggles
-  onToggleEditMode: () => void;
-  onToggleCropping: () => void;
-  onToggleBlurring: () => void;
-  onTogglePainting: () => void;
-  onToggleEraser: () => void;
-
-  // Action handlers
-  onApplyCrop: () => void;
-  onApplyBlur: (blurredImageUrl: string) => void;
-  onApplyPaint: (paintedImageUrl: string) => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onReset?: () => void;
-  onDownload?: () => void;
-  onUploadNew?: () => void;
-  onRemoveAll?: () => void;
-  onCancelBlur: () => void;
-  onCancelCrop: () => void;
-  onCancelPaint: () => void;
-  onBackToGallery?: () => void;
-  onExitEditMode: () => void;
-
-  // Pagination
-  currentPage?: number;
-  totalPages?: number;
-  onPageChange?: (page: number) => void;
-  onNavigateImage?: (direction: "next" | "prev" | "first" | "last") => void;
-
-  isStandalone?: boolean;
-  className?: string;
-}
-
-// Main Toolbar component
+// Toolbar component
 export default function Toolbar({
   // Mode flags
   isEditMode,
@@ -85,7 +35,7 @@ export default function Toolbar({
   isBlurring,
   isPainting,
   isEraser,
-  isCompressing = false,
+  isCompressing = false, // Add isCompressing prop with default
 
   // Format
   format,
@@ -114,177 +64,313 @@ export default function Toolbar({
   onBackToGallery,
   onExitEditMode,
 
-  // Pagination
-  currentPage = 1,
-  totalPages = 1,
+  // Pagination props
+  currentPage,
+  totalPages,
   onPageChange,
   onNavigateImage,
 
   isStandalone = false,
   className = "",
 }: ToolbarProps) {
+  const [showFormatOptions, setShowFormatOptions] = useState(false);
+
+  // Function to safely call navigation handler
+  const handleNavigate = (direction: NavigationDirection) => {
+    if (onNavigateImage) {
+      onNavigateImage(direction);
+    }
+  };
+
   return (
     <div
-      className={`flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative ${className}`}
+      className={`bg-gray-800 text-white p-2 rounded-lg flex justify-between items-center flex-wrap gap-2 ${className}`}
     >
-      {/* Left section with Edit button and editing tools */}
-      <div className="flex items-center gap-2">
-        {/* Edit Mode Button */}
-        <Button
-          onClick={onToggleEditMode}
-          variant={isEditMode ? "default" : "outline"}
-          className="h-10 px-4 py-2"
-        >
-          <Pencil className="mr-2 h-4 w-4" />
-          {isEditMode ? "Exit Edit Mode" : "Edit Image"}
-        </Button>
-
-        {/* Show editing tools only in edit mode */}
-        {isEditMode && (
-          <>
+      {/* Main editing toolbar */}
+      {!isCropping && !isBlurring && !isPainting ? (
+        <>
+          {/* Left side controls */}
+          <div className="flex items-center gap-2">
+            {/* Zoom controls */}
             <Button
-              onClick={onToggleCropping}
-              variant={isCropping ? "default" : "outline"}
-              className="h-10 px-4 py-2"
+              onClick={onZoomOut}
+              variant="outline"
+              className="h-8 w-8 p-0"
+              title="Zoom out"
             >
-              <Crop className="mr-2 h-4 w-4" />
-              Crop
+              <Minus className="h-4 w-4" />
             </Button>
 
             <Button
-              onClick={onToggleBlurring}
-              variant={isBlurring ? "default" : "outline"}
-              className="h-10 px-4 py-2"
+              onClick={onZoomIn}
+              variant="outline"
+              className="h-8 w-8 p-0"
+              title="Zoom in"
             >
-              <Droplets className="mr-2 h-4 w-4" />
-              Blur
+              <Plus className="h-4 w-4" />
+            </Button>
+
+            {/* Toggle edit mode button */}
+            {!isStandalone && (
+              <Button
+                onClick={onToggleEditMode}
+                variant={isEditMode ? "default" : "outline"}
+                className="h-8"
+                title={isEditMode ? "Exit edit mode" : "Edit image"}
+              >
+                {isEditMode ? (
+                  <>
+                    <X className="mr-1 h-4 w-4" />
+                    Exit Edit
+                  </>
+                ) : (
+                  <>
+                    <Edit className="mr-1 h-4 w-4" />
+                    Edit
+                  </>
+                )}
+              </Button>
+            )}
+
+            {/* Only show tool buttons in edit mode */}
+            {isEditMode && (
+              <div className="flex gap-1">
+                <Button
+                  onClick={onToggleCropping}
+                  variant={isCropping ? "default" : "outline"}
+                  className="h-8"
+                  title="Crop image"
+                >
+                  <Crop className="mr-1 h-4 w-4" />
+                  Crop
+                </Button>
+
+                <Button
+                  onClick={onToggleBlurring}
+                  variant={isBlurring ? "default" : "outline"}
+                  className="h-8"
+                  title="Blur parts of image"
+                >
+                  <Droplets className="mr-1 h-4 w-4" />
+                  Blur
+                </Button>
+
+                <Button
+                  onClick={onTogglePainting}
+                  variant={isPainting ? "default" : "outline"}
+                  className="h-8"
+                  title="Paint on image"
+                >
+                  <Paintbrush className="mr-1 h-4 w-4" />
+                  Paint
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Compression indicator */}
+          {isCompressing && (
+            <div className="text-xs bg-blue-600 px-2 py-1 rounded-full animate-pulse ml-2">
+              Compressing...
+            </div>
+          )}
+
+          {/* Right side controls */}
+          <div className="flex items-center gap-2">
+            {/* Format selector */}
+            <Select value={format} onValueChange={onFormatChange}>
+              <SelectTrigger className="h-8 w-20 bg-gray-700 border-gray-600">
+                <SelectValue placeholder="Format" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="jpeg">JPEG</SelectItem>
+                <SelectItem value="png">PNG</SelectItem>
+                <SelectItem value="webp">WebP</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Action buttons */}
+            <Button
+              onClick={onReset}
+              variant="outline"
+              className="h-8"
+              title="Reset image"
+            >
+              <RefreshCw className="mr-1 h-4 w-4" />
+              Reset
             </Button>
 
             <Button
-              onClick={onTogglePainting}
-              variant={isPainting ? "default" : "outline"}
-              className="h-10 px-4 py-2"
+              onClick={onDownload}
+              variant="outline"
+              className="h-8"
+              title="Download edited image"
             >
-              <Paintbrush className="mr-2 h-4 w-4" />
-              Paint
+              <Download className="mr-1 h-4 w-4" />
+              Download
             </Button>
-          </>
-        )}
-      </div>
 
-      {/* Middle section: Zoom and active tool controls */}
-      <div className="flex items-center gap-2">
-        {/* Zoom controls */}
-        <Button onClick={onZoomOut} variant="outline" className="h-9 w-9 p-0">
-          <Minus className="h-4 w-4" />
-        </Button>
+            {onBackToGallery && (
+              <Button
+                onClick={onBackToGallery}
+                variant="outline"
+                className="h-8"
+                title="Back to gallery"
+              >
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                Gallery
+              </Button>
+            )}
 
-        <Button onClick={onZoomIn} variant="outline" className="h-9 w-9 p-0">
-          <Plus className="h-4 w-4" />
-        </Button>
+            {onUploadNew && (
+              <Button
+                onClick={onUploadNew}
+                variant="outline"
+                className="h-8"
+                title="Upload new image"
+              >
+                <Upload className="mr-1 h-4 w-4" />
+                Upload
+              </Button>
+            )}
 
-        {/* Tool-specific controls */}
-        {isCropping && (
-          <>
-            <Button onClick={onApplyCrop} variant="default" className="h-10">
-              Apply Crop
-            </Button>
-            <Button onClick={onCancelCrop} variant="outline" className="h-10">
-              Cancel
-            </Button>
-          </>
-        )}
-
-        {isBlurring && (
-          <>
+            {/* Remove all button */}
+            {onRemoveAll && (
+              <Button
+                onClick={onRemoveAll}
+                variant="destructive"
+                className="h-8"
+                title="Remove all images"
+              >
+                <Trash2 className="mr-1 h-4 w-4" />
+                Remove All
+              </Button>
+            )}
+          </div>
+        </>
+      ) : (
+        // Tool-specific toolbars
+        <div className="flex justify-between items-center w-full">
+          <div className="flex items-center gap-2">
+            {/* Zoom controls even in tool modes */}
             <Button
-              onClick={() => onApplyBlur("")}
-              variant="default"
-              className="h-10"
+              onClick={onZoomOut}
+              variant="outline"
+              className="h-8 w-8 p-0"
+              title="Zoom out"
             >
-              Apply Blur
+              <Minus className="h-4 w-4" />
             </Button>
-            <Button onClick={onCancelBlur} variant="outline" className="h-10">
-              Cancel
-            </Button>
-          </>
-        )}
 
-        {isPainting && (
-          <>
             <Button
-              onClick={() => onApplyPaint("")}
-              variant="default"
-              className="h-10"
+              onClick={onZoomIn}
+              variant="outline"
+              className="h-8 w-8 p-0"
+              title="Zoom in"
             >
-              Apply Paint
+              <Plus className="h-4 w-4" />
             </Button>
-            <Button onClick={onCancelPaint} variant="outline" className="h-10">
-              Cancel
-            </Button>
-          </>
-        )}
-      </div>
 
-      {/* Right section: Action buttons */}
-      <div className="flex items-center gap-2">
-        {/* Format selector */}
-        <Select value={format} onValueChange={onFormatChange}>
-          <SelectTrigger className="w-24 h-10">
-            <SelectValue placeholder="Format" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="jpeg">JPEG</SelectItem>
-            <SelectItem value="png">PNG</SelectItem>
-            <SelectItem value="webp">WebP</SelectItem>
-          </SelectContent>
-        </Select>
+            {/* Tool-specific caption */}
+            <span className="ml-2 text-sm">
+              {isCropping
+                ? "Crop Image"
+                : isBlurring
+                ? "Blur Tool"
+                : isPainting
+                ? `Paint Tool ${isEraser ? "(Eraser Mode)" : ""}`
+                : ""}
+            </span>
+          </div>
 
-        {/* Reset button */}
-        {onReset && (
-          <Button onClick={onReset} variant="outline" className="h-10">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Reset
-          </Button>
-        )}
+          {/* Tool-specific actions */}
+          <div className="flex items-center gap-2">
+            {isCropping && (
+              <>
+                <Button onClick={onApplyCrop} variant="default" className="h-8">
+                  <Check className="mr-1 h-4 w-4" />
+                  Apply Crop
+                </Button>
 
-        {/* Download button */}
-        {onDownload && (
-          <Button onClick={onDownload} variant="outline" className="h-10">
-            <Download className="mr-2 h-4 w-4" />
-            Download
-          </Button>
-        )}
+                <Button
+                  onClick={onCancelCrop}
+                  variant="outline"
+                  className="h-8"
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  Cancel
+                </Button>
+              </>
+            )}
 
-        {/* Upload new */}
-        {onUploadNew && (
-          <Button onClick={onUploadNew} variant="outline" className="h-10">
-            <Upload className="mr-2 h-4 w-4" />
-            Upload New
-          </Button>
-        )}
+            {isBlurring && (
+              <>
+                <Button
+                  onClick={() => {
+                    // Create a blank handler if onApplyBlur needs a URL
+                    const fakeDataUrl = "";
+                    onApplyBlur(fakeDataUrl);
+                  }}
+                  variant="default"
+                  className="h-8"
+                >
+                  <Check className="mr-1 h-4 w-4" />
+                  Apply Blur
+                </Button>
 
-        {/* Back to gallery */}
-        {onBackToGallery && (
-          <Button onClick={onBackToGallery} variant="outline" className="h-10">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-        )}
+                <Button
+                  onClick={onCancelBlur}
+                  variant="outline"
+                  className="h-8"
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  Cancel
+                </Button>
+              </>
+            )}
 
-        {/* Remove all */}
-        {onRemoveAll && (
-          <Button onClick={onRemoveAll} variant="destructive" className="h-10">
-            <Trash2 className="mr-2 h-4 w-4" />
-            Remove All
-          </Button>
-        )}
-      </div>
+            {isPainting && (
+              <>
+                <Button
+                  onClick={onToggleEraser}
+                  variant={isEraser ? "default" : "outline"}
+                  className="h-8"
+                >
+                  <Eraser className="mr-1 h-4 w-4" />
+                  {isEraser ? "Brush" : "Eraser"}
+                </Button>
+
+                <Button
+                  onClick={() => {
+                    // Create a blank handler if onApplyPaint needs a URL
+                    const fakeDataUrl = "";
+                    onApplyPaint(fakeDataUrl);
+                  }}
+                  variant="default"
+                  className="h-8"
+                >
+                  <Check className="mr-1 h-4 w-4" />
+                  Apply Paint
+                </Button>
+
+                <Button
+                  onClick={onCancelPaint}
+                  variant="outline"
+                  className="h-8"
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  Cancel
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// Blur controls component
+// Tool control components
 export function BlurControls({
   blurAmount,
   blurRadius,
@@ -313,7 +399,6 @@ export function BlurControls({
           onValueChange={(value) => onBlurAmountChange(value[0])}
         />
       </div>
-
       <div className="space-y-2">
         <div className="flex justify-between">
           <label htmlFor="blur-radius" className="text-sm text-white">
@@ -333,7 +418,6 @@ export function BlurControls({
   );
 }
 
-// Paint controls component
 export function PaintControls({
   brushSize,
   brushColor,
@@ -362,7 +446,6 @@ export function PaintControls({
           onValueChange={(value) => onBrushSizeChange(value[0])}
         />
       </div>
-
       <div className="space-y-2">
         <label htmlFor="brush-color" className="text-sm text-white block mb-2">
           Brush Color

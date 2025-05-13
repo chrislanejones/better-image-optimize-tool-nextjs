@@ -1,565 +1,1219 @@
+// toolbar.tsx with fixed pagination controls (no selectedImage references)
 "use client";
 
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
-  useState,
-  useRef,
-  useEffect,
-  type ChangeEvent,
-  type DragEvent,
-  type ClipboardEvent,
-} from "react";
-import Image from "next/image";
-import {
-  X,
+  Eraser,
+  Undo,
+  Redo,
+  RotateCw,
+  RotateCcw,
+  Type,
+  RefreshCw,
+  ArrowLeft,
+  Trash2,
   Upload,
-  ImageIcon,
-  Info,
-  Edit2,
-  Lock,
-  Maximize2,
+  Download,
+  Minus,
+  Plus,
+  Pencil,
   Crop,
   Droplets,
   Paintbrush,
-  Minus,
-  Plus,
-  Eraser,
+  Check,
+  X,
+  Images,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-} from "@/components/ui/card";
-import { useRouter } from "next/navigation";
-import { imageDB } from "@/app/utils/indexedDB";
-import {
-  ImagePlaceholder,
-  LoadingPlaceholder,
-  EmptyPlaceholder,
-} from "./components/placeholder";
 import { Slider } from "@/components/ui/slider";
-import ReactCrop, {
-  type Crop as CropType,
-  type PixelCrop,
-} from "react-image-crop";
-import "react-image-crop/dist/ReactCrop.css";
-import { getFileFormat, getMimeType } from "@/app/utils/image-utils";
+import { Button } from "@/components/ui/button";
+import CroppingTool, { CroppingToolRef } from "@/app/components/cropping-tool";
+import BlurBrushCanvas from "@/app/components/blur-tool";
+import PaintTool from "@/app/components/paint-tool";
+import TextTool from "@/app/components/text-tool";
+import ImageResizer from "@/app/components/image-resizer";
+import ImageStats from "@/app/components/image-stats";
+import ImageZoomView from "@/app/components/image-zoom-view";
+import { ImageEditorProps } from "@/types/types";
+import { SimplePagination } from "@/app/components/pagination-controls";
 
-interface ImageFile {
-  id: string;
-  file: File;
-  url: string;
-  isNew?: boolean;
-}
+// Define the editor states with clearer names
+export type EditorState =
+  | "resizeAndOptimize" // Simple resize & optimize state (default view)
+  | "editImage" // Main editing state with tools menu
+  | "crop" // Cropping mode
+  | "blur" // Blur tool mode
+  | "paint" // Paint tool mode
+  | "text"; // Text tool mode
 
-interface ImageGalleryProps {
-  onSelectImage?: (image: ImageFile) => void;
-  standalone?: boolean;
-}
+export default function ImageEditor({
+  imageUrl,
+  onImageChange,
+  onReset,
+  onDownload,
+  onClose,
+  className,
+  fileName = "image.png",
+  fileType = "image/png",
+  fileSize = 0,
+  currentPage = 1,
+  totalPages = 1,
+  onNavigateImage,
+  onRemoveAll,
+  onUploadNew,
+}: ImageEditorProps) {
+  // Editor state
+  const [editorState, setEditorState] =
+    useState<EditorState>("resizeAndOptimize");
+  const [isCompressing, setIsCompressing] = useState<boolean>(false);
+  const [zoom, setZoom] = useState<number>(1);
 
-interface ImageStats {
-  width: number;
-  height: number;
-  size: number;
-  format: string;
-}
+  // Tool states
+  const [isEraser, setIsEraser] = useState<boolean>(false);
+  const [blurAmount, setBlurAmount] = useState<number>(5);
+  const [blurRadius, setBlurRadius] = useState<number>(10);
+  const [brushSize, setBrushSize] = useState<number>(10);
+  const [brushColor, setBrushColor] = useState<string>("#ff0000");
+  const [format, setFormat] = useState<string>("jpeg");
+  const [isBold, setIsBold] = useState<boolean>(false);
+  const [isItalic, setIsItalic] = useState<boolean>(false);
 
-export default function ImageGallery({
-  onSelectImage,
-  standalone = false,
-}: ImageGalleryProps) {
-  const [images, setImages] = useState<ImageFile[]>([]);
-  const [uploadComplete, setUploadComplete] = useState(false);
-  const [newImageAdded, setNewImageAdded] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMounted, setIsMounted] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<ImageFile | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string>("");
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [isCropping, setIsCropping] = useState(false);
-  const [isBlurring, setIsBlurring] = useState(false);
-  const [isPainting, setIsPainting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Image stats
+  const [width, setWidth] = useState<number>(0);
+  const [height, setHeight] = useState<number>(0);
+  const [originalStats, setOriginalStats] = useState<any>(null);
+  const [newStats, setNewStats] = useState<any>(null);
+  const [dataSavings, setDataSavings] = useState<number>(0);
+  const [hasEdited, setHasEdited] = useState<boolean>(false);
+
+  // History states
+  const [history, setHistory] = useState<string[]>([imageUrl]);
+  const [historyIndex, setHistoryIndex] = useState<number>(0);
+
+  // Refs
+  const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const router = useRouter();
+  const cropToolRef = useRef<CroppingToolRef>(null);
+  const blurCanvasRef = useRef<any>(null);
+  const paintToolRef = useRef<any>(null);
+  const textToolRef = useRef<any>(null);
 
+  // Initialize image dimensions and stats
   useEffect(() => {
-    setIsMounted(true);
+    if (!imageUrl) return;
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      setWidth(img.width);
+      setHeight(img.height);
+      setOriginalStats({
+        width: img.width,
+        height: img.height,
+        size: fileSize,
+        format: fileType.split("/")[1] || "unknown",
+      });
+    };
+    img.src = imageUrl;
+  }, [imageUrl, fileSize, fileType]);
+
+  // Reset editor state when image changes via pagination
+  useEffect(() => {
+    setEditorState("resizeAndOptimize");
+    setZoom(1);
+    setIsEraser(false);
+    setHistory([imageUrl]);
+    setHistoryIndex(0);
+    setHasEdited(false);
+    setNewStats(null);
+    setDataSavings(0);
+  }, [imageUrl]);
+
+  // Handle resize
+  const handleResize = useCallback((newWidth: number, newHeight: number) => {
+    if (!imgRef.current) return;
+
+    setWidth(newWidth);
+    setHeight(newHeight);
+    setIsCompressing(true);
   }, []);
 
-  useEffect(() => {
-    const loadImages = async () => {
-      try {
-        setIsLoading(true);
-        const storedImages = await imageDB.getAllImages();
-        if (storedImages && storedImages.length > 0) {
-          const loadedImages = storedImages.map((img) => {
-            return {
-              id: img.id,
-              file: img.file,
-              url: img.url,
-            };
-          });
-          setImages(loadedImages);
-          setUploadComplete(true);
-        } else {
-          setUploadComplete(false);
-        }
-      } catch (error) {
-        console.error("Error loading images:", error);
-      } finally {
-        setIsLoading(false);
+  // Apply resize
+  const handleApplyResize = useCallback(async () => {
+    if (!imgRef.current || !originalStats) return;
+
+    try {
+      // Calculate new size (simplified estimation)
+      const areaRatio =
+        (width * height) / (originalStats.width * originalStats.height);
+      const newSize = Math.floor(originalStats.size * Math.max(areaRatio, 0.6));
+
+      // Update stats
+      setNewStats({
+        width,
+        height,
+        size: newSize,
+        format: format,
+      });
+
+      // Calculate data savings
+      const savings = 100 - (newSize / originalStats.size) * 100;
+      setDataSavings(savings);
+      setHasEdited(true);
+
+      // Add to history
+      addToHistory(imageUrl);
+
+      // Notify parent if needed
+      if (onImageChange) {
+        onImageChange(imageUrl);
       }
-    };
-    if (isMounted) loadImages();
-    return () => {
-      images.forEach((image) => image.url && URL.revokeObjectURL(image.url));
-    };
-  }, [isMounted]);
 
-  useEffect(() => {
-    const saveImages = async () => {
-      if (images.length > 0) {
-        try {
-          await Promise.all(
-            images.map(async (img) => {
-              if (img.isNew) {
-                await imageDB.saveImage({
-                  id: img.id,
-                  file: img.file,
-                  url: img.url,
-                });
-              }
-            })
-          );
-        } catch (error) {
-          console.error("Error saving images:", error);
-        }
-      }
-    };
-    if (!isLoading && isMounted) saveImages();
-  }, [images, isLoading, isMounted]);
-
-  useEffect(() => {
-    if (selectedImage?.url) {
-      setPreviewUrl(selectedImage.url);
-    }
-    return () => {
-      if (previewUrl && selectedImage && previewUrl !== selectedImage.url) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [selectedImage]);
-
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    addFiles(files);
-  };
-
-  const addFiles = (files: FileList) => {
-    const newImages: ImageFile[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (file.type.startsWith("image/")) {
-        newImages.push({
-          id: crypto.randomUUID(),
-          file,
-          url: URL.createObjectURL(file),
-          isNew: true,
-        });
-      }
-    }
-    setImages((prev) => [...prev, ...newImages]);
-    if (newImages.length > 0) {
-      setUploadComplete(true);
-      setNewImageAdded(true);
-
-      // Remove the isNew flag after animation completes
+      // Exit compression mode after a delay
       setTimeout(() => {
-        setImages((prevImages) =>
-          prevImages.map((img) => ({ ...img, isNew: false }))
-        );
-      }, 1500); // Match with animation duration
-    }
-  };
-
-  useEffect(() => {
-    if (newImageAdded && isMounted) {
-      const timer = setTimeout(() => setNewImageAdded(false), 800);
-      return () => clearTimeout(timer);
-    }
-  }, [newImageAdded, isMounted]);
-
-  const handleUploadClick = () => fileInputRef.current?.click();
-
-  const removeImage = async (id: string) => {
-    const imageToRemove = images.find((img) => img.id === id);
-    if (imageToRemove?.url) URL.revokeObjectURL(imageToRemove.url);
-    setImages(images.filter((img) => img.id !== id));
-    try {
-      await imageDB.deleteImage(id);
+        setIsCompressing(false);
+      }, 800);
     } catch (error) {
-      console.error("Error deleting image:", error);
+      console.error("Error applying resize:", error);
+      setIsCompressing(false);
     }
-    if (images.length <= 1) setUploadComplete(false);
-  };
+  }, [width, height, format, originalStats, imageUrl, onImageChange]);
 
-  const selectImage = (image: ImageFile) => {
-    if (onSelectImage) {
-      onSelectImage(image);
-    } else {
-      setSelectedImage(image);
-      setIsEditMode(true);
-    }
-  };
+  // History management
+  const addToHistory = useCallback(
+    (url: string) => {
+      setHistory((prev) => {
+        // If we're not at the end of history, remove everything after current index
+        const newHistory = prev.slice(0, historyIndex + 1);
+        return [...newHistory, url];
+      });
+      setHistoryIndex((prev) => prev + 1);
+    },
+    [historyIndex]
+  );
 
-  const resetUpload = async () => {
-    images.forEach((img) => URL.revokeObjectURL(img.url));
-    setImages([]);
-    setUploadComplete(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    try {
-      await imageDB.deleteAllImages();
-    } catch (error) {
-      console.error("Error clearing image database:", error);
-    }
-  };
+  const handleUndo = useCallback(() => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      const prevUrl = history[newIndex];
 
-  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isDragging) setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      addFiles(e.dataTransfer.files);
-    }
-  };
-
-  useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
-      if (e.clipboardData && e.clipboardData.files.length > 0) {
-        e.preventDefault();
-        addFiles(e.clipboardData.files);
+      // Update the image
+      if (onImageChange && prevUrl) {
+        onImageChange(prevUrl);
       }
-    };
-    if (isMounted) {
-      document.addEventListener(
-        "paste",
-        handlePaste as unknown as EventListener
-      );
-      return () =>
-        document.removeEventListener(
-          "paste",
-          handlePaste as unknown as EventListener
-        );
     }
-  }, [isMounted]);
+  }, [history, historyIndex, onImageChange]);
 
-  // Image Editor Controls
-  const handleZoomIn = () => {
-    setZoomLevel((prev) => Math.min(prev + 0.1, 3));
-  };
+  const handleRedo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      const nextUrl = history[newIndex];
 
-  const handleZoomOut = () => {
-    setZoomLevel((prev) => Math.max(prev - 0.1, 0.5));
-  };
+      // Update the image
+      if (onImageChange && nextUrl) {
+        onImageChange(nextUrl);
+      }
+    }
+  }, [history, historyIndex, onImageChange]);
 
-  const handleToggleCropping = () => {
-    setIsCropping((prev) => !prev);
-    setIsBlurring(false);
-    setIsPainting(false);
-  };
+  // Apply crop
+  const handleApplyCrop = useCallback(() => {
+    if (cropToolRef.current) {
+      cropToolRef.current.applyCrop();
+    }
+  }, [cropToolRef]);
 
-  const handleToggleBlurring = () => {
-    setIsBlurring((prev) => !prev);
-    setIsCropping(false);
-    setIsPainting(false);
-  };
+  const handleCropResult = useCallback(
+    (croppedImageUrl: string) => {
+      if (!croppedImageUrl) return;
 
-  const handleTogglePainting = () => {
-    setIsPainting((prev) => !prev);
-    setIsCropping(false);
-    setIsBlurring(false);
-  };
+      // Get image dimensions and update stats
+      const img = new Image();
+      img.src = croppedImageUrl;
 
-  const handleExitEditMode = () => {
-    setIsEditMode(false);
-    setSelectedImage(null);
-    setZoomLevel(1);
-    setIsCropping(false);
-    setIsBlurring(false);
-    setIsPainting(false);
-  };
+      img.onload = async () => {
+        // Update dimensions
+        setWidth(img.width);
+        setHeight(img.height);
 
-  const handleEditImage = (image: ImageFile) => {
-    // Navigate to the image editor page with the image ID
-    router.push(`/image-editor/${image.id}`);
-  };
+        // Estimate blob size (in a real implementation, we would get this from the actual blob)
+        const estimatedSize = originalStats
+          ? Math.round(
+              ((img.width * img.height) /
+                (originalStats.width * originalStats.height)) *
+                originalStats.size
+            )
+          : 0;
 
-  if (!isMounted || isLoading) {
-    return (
-      <div className="animate-pulse">
-        <div className="h-8 w-32 bg-gray-300 rounded mb-4"></div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="aspect-square bg-gray-300 rounded"></div>
-          <div className="aspect-square bg-gray-300 rounded"></div>
-          <div className="aspect-square bg-gray-300 rounded"></div>
-        </div>
-      </div>
+        setNewStats({
+          width: img.width,
+          height: img.height,
+          size: estimatedSize,
+          format: format,
+        });
+
+        // Calculate data savings
+        if (originalStats) {
+          const savings = 100 - (estimatedSize / originalStats.size) * 100;
+          setDataSavings(savings);
+        }
+
+        setHasEdited(true);
+        setEditorState("editImage"); // Return to edit mode after applying crop
+
+        // Add to history
+        addToHistory(croppedImageUrl);
+
+        // Notify parent component
+        if (onImageChange) {
+          onImageChange(croppedImageUrl);
+        }
+      };
+    },
+    [originalStats, format, onImageChange, addToHistory]
+  );
+
+  // Apply blur
+  const handleApplyBlur = useCallback(() => {
+    if (blurCanvasRef.current) {
+      const dataUrl = blurCanvasRef.current.getCanvasDataUrl();
+      if (dataUrl) handleBlurResult(dataUrl);
+    }
+  }, [blurCanvasRef]);
+
+  const handleBlurResult = useCallback(
+    (blurredImageUrl: string) => {
+      if (!blurredImageUrl) return;
+
+      // Get image dimensions and update stats
+      const img = new Image();
+      img.src = blurredImageUrl;
+
+      img.onload = async () => {
+        // Update dimensions
+        setWidth(img.width);
+        setHeight(img.height);
+
+        // Estimate blob size (in a real implementation, we would get this from the actual blob)
+        const estimatedSize = originalStats
+          ? // Blurring often reduces file size slightly due to lower detail
+            Math.round(originalStats.size * 0.9)
+          : 0;
+
+        setNewStats({
+          width: img.width,
+          height: img.height,
+          size: estimatedSize,
+          format: format,
+        });
+
+        // Calculate data savings
+        if (originalStats) {
+          const savings = 100 - (estimatedSize / originalStats.size) * 100;
+          setDataSavings(savings);
+        }
+
+        setHasEdited(true);
+        setEditorState("editImage"); // Return to edit mode after applying blur
+
+        // Add to history
+        addToHistory(blurredImageUrl);
+
+        // Notify parent component
+        if (onImageChange) {
+          onImageChange(blurredImageUrl);
+        }
+      };
+    },
+    [originalStats, format, onImageChange, addToHistory]
+  );
+
+  // Apply paint
+  const handleApplyPaint = useCallback(() => {
+    if (paintToolRef.current) {
+      const dataUrl = paintToolRef.current.getCanvasDataUrl();
+      if (dataUrl) handlePaintResult(dataUrl);
+    }
+  }, [paintToolRef]);
+
+  const handlePaintResult = useCallback(
+    (paintedImageUrl: string) => {
+      if (!paintedImageUrl) return;
+
+      // Get image dimensions and update stats
+      const img = new Image();
+      img.src = paintedImageUrl;
+
+      img.onload = async () => {
+        // Update dimensions
+        setWidth(img.width);
+        setHeight(img.height);
+
+        // Estimate blob size (in a real implementation, we would get this from the actual blob)
+        const estimatedSize = originalStats
+          ? // Painting may increase file size slightly due to added detail
+            Math.round(originalStats.size * 1.05)
+          : 0;
+
+        setNewStats({
+          width: img.width,
+          height: img.height,
+          size: estimatedSize,
+          format: format,
+        });
+
+        // Calculate data savings
+        if (originalStats) {
+          const savings = 100 - (estimatedSize / originalStats.size) * 100;
+          setDataSavings(savings);
+        }
+
+        setHasEdited(true);
+        setEditorState("editImage"); // Return to edit mode after applying paint
+
+        // Add to history
+        addToHistory(paintedImageUrl);
+
+        // Notify parent component
+        if (onImageChange) {
+          onImageChange(paintedImageUrl);
+        }
+      };
+    },
+    [originalStats, format, onImageChange, addToHistory]
+  );
+
+  // Apply text
+  const handleApplyText = useCallback(() => {
+    if (textToolRef.current) {
+      textToolRef.current.applyText();
+    }
+  }, [textToolRef]);
+
+  const handleTextResult = useCallback(
+    (textedImageUrl: string) => {
+      if (!textedImageUrl) return;
+
+      // Get image dimensions and update stats
+      const img = new Image();
+      img.src = textedImageUrl;
+
+      img.onload = async () => {
+        // Update dimensions
+        setWidth(img.width);
+        setHeight(img.height);
+
+        // Estimate blob size (in a real implementation, we would get this from the actual blob)
+        const estimatedSize = originalStats
+          ? // Text may increase file size slightly
+            Math.round(originalStats.size * 1.02)
+          : 0;
+
+        setNewStats({
+          width: img.width,
+          height: img.height,
+          size: estimatedSize,
+          format: format,
+        });
+
+        // Calculate data savings
+        if (originalStats) {
+          const savings = 100 - (estimatedSize / originalStats.size) * 100;
+          setDataSavings(savings);
+        }
+
+        setHasEdited(true);
+        setEditorState("editImage"); // Return to edit mode after applying text
+
+        // Add to history
+        addToHistory(textedImageUrl);
+
+        // Notify parent component
+        if (onImageChange) {
+          onImageChange(textedImageUrl);
+        }
+      };
+    },
+    [originalStats, format, onImageChange, addToHistory]
+  );
+
+  // Reset image
+  const handleReset = useCallback(() => {
+    setHasEdited(false);
+    setNewStats(null);
+    setDataSavings(0);
+
+    // Reset dimensions to original
+    if (originalStats) {
+      setWidth(originalStats.width);
+      setHeight(originalStats.height);
+    }
+
+    // Reset history
+    setHistory([imageUrl]);
+    setHistoryIndex(0);
+
+    if (onReset) {
+      onReset();
+    }
+  }, [originalStats, onReset, imageUrl]);
+
+  // Download image
+  const handleDownload = useCallback(() => {
+    if (!canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx || !imgRef.current) return;
+
+    // Set canvas dimensions to match current image
+    canvas.width = imgRef.current.naturalWidth;
+    canvas.height = imgRef.current.naturalHeight;
+
+    // Draw the current image to canvas
+    ctx.drawImage(imgRef.current, 0, 0);
+
+    // Convert to the selected format and download
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          const fileNameWithoutExt = fileName.split(".")[0] || "image";
+          a.download = `${fileNameWithoutExt}-edited.${
+            format === "webp" ? "webp" : format === "jpeg" ? "jpg" : "png"
+          }`;
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      },
+      `image/${format}`,
+      0.9
     );
-  }
 
-  if (!uploadComplete) {
-    return (
-      <Card className="w-full shadow-lg">
-        <CardHeader className="text-center">
-          <div className="mx-auto bg-primary/10 p-4 rounded-full w-16 h-16 flex items-center justify-center mb-2">
-            <ImageIcon className="h-8 w-8 text-primary" />
-          </div>
-          <CardTitle>Upload Images</CardTitle>
-          <CardDescription>
-            Drag & drop or click to upload images
-          </CardDescription>
-        </CardHeader>
-        <CardContent
-          className={`border-dashed border-2 border-gray-300 p-4 rounded-lg text-center ${
-            isDragging ? "bg-gray-100" : ""
-          }`}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            ref={fileInputRef}
-            onChange={handleFileChange}
-          />
-          <EmptyPlaceholder
-            icon={<Upload className="h-12 w-12" />}
-            title="No images uploaded yet"
-            description="Upload images by clicking the button below or drag and drop files here"
-            className="py-8"
-          >
-            <Button onClick={handleUploadClick} className="mb-2">
-              <Upload className="mr-2 h-4 w-4" /> Choose Files
-            </Button>
-            <p className="text-sm text-gray-500">
-              You can also paste images from clipboard
-            </p>
-          </EmptyPlaceholder>
-        </CardContent>
-        <CardFooter className="justify-end">
-          <Button
-            variant="ghost"
-            onClick={resetUpload}
-            className="text-red-500"
-          >
-            Remove All
-          </Button>
-        </CardFooter>
-      </Card>
+    if (onDownload) {
+      onDownload();
+    }
+  }, [imgRef, canvasRef, fileName, format, onDownload]);
+
+  // Zoom in/out functions
+  const handleZoomIn = useCallback(() => {
+    setZoom((prev) => Math.min(prev + 0.1, 3));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoom((prev) => Math.max(prev - 0.1, 0.5));
+  }, []);
+
+  // Handle image rotation
+  const handleRotateClockwise = useCallback(() => {
+    if (!canvasRef.current || !imgRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Set canvas dimensions swapped for rotation
+    canvas.width = imgRef.current.naturalHeight;
+    canvas.height = imgRef.current.naturalWidth;
+
+    // Transform and rotate
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(
+      imgRef.current,
+      -imgRef.current.naturalWidth / 2,
+      -imgRef.current.naturalHeight / 2
     );
-  }
 
-  if (isEditMode && selectedImage) {
-    return (
-      <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col">
-        <div className="space-y-6">
-          {/* Thumbnail strip with editing mode indicator */}
-          <div className="grid grid-cols-5 md:grid-cols-10 gap-2 p-2 bg-gray-800 rounded-lg opacity-50 max-h-12 overflow-hidden transition-all duration-300 scale-90 transform origin-top">
-            <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-              <Lock className="h-6 w-6 text-white opacity-70" />
-              <span className="ml-2 text-white text-sm opacity-70">
-                Editing Mode Active
-              </span>
-            </div>
+    // Get the rotated image
+    const rotatedImageUrl = canvas.toDataURL(`image/${format}`);
 
-            {images.map((image, index) => (
-              <div
-                key={image.id}
-                className="relative group aspect-square animate-fade-scale-in"
-                style={{ animationDelay: `${index * 0.05}s` }}
-              >
-                <Image
-                  src={image.url}
-                  alt="Uploaded image"
-                  fill
-                  className="object-cover rounded-md"
-                />
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100">
-                  <button
-                    className="p-2 bg-blue-500 text-white rounded-full transform transition-transform group-hover:scale-110"
-                    aria-label="Expand image"
-                    disabled
-                  >
-                    <Maximize2 size={20} />
-                  </button>
-                </div>
-                <button
-                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label="Remove image"
-                  disabled
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
+    // Update dimensions
+    setWidth(canvas.width);
+    setHeight(canvas.height);
 
-          <div className="mt-8">
-            <div className="space-y-6">
-              {/* Image editing toolbar */}
-              <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 mr-2">
-                    <Button onClick={handleZoomOut} variant="outline">
-                      <span className="text-lg">-</span>
-                    </Button>
-                    <Button onClick={handleZoomIn} variant="outline">
-                      <span className="text-lg">+</span>
-                    </Button>
-                  </div>
-                  <Button onClick={handleToggleCropping} variant="outline">
-                    <Crop className="mr-2 h-4 w-4" />
-                    Crop Image
-                  </Button>
-                  <Button onClick={handleToggleBlurring} variant="outline">
-                    <Droplets className="mr-2 h-4 w-4" />
-                    Blur Tool
-                  </Button>
-                  <Button onClick={handleTogglePainting} variant="outline">
-                    <Paintbrush className="mr-2 h-4 w-4" />
-                    Paint Tool
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button onClick={handleExitEditMode} variant="default">
-                    <X className="mr-2 h-4 w-4" />
-                    Exit Edit Mode
-                  </Button>
-                </div>
-              </div>
+    // Add to history
+    addToHistory(rotatedImageUrl);
 
-              {/* Image editor area */}
-              <div className="flex flex-col gap-6">
-                <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
-                  <section className="col-span-1">
-                    <div className="space-y-2">
-                      <div className="relative border rounded-lg overflow-hidden">
-                        <div
-                          className="overflow-auto"
-                          style={{ maxHeight: "85vh", height: "85vh" }}
-                        >
-                          <img
-                            src={selectedImage.url}
-                            alt="Edited image"
-                            className="max-w-full transform origin-top-left"
-                            style={{ transform: `scale(${zoomLevel})` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-                </div>
-              </div>
+    // Notify parent component
+    if (onImageChange) {
+      onImageChange(rotatedImageUrl);
+    }
+  }, [imgRef, canvasRef, format, onImageChange, addToHistory]);
 
-              {/* Hidden canvas for image processing */}
-              <canvas ref={canvasRef} className="hidden"></canvas>
-            </div>
-          </div>
-        </div>
+  const handleRotateCounterClockwise = useCallback(() => {
+    if (!canvasRef.current || !imgRef.current) return;
 
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          ref={fileInputRef}
-          onChange={handleFileChange}
-        />
-      </div>
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Set canvas dimensions swapped for rotation
+    canvas.width = imgRef.current.naturalHeight;
+    canvas.height = imgRef.current.naturalWidth;
+
+    // Transform and rotate
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.drawImage(
+      imgRef.current,
+      -imgRef.current.naturalWidth / 2,
+      -imgRef.current.naturalHeight / 2
     );
-  }
+
+    // Get the rotated image
+    const rotatedImageUrl = canvas.toDataURL(`image/${format}`);
+
+    // Update dimensions
+    setWidth(canvas.width);
+    setHeight(canvas.height);
+
+    // Add to history
+    addToHistory(rotatedImageUrl);
+
+    // Notify parent component
+    if (onImageChange) {
+      onImageChange(rotatedImageUrl);
+    }
+  }, [imgRef, canvasRef, format, onImageChange, addToHistory]);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      {images.map((image) => (
-        <Card
-          key={image.id}
-          className={`group relative overflow-hidden polaroid-card ${
-            image.isNew ? "polaroid-new" : ""
-          } cursor-pointer`}
-        >
-          <div className="relative aspect-square w-full">
-            <Image
-              src={image.url}
-              alt={image.file.name}
-              fill
-              sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-              className="object-cover"
-              placeholder="blur"
-              blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiNlMmUyZTIiLz48L3N2Zz4="
-            />
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <ImagePlaceholder className="w-full h-full" />
+    <div className={`flex flex-col gap-6 ${className}`}>
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
+        {/* resizeAndOptimize state toolbar */}
+        {editorState === "resizeAndOptimize" && (
+          <>
+            <div className="flex items-center gap-2">
+              {/* Zoom controls */}
+              <Button
+                onClick={handleZoomOut}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleZoomIn}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+
+              <Button
+                onClick={() => setEditorState("editImage")}
+                variant="outline"
+                className="h-9"
+                data-testid="edit-image-button"
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit Image Mode
+              </Button>
+
+              <Button
+                onClick={() => {
+                  /* Disabled */
+                }}
+                variant="outline"
+                className="h-9 opacity-50"
+                disabled
+              >
+                <Images className="mr-2 h-4 w-4" />
+                Multi Edit
+              </Button>
+
+              {/* Gallery-style pagination controls after Multi Edit button */}
+              {onNavigateImage && (
+                <SimplePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onNavigate={onNavigateImage}
+                  className="ml-2 flex"
+                />
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button onClick={handleReset} variant="outline" className="h-9">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reset
+              </Button>
+
+              <Button
+                onClick={handleDownload}
+                variant="outline"
+                className="h-9"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
+
+              {/* Back to gallery */}
+              {onClose && (
+                <Button onClick={onClose} variant="outline" className="h-9">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Upload
+                </Button>
+              )}
+
+              {/* Upload New button */}
+              {onUploadNew && (
+                <Button onClick={onUploadNew} variant="outline" className="h-9">
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload New
+                </Button>
+              )}
+
+              {/* Remove all */}
+              {onRemoveAll && (
+                <Button
+                  onClick={onRemoveAll}
+                  variant="destructive"
+                  className="h-9"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Remove All Images
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* editImage state toolbar with 3-column grid layout */}
+        {editorState === "editImage" && (
+          <div className="w-full grid grid-cols-3 items-center">
+            {/* Left section - icons only, no text */}
+            <div className="flex items-center gap-2 justify-self-start">
+              <Button
+                onClick={handleZoomOut}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                title="Zoom Out"
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleZoomIn}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                title="Zoom In"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleUndo}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                disabled={historyIndex <= 0}
+                title="Undo"
+              >
+                <Undo className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleRedo}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                disabled={historyIndex >= history.length - 1}
+                title="Redo"
+              >
+                <Redo className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleRotateCounterClockwise}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                title="Rotate Left"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleRotateClockwise}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                title="Rotate Right"
+              >
+                <RotateCw className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Center section - state changing buttons with text */}
+            <div className="flex items-center gap-2 justify-self-center">
+              <Button
+                onClick={() => setEditorState("crop")}
+                variant="outline"
+                className="h-9"
+              >
+                <Crop className="mr-2 h-4 w-4" />
+                Crop Image
+              </Button>
+              <Button
+                onClick={() => setEditorState("blur")}
+                variant="outline"
+                className="h-9"
+              >
+                <Droplets className="mr-2 h-4 w-4" />
+                Blur Tool
+              </Button>
+              <Button
+                onClick={() => setEditorState("paint")}
+                variant="outline"
+                className="h-9"
+              >
+                <Paintbrush className="mr-2 h-4 w-4" />
+                Paint Tool
+              </Button>
+              <Button
+                onClick={() => setEditorState("text")}
+                variant="outline"
+                className="h-9"
+              >
+                <Type className="mr-2 h-4 w-4" />
+                Text Tool
+              </Button>
+            </div>
+
+            {/* Right section - Exit button */}
+            <div className="flex items-center gap-2 justify-self-end">
+              <Button
+                onClick={() => setEditorState("resizeAndOptimize")}
+                variant="outline"
+                className="h-9"
+              >
+                <X className="mr-2 h-4 w-4" />
+                Exit Edit Mode
+              </Button>
             </div>
           </div>
-          <div className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400 truncate px-2">
-            {image.file.name}
-          </div>
-          <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              variant="default"
-              size="icon"
-              className="p-1 bg-blue-500 text-white rounded-full"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleEditImage(image);
-              }}
+        )}
+
+        {/* Tool-specific states */}
+        {(editorState === "crop" ||
+          editorState === "blur" ||
+          editorState === "paint" ||
+          editorState === "text") && (
+          <>
+            <div className="flex items-center gap-2">
+              {/* Zoom controls */}
+              <Button
+                onClick={handleZoomOut}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleZoomIn}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+
+              {/* Tool-specific controls */}
+              {editorState === "crop" && (
+                <>
+                  <Button
+                    onClick={handleApplyCrop}
+                    variant="default"
+                    className="h-9"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Crop
+                  </Button>
+                  <Button
+                    onClick={() => setEditorState("editImage")}
+                    variant="outline"
+                    className="h-9"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                </>
+              )}
+
+              {editorState === "blur" && (
+                <>
+                  <Button
+                    onClick={handleApplyBlur}
+                    variant="default"
+                    className="h-9"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Blur
+                  </Button>
+                  <Button
+                    onClick={() => setEditorState("editImage")}
+                    variant="outline"
+                    className="h-9"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                </>
+              )}
+
+              {editorState === "paint" && (
+                <>
+                  <Button
+                    onClick={handleApplyPaint}
+                    variant="default"
+                    className="h-9"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Paint
+                  </Button>
+                  <Button
+                    onClick={() => setIsEraser(!isEraser)}
+                    variant={isEraser ? "default" : "outline"}
+                    className="h-9"
+                  >
+                    <Eraser className="mr-2 h-4 w-4" />
+                    {isEraser ? "Brush" : "Eraser"}
+                  </Button>
+                  <Button
+                    onClick={() => setEditorState("editImage")}
+                    variant="outline"
+                    className="h-9"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                </>
+              )}
+
+              {editorState === "text" && (
+                <>
+                  <Button
+                    onClick={handleApplyText}
+                    variant="default"
+                    className="h-9"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Text
+                  </Button>
+                  <Button
+                    onClick={() => setEditorState("editImage")}
+                    variant="outline"
+                    className="h-9"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Tool-specific secondary toolbars */}
+      {editorState === "blur" && (
+        <div className="flex items-center gap-4 p-2 bg-gray-700 rounded-lg mb-4">
+          <div className="flex-1">
+            <label
+              htmlFor="blur-amount"
+              className="text-sm font-medium block mb-1 text-white"
             >
-              <Edit2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="destructive"
-              size="icon"
-              className="p-1 bg-red-500 text-white rounded-full"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeImage(image.id);
-              }}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+              Blur Amount: {blurAmount}px
+            </label>
+            <input
+              id="blur-amount"
+              type="range"
+              min="1"
+              max="20"
+              value={blurAmount}
+              onChange={(e) => setBlurAmount(parseInt(e.target.value))}
+              className="w-full"
+            />
           </div>
-        </Card>
-      ))}
+          <div className="flex-1">
+            <label
+              htmlFor="blur-radius"
+              className="text-sm font-medium block mb-1 text-white"
+            >
+              Brush Size: {blurRadius}px
+            </label>
+            <input
+              id="blur-radius"
+              type="range"
+              min="5"
+              max="50"
+              value={blurRadius}
+              onChange={(e) => setBlurRadius(parseInt(e.target.value))}
+              className="w-full"
+            />
+          </div>
+        </div>
+      )}
+
+      {editorState === "paint" && (
+        <div className="flex items-center gap-4 p-2 bg-gray-700 rounded-lg mb-4">
+          <div className="flex-1">
+            <label
+              htmlFor="brush-size"
+              className="text-sm font-medium block mb-1 text-white"
+            >
+              Brush Size: {brushSize}px
+            </label>
+            <input
+              id="brush-size"
+              type="range"
+              min="1"
+              max="50"
+              value={brushSize}
+              onChange={(e) => setBrushSize(parseInt(e.target.value))}
+              className="w-full"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-white mr-2">
+              Color:
+            </label>
+            <div className="flex gap-1">
+              {[
+                "#ff0000",
+                "#00ff00",
+                "#0000ff",
+                "#ffff00",
+                "#ff00ff",
+                "#00ffff",
+                "#ffffff",
+                "#000000",
+              ].map((color) => (
+                <button
+                  key={color}
+                  className={`w-6 h-6 rounded-full border ${
+                    brushColor === color ? "border-white" : "border-gray-600"
+                  }`}
+                  style={{ backgroundColor: color }}
+                  onClick={() => setBrushColor(color)}
+                />
+              ))}
+            </div>
+            <input
+              type="color"
+              value={brushColor}
+              onChange={(e) => setBrushColor(e.target.value)}
+              className="h-8 w-8 ml-2 rounded cursor-pointer"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {/* Main editing area */}
+          <section className="md:col-span-3">
+            <div className="space-y-2">
+              <div className="relative border rounded-lg overflow-hidden">
+                {editorState === "crop" ? (
+                  <CroppingTool
+                    ref={cropToolRef}
+                    imageUrl={imageUrl}
+                    onApply={handleCropResult}
+                    onCancel={() => setEditorState("editImage")}
+                  />
+                ) : editorState === "blur" ? (
+                  <BlurBrushCanvas
+                    ref={blurCanvasRef}
+                    imageUrl={imageUrl}
+                    blurAmount={blurAmount}
+                    blurRadius={blurRadius}
+                    zoom={zoom}
+                    onApply={handleBlurResult}
+                    onCancel={() => setEditorState("editImage")}
+                    onBlurAmountChange={setBlurAmount}
+                    onBlurRadiusChange={setBlurRadius}
+                  />
+                ) : editorState === "paint" ? (
+                  <PaintTool
+                    ref={paintToolRef}
+                    imageUrl={imageUrl}
+                    onApplyPaint={handlePaintResult}
+                    onCancel={() => setEditorState("editImage")}
+                    onToggleEraser={() => setIsEraser(!isEraser)}
+                    isEraser={isEraser}
+                  />
+                ) : editorState === "text" ? (
+                  <TextTool
+                    ref={textToolRef}
+                    imageUrl={imageUrl}
+                    onApplyText={handleTextResult}
+                    onCancel={() => setEditorState("editImage")}
+                    // Fix for the type error - create an adapter function
+                    setEditorState={(state: string) =>
+                      setEditorState(state as any)
+                    }
+                    setBold={setIsBold}
+                    setItalic={setIsItalic}
+                  />
+                ) : (
+                  <div
+                    className="overflow-auto"
+                    style={{
+                      maxHeight: "700px",
+                      height: "70vh",
+                    }}
+                  >
+                    <img
+                      ref={imgRef}
+                      src={imageUrl}
+                      alt="Edited image"
+                      className="max-w-full transform origin-top-left"
+                      style={{ transform: `scale(${zoom})` }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Sidebar with controls */}
+          <aside className="md:col-span-1 space-y-6">
+            {/* Only show resizer in resizeAndOptimize mode */}
+            {editorState === "resizeAndOptimize" && (
+              <ImageResizer
+                width={width}
+                height={height}
+                maxWidth={originalStats?.width || 1000}
+                maxHeight={originalStats?.height || 1000}
+                onResize={handleResize}
+                onApplyResize={handleApplyResize}
+                format={format}
+                onFormatChange={setFormat}
+                onDownload={handleDownload}
+                isCompressing={isCompressing}
+              />
+            )}
+
+            {hasEdited && <ImageZoomView imageUrl={imageUrl} />}
+          </aside>
+        </div>
+
+        {/* Image Information Cards - only shown in resizeAndOptimize mode */}
+        {editorState === "resizeAndOptimize" && originalStats && (
+          <ImageStats
+            originalStats={originalStats}
+            newStats={newStats}
+            dataSavings={dataSavings}
+            hasEdited={hasEdited}
+            fileName={fileName}
+            format={format}
+            fileType={fileType}
+          />
+        )}
+
+        {/* Hidden canvas for image processing */}
+        <canvas ref={canvasRef} className="hidden" />
+      </div>
+    </div>
+  );
+}
+
+// Blur controls component
+export function BlurControls({
+  blurAmount,
+  blurRadius,
+  onBlurAmountChange,
+  onBlurRadiusChange,
+}: {
+  blurAmount: number;
+  blurRadius: number;
+  onBlurAmountChange: (amount: number) => void;
+  onBlurRadiusChange: (radius: number) => void;
+}) {
+  return (
+    <div className="space-y-4 p-4 bg-gray-800 rounded-lg mb-4">
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <label htmlFor="blur-amount" className="text-sm text-white">
+            Blur Amount: {blurAmount}px
+          </label>
+        </div>
+        <Slider
+          id="blur-amount"
+          min={1}
+          max={20}
+          step={1}
+          value={[blurAmount]}
+          onValueChange={(value) => onBlurAmountChange(value[0])}
+        />
+      </div>
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <label htmlFor="blur-radius" className="text-sm text-white">
+            Brush Size: {blurRadius}px
+          </label>
+        </div>
+        <Slider
+          id="blur-radius"
+          min={5}
+          max={50}
+          step={1}
+          value={[blurRadius]}
+          onValueChange={(value) => onBlurRadiusChange(value[0])}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Paint controls component
+export function PaintControls({
+  brushSize,
+  brushColor,
+  onBrushSizeChange,
+  onBrushColorChange,
+}: {
+  brushSize: number;
+  brushColor: string;
+  onBrushSizeChange: (size: number) => void;
+  onBrushColorChange: (color: string) => void;
+}) {
+  return (
+    <div className="space-y-4 p-4 bg-gray-800 rounded-lg mb-4">
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <label htmlFor="brush-size" className="text-sm text-white">
+            Brush Size: {brushSize}px
+          </label>
+        </div>
+        <Slider
+          id="brush-size"
+          min={1}
+          max={50}
+          step={1}
+          value={[brushSize]}
+          onValueChange={(value) => onBrushSizeChange(value[0])}
+        />
+      </div>
+      <div className="space-y-2">
+        <label htmlFor="brush-color" className="text-sm text-white block mb-2">
+          Brush Color
+        </label>
+        <div className="flex items-center gap-2">
+          <div
+            className="w-10 h-10 rounded-md border border-gray-600"
+            style={{ backgroundColor: brushColor }}
+          ></div>
+          <input
+            id="brush-color"
+            type="color"
+            value={brushColor}
+            onChange={(e) => onBrushColorChange(e.target.value)}
+            className="h-10 w-20"
+          />
+        </div>
+      </div>
     </div>
   );
 }

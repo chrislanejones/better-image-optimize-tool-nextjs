@@ -29,8 +29,9 @@ import {
   CardTitle,
   CardFooter,
 } from "@/components/ui/card";
-import { ImageFile } from "@/types/types";
-import ImageEditor from "@/app/image-editor"; // Import the fixed ImageEditor component
+import { ImageFile, NavigationDirection } from "@/types/types";
+import ImageEditor from "@/app/image-editor";
+import SimplePagination from "./components/pagination-controls";
 
 // Constants for pagination
 const IMAGES_PER_PAGE = 10;
@@ -109,8 +110,12 @@ export default function ImageUploader() {
   };
 
   const removeImage = (id: string) => {
+    // Check if images array is empty first
+    if (images.length === 0) return;
+
     // Find image index before removing
     const imageIndex = images.findIndex((img) => img.id === id);
+    if (imageIndex === -1) return; // Image not found
 
     // Filter out the image
     const updatedImages = images.filter((image) => image.id !== id);
@@ -178,9 +183,8 @@ export default function ImageUploader() {
     setSelectedImage({ ...selectedImage, url: newImageUrl });
   };
 
-  // Navigation handlers
   const handleNavigateImage = useCallback(
-    (direction: "next" | "prev" | "first" | "last") => {
+    (direction: NavigationDirection) => {
       if (images.length === 0 || !selectedImage) return;
 
       const currentIndex = images.findIndex(
@@ -192,19 +196,23 @@ export default function ImageUploader() {
 
       switch (direction) {
         case "next":
+          // Move to next image, with wrapping
           newIndex = (currentIndex + 1) % images.length;
           break;
         case "prev":
+          // Move to previous image, with wrapping
           newIndex = (currentIndex - 1 + images.length) % images.length;
           break;
-        case "first":
-          newIndex = 0;
+        case "next10":
+          // Jump forward 10 images, but don't exceed the array bounds
+          newIndex = Math.min(currentIndex + 10, images.length - 1);
           break;
-        case "last":
-          newIndex = images.length - 1;
+        case "prev10":
+          // Jump backward 10 images, but don't go below 0
+          newIndex = Math.max(currentIndex - 10, 0);
           break;
         default:
-          return;
+          return; // Unknown direction
       }
 
       // Update selected image
@@ -264,7 +272,7 @@ export default function ImageUploader() {
         addFiles(e.clipboardData.files);
       } else if (e.clipboardData && e.clipboardData.items) {
         const items = e.clipboardData.items;
-        const imageItems: any[] = [];
+        const imageItems: File[] = [];
 
         for (let i = 0; i < items.length; i++) {
           if (items[i].type.indexOf("image") !== -1) {
@@ -491,93 +499,21 @@ export default function ImageUploader() {
         ))}
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex justify-center mt-6">
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              onClick={() => {
-                // Back 10 images (or to the first page)
-                const newPage = Math.max(1, currentPage - 1);
-                setCurrentPage(newPage);
-              }}
-              disabled={currentPage === 1}
-              className="h-9 px-3"
-              title="Back 10 images"
-            >
-              <ChevronsLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                // If there's a selected image, select the previous one
-                if (selectedImage) {
-                  const currentIndex = images.findIndex(
-                    (img) => img.id === selectedImage.id
-                  );
-                  if (currentIndex > 0) {
-                    selectImage(images[currentIndex - 1]);
-                  }
-                } else {
-                  // Otherwise just go to previous page
-                  handlePageChange(Math.max(1, currentPage - 1));
-                }
-              }}
-              disabled={
-                currentPage === 1 &&
-                (!selectedImage ||
-                  images.findIndex((img) => img.id === selectedImage.id) === 0)
-              }
-              className="h-9 px-3"
-              title="Select image to the left"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm px-2">
-              Page {currentPage} of {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              onClick={() => {
-                // If there's a selected image, select the next one
-                if (selectedImage) {
-                  const currentIndex = images.findIndex(
-                    (img) => img.id === selectedImage.id
-                  );
-                  if (currentIndex < images.length - 1) {
-                    selectImage(images[currentIndex + 1]);
-                  }
-                } else {
-                  // Otherwise just go to next page
-                  handlePageChange(Math.min(totalPages, currentPage + 1));
-                }
-              }}
-              disabled={
-                currentPage === totalPages &&
-                (!selectedImage ||
-                  images.findIndex((img) => img.id === selectedImage.id) ===
-                    images.length - 1)
-              }
-              className="h-9 px-3"
-              title="Select image to the right"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                // Forward 10 images (or to the last page)
-                const newPage = Math.min(totalPages, currentPage + 1);
-                setCurrentPage(newPage);
-              }}
-              disabled={currentPage === totalPages}
-              className="h-9 px-3"
-              title="Forward 10 images"
-            >
-              <ChevronsRight className="h-4 w-4" />
-            </Button>
-          </div>
+          <SimplePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onBackTen={() => handlePageChange(Math.max(1, currentPage - 10))}
+            onPrevious={() => handlePageChange(Math.max(1, currentPage - 1))}
+            onNext={() =>
+              handlePageChange(Math.min(totalPages, currentPage + 1))
+            }
+            onForwardTen={() =>
+              handlePageChange(Math.min(totalPages, currentPage + 10))
+            }
+            className="ml-4"
+          />
         </div>
       )}
 

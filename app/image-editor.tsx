@@ -1,41 +1,47 @@
-"use client";
+// Updated image-editor.tsx to always display pagination with multiple photos
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import {
+  X,
+  Minus,
+  Plus,
   Crop,
   Droplets,
   Paintbrush,
+  Check,
+  RefreshCw,
+  Upload,
+  Trash2,
   Eraser,
   Download,
-  RefreshCw,
-  ArrowLeft,
   Type,
-  Plus,
-  Minus,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
+  Images,
+  Moon,
+  Sun,
+  User,
+  Undo,
+  Redo,
+  RotateCw,
+  RotateCcw,
+  ArrowLeft,
   Pencil,
 } from "lucide-react";
-import Toolbar from "./components/toolbar";
-import CroppingTool, { CroppingToolRef } from "./components/cropping-tool";
+import { Button } from "@/components/ui/button";
+import CroppingTool, { type CroppingToolRef } from "./components/cropping-tool";
 import BlurBrushCanvas from "./components/blur-tool";
 import PaintTool from "./components/paint-tool";
+import TextTool from "./components/text-tool";
 import ImageResizer from "./components/image-resizer";
 import ImageStats from "./components/image-stats";
 import ImageZoomView from "./components/image-zoom-view";
-import { ImageEditorProps } from "@/types/types";
-
-// Define the editor states with clearer names
-type EditorState =
-  | "resizeAndOptimize" // Simple resize & optimize state (default view)
-  | "editImage" // Main editing state with tools menu
-  | "crop" // Cropping mode
-  | "blur" // Blur tool mode
-  | "paint" // Paint tool mode
-  | "text"; // Text tool mode (to be implemented)
+import SimplePagination from "./components/pagination-controls";
+import {
+  ImageEditorProps,
+  NavigationDirection,
+  ImageInfo,
+  EditorMode,
+} from "@/types/types";
+import { useTheme } from "next-themes";
 
 export default function ImageEditor({
   imageUrl,
@@ -52,12 +58,17 @@ export default function ImageEditor({
   onNavigateImage,
   onRemoveAll,
   onUploadNew,
+  // Additional props for enhanced pagination
+  allImages = [],
+  currentImageId = "",
+  onSelectImage,
 }: ImageEditorProps) {
   // Editor state
-  const [editorState, setEditorState] =
-    useState<EditorState>("resizeAndOptimize");
+  const [editorState, setEditorState] = useState<EditorMode>("view");
   const [isCompressing, setIsCompressing] = useState<boolean>(false);
   const [zoom, setZoom] = useState<number>(1);
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
   // Tool states
   const [isEraser, setIsEraser] = useState<boolean>(false);
@@ -66,6 +77,8 @@ export default function ImageEditor({
   const [brushSize, setBrushSize] = useState<number>(10);
   const [brushColor, setBrushColor] = useState<string>("#ff0000");
   const [format, setFormat] = useState<string>("jpeg");
+  const [isBold, setIsBold] = useState<boolean>(false);
+  const [isItalic, setIsItalic] = useState<boolean>(false);
 
   // Image stats
   const [width, setWidth] = useState<number>(0);
@@ -75,12 +88,28 @@ export default function ImageEditor({
   const [dataSavings, setDataSavings] = useState<number>(0);
   const [hasEdited, setHasEdited] = useState<boolean>(false);
 
+  // History states
+  const [history, setHistory] = useState<string[]>([imageUrl]);
+  const [historyIndex, setHistoryIndex] = useState<number>(0);
+
   // Refs
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cropToolRef = useRef<CroppingToolRef>(null);
   const blurCanvasRef = useRef<any>(null);
   const paintToolRef = useRef<any>(null);
+  const textToolRef = useRef<any>(null);
+
+  // Wait for component to mount to avoid hydration issues with theme
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Toggle theme function
+  const toggleTheme = useCallback(() => {
+    if (!mounted) return;
+    setTheme(theme === "dark" ? "light" : "dark");
+  }, [mounted, theme, setTheme]);
 
   // Initialize image dimensions and stats
   useEffect(() => {
@@ -101,23 +130,17 @@ export default function ImageEditor({
     img.src = imageUrl;
   }, [imageUrl, fileSize, fileType]);
 
-  // State transition handlers
-  const enterEditMode = useCallback(() => {
-    setEditorState("editImage");
-  }, []);
-
-  const exitEditMode = useCallback(() => {
-    setEditorState("resizeAndOptimize");
-  }, []);
-
-  const handleToggleState = useCallback((state: EditorState) => {
-    setEditorState((prev) => (prev === state ? "editImage" : state));
-  }, []);
-
-  // Toggle eraser for paint tool
-  const toggleEraser = useCallback(() => {
-    setIsEraser((prev) => !prev);
-  }, []);
+  // Reset editor state when image changes via pagination
+  useEffect(() => {
+    setEditorState("view");
+    setZoom(1);
+    setIsEraser(false);
+    setHistory([imageUrl]);
+    setHistoryIndex(0);
+    setHasEdited(false);
+    setNewStats(null);
+    setDataSavings(0);
+  }, [imageUrl]);
 
   // Handle resize
   const handleResize = useCallback((newWidth: number, newHeight: number) => {
@@ -133,9 +156,6 @@ export default function ImageEditor({
     if (!imgRef.current || !originalStats) return;
 
     try {
-      // In an actual implementation, this would apply the actual resize
-      // For now, we'll simulate it with updated stats
-
       // Calculate new size (simplified estimation)
       const areaRatio =
         (width * height) / (originalStats.width * originalStats.height);
@@ -154,9 +174,11 @@ export default function ImageEditor({
       setDataSavings(savings);
       setHasEdited(true);
 
+      // Add to history
+      addToHistory(imageUrl);
+
       // Notify parent if needed
       if (onImageChange) {
-        // In a real implementation, we would create a new image URL here
         onImageChange(imageUrl);
       }
 
@@ -170,8 +192,53 @@ export default function ImageEditor({
     }
   }, [width, height, format, originalStats, imageUrl, onImageChange]);
 
+  // History management
+  const addToHistory = useCallback(
+    (url: string) => {
+      setHistory((prev) => {
+        // If we're not at the end of history, remove everything after current index
+        const newHistory = prev.slice(0, historyIndex + 1);
+        return [...newHistory, url];
+      });
+      setHistoryIndex((prev) => prev + 1);
+    },
+    [historyIndex]
+  );
+
+  const handleUndo = useCallback(() => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      const prevUrl = history[newIndex];
+
+      // Update the image
+      if (onImageChange && prevUrl) {
+        onImageChange(prevUrl);
+      }
+    }
+  }, [history, historyIndex, onImageChange]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      const nextUrl = history[newIndex];
+
+      // Update the image
+      if (onImageChange && nextUrl) {
+        onImageChange(nextUrl);
+      }
+    }
+  }, [history, historyIndex, onImageChange]);
+
   // Apply crop
-  const handleApplyCrop = useCallback(
+  const handleApplyCrop = useCallback(() => {
+    if (cropToolRef.current) {
+      cropToolRef.current.applyCrop();
+    }
+  }, [cropToolRef]);
+
+  const handleCropResult = useCallback(
     (croppedImageUrl: string) => {
       if (!croppedImageUrl) return;
 
@@ -180,7 +247,7 @@ export default function ImageEditor({
       img.src = croppedImageUrl;
 
       img.onload = async () => {
-        // Update stats
+        // Update dimensions
         setWidth(img.width);
         setHeight(img.height);
 
@@ -207,7 +274,10 @@ export default function ImageEditor({
         }
 
         setHasEdited(true);
-        setEditorState("editImage"); // Return to edit mode after applying crop
+        setEditorState("edit"); // Return to edit mode after applying crop
+
+        // Add to history
+        addToHistory(croppedImageUrl);
 
         // Notify parent component
         if (onImageChange) {
@@ -215,11 +285,18 @@ export default function ImageEditor({
         }
       };
     },
-    [originalStats, format, onImageChange]
+    [originalStats, format, onImageChange, addToHistory]
   );
 
   // Apply blur
-  const handleBlurApply = useCallback(
+  const handleApplyBlur = useCallback(() => {
+    if (blurCanvasRef.current) {
+      const dataUrl = blurCanvasRef.current.getCanvasDataUrl();
+      if (dataUrl) handleBlurResult(dataUrl);
+    }
+  }, [blurCanvasRef]);
+
+  const handleBlurResult = useCallback(
     (blurredImageUrl: string) => {
       if (!blurredImageUrl) return;
 
@@ -252,7 +329,10 @@ export default function ImageEditor({
         }
 
         setHasEdited(true);
-        setEditorState("editImage"); // Return to edit mode after applying blur
+        setEditorState("edit"); // Return to edit mode after applying blur
+
+        // Add to history
+        addToHistory(blurredImageUrl);
 
         // Notify parent component
         if (onImageChange) {
@@ -260,11 +340,18 @@ export default function ImageEditor({
         }
       };
     },
-    [originalStats, format, onImageChange]
+    [originalStats, format, onImageChange, addToHistory]
   );
 
   // Apply paint
-  const handlePaintApply = useCallback(
+  const handleApplyPaint = useCallback(() => {
+    if (paintToolRef.current) {
+      const dataUrl = paintToolRef.current.getCanvasDataUrl();
+      if (dataUrl) handlePaintResult(dataUrl);
+    }
+  }, [paintToolRef]);
+
+  const handlePaintResult = useCallback(
     (paintedImageUrl: string) => {
       if (!paintedImageUrl) return;
 
@@ -297,7 +384,10 @@ export default function ImageEditor({
         }
 
         setHasEdited(true);
-        setEditorState("editImage"); // Return to edit mode after applying paint
+        setEditorState("edit"); // Return to edit mode after applying paint
+
+        // Add to history
+        addToHistory(paintedImageUrl);
 
         // Notify parent component
         if (onImageChange) {
@@ -305,7 +395,61 @@ export default function ImageEditor({
         }
       };
     },
-    [originalStats, format, onImageChange]
+    [originalStats, format, onImageChange, addToHistory]
+  );
+
+  // Apply text
+  const handleApplyText = useCallback(() => {
+    if (textToolRef.current) {
+      textToolRef.current.applyText();
+    }
+  }, [textToolRef]);
+
+  const handleTextResult = useCallback(
+    (textedImageUrl: string) => {
+      if (!textedImageUrl) return;
+
+      // Get image dimensions and update stats
+      const img = new Image();
+      img.src = textedImageUrl;
+
+      img.onload = async () => {
+        // Update dimensions
+        setWidth(img.width);
+        setHeight(img.height);
+
+        // Estimate blob size (in a real implementation, we would get this from the actual blob)
+        const estimatedSize = originalStats
+          ? // Text may increase file size slightly
+            Math.round(originalStats.size * 1.02)
+          : 0;
+
+        setNewStats({
+          width: img.width,
+          height: img.height,
+          size: estimatedSize,
+          format: format,
+        });
+
+        // Calculate data savings
+        if (originalStats) {
+          const savings = 100 - (estimatedSize / originalStats.size) * 100;
+          setDataSavings(savings);
+        }
+
+        setHasEdited(true);
+        setEditorState("edit"); // Return to edit mode after applying text
+
+        // Add to history
+        addToHistory(textedImageUrl);
+
+        // Notify parent component
+        if (onImageChange) {
+          onImageChange(textedImageUrl);
+        }
+      };
+    },
+    [originalStats, format, onImageChange, addToHistory]
   );
 
   // Reset image
@@ -320,10 +464,14 @@ export default function ImageEditor({
       setHeight(originalStats.height);
     }
 
+    // Reset history
+    setHistory([imageUrl]);
+    setHistoryIndex(0);
+
     if (onReset) {
       onReset();
     }
-  }, [originalStats, onReset]);
+  }, [originalStats, onReset, imageUrl]);
 
   // Download image
   const handleDownload = useCallback(() => {
@@ -374,247 +522,418 @@ export default function ImageEditor({
     setZoom((prev) => Math.max(prev - 0.1, 0.5));
   }, []);
 
-  // Cancel tool operation and return to edit mode
-  const cancelTool = useCallback(() => {
-    setEditorState("editImage");
-  }, []);
+  // Handle image rotation
+  const handleRotateClockwise = useCallback(() => {
+    if (!canvasRef.current || !imgRef.current) return;
 
-  // Helper to determine if we're in edit mode or any tool mode
-  const isInEditingState = editorState !== "default";
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Set canvas dimensions swapped for rotation
+    canvas.width = imgRef.current.naturalHeight;
+    canvas.height = imgRef.current.naturalWidth;
+
+    // Transform and rotate
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(
+      imgRef.current,
+      -imgRef.current.naturalWidth / 2,
+      -imgRef.current.naturalHeight / 2
+    );
+
+    // Get the rotated image
+    const rotatedImageUrl = canvas.toDataURL(`image/${format}`);
+
+    // Update dimensions
+    setWidth(canvas.width);
+    setHeight(canvas.height);
+
+    // Add to history
+    addToHistory(rotatedImageUrl);
+
+    // Notify parent component
+    if (onImageChange) {
+      onImageChange(rotatedImageUrl);
+    }
+  }, [imgRef, canvasRef, format, onImageChange, addToHistory]);
+
+  const handleRotateCounterClockwise = useCallback(() => {
+    if (!canvasRef.current || !imgRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Set canvas dimensions swapped for rotation
+    canvas.width = imgRef.current.naturalHeight;
+    canvas.height = imgRef.current.naturalWidth;
+
+    // Transform and rotate
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.drawImage(
+      imgRef.current,
+      -imgRef.current.naturalWidth / 2,
+      -imgRef.current.naturalHeight / 2
+    );
+
+    // Get the rotated image
+    const rotatedImageUrl = canvas.toDataURL(`image/${format}`);
+
+    // Update dimensions
+    setWidth(canvas.width);
+    setHeight(canvas.height);
+
+    // Add to history
+    addToHistory(rotatedImageUrl);
+
+    // Notify parent component
+    if (onImageChange) {
+      onImageChange(rotatedImageUrl);
+    }
+  }, [imgRef, canvasRef, format, onImageChange, addToHistory]);
 
   return (
     <div className={`flex flex-col gap-6 ${className}`}>
-      {/* Toolbar with appropriate controls based on state */}
+      {/* Toolbar - with states as requested */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
-        {/* Left section of toolbar */}
-        <div className="flex items-center gap-2">
-          {/* Zoom controls always visible */}
-          <Button
-            onClick={handleZoomOut}
-            variant="outline"
-            className="h-9 w-9 p-0"
-          >
-            <Minus className="h-4 w-4" />
-          </Button>
-          <Button
-            onClick={handleZoomIn}
-            variant="outline"
-            className="h-9 w-9 p-0"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-
-          {/* Edit Mode Toggle Button - only in resize or edit mode */}
-          {(editorState === "resizeAndOptimize" ||
-            editorState === "editImage") &&
-            (editorState === "resizeAndOptimize" ? (
+        {/* resizeAndOptimize state toolbar */}
+        {editorState === "view" && (
+          <>
+            <div className="flex items-center gap-2">
+              {/* Zoom controls */}
               <Button
-                onClick={enterEditMode}
-                variant="default"
-                className="h-10"
+                onClick={handleZoomOut}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleZoomIn}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+
+              <Button
+                onClick={() => setEditorState("edit")}
+                variant="outline"
+                className="h-9"
+                data-testid="edit-image-button"
               >
                 <Pencil className="mr-2 h-4 w-4" />
                 Edit Image Mode
               </Button>
-            ) : (
-              <Button onClick={exitEditMode} variant="default" className="h-10">
-                <Pencil className="mr-2 h-4 w-4" />
-                Exit Edit Mode
-              </Button>
-            ))}
 
-          {/* Show editing tools only in edit state */}
-          {editorState === "editImage" && (
-            <>
-              <Button
-                onClick={() => handleToggleState("crop")}
-                variant="outline"
-                className="h-10"
-              >
-                <Crop className="mr-2 h-4 w-4" />
-                Crop
-              </Button>
-              <Button
-                onClick={() => handleToggleState("blur")}
-                variant="outline"
-                className="h-10"
-              >
-                <Droplets className="mr-2 h-4 w-4" />
-                Blur
-              </Button>
-              <Button
-                onClick={() => handleToggleState("paint")}
-                variant="outline"
-                className="h-10"
-              >
-                <Paintbrush className="mr-2 h-4 w-4" />
-                Paint
-              </Button>
-              <Button
-                onClick={() => handleToggleState("text")}
-                variant="outline"
-                className="h-10"
-              >
-                <Type className="mr-2 h-4 w-4" />
-                Text
-              </Button>
-            </>
-          )}
-
-          {/* Tool-specific controls for crop */}
-          {editorState === "crop" && (
-            <>
               <Button
                 onClick={() => {
-                  if (cropToolRef.current) {
-                    cropToolRef.current.applyCrop();
-                  }
+                  /* Disabled */
                 }}
-                variant="default"
-                className="h-10"
-              >
-                Apply Crop
-              </Button>
-              <Button onClick={cancelTool} variant="outline" className="h-10">
-                Cancel
-              </Button>
-            </>
-          )}
-
-          {/* Tool-specific controls for blur */}
-          {editorState === "blur" && (
-            <>
-              <Button
-                onClick={() => {
-                  if (blurCanvasRef.current) {
-                    const dataUrl = blurCanvasRef.current.getCanvasDataUrl();
-                    if (dataUrl) handleBlurApply(dataUrl);
-                  }
-                }}
-                variant="default"
-                className="h-10"
-              >
-                Apply Blur
-              </Button>
-              <Button onClick={cancelTool} variant="outline" className="h-10">
-                Cancel
-              </Button>
-            </>
-          )}
-
-          {/* Tool-specific controls for paint */}
-          {editorState === "paint" && (
-            <>
-              <Button
-                onClick={() => {
-                  if (paintToolRef.current) {
-                    const dataUrl = paintToolRef.current.getCanvasDataUrl();
-                    if (dataUrl) handlePaintApply(dataUrl);
-                  }
-                }}
-                variant="default"
-                className="h-10"
-              >
-                Apply Paint
-              </Button>
-              <Button onClick={cancelTool} variant="outline" className="h-10">
-                Cancel
-              </Button>
-            </>
-          )}
-
-          {/* Tool-specific controls for text */}
-          {editorState === "text" && (
-            <>
-              <Button variant="default" className="h-10">
-                Apply Text
-              </Button>
-              <Button onClick={cancelTool} variant="outline" className="h-10">
-                Cancel
-              </Button>
-            </>
-          )}
-
-          {/* Pagination controls - only shown in resizeAndOptimize mode */}
-          {editorState === "resizeAndOptimize" && onNavigateImage && (
-            <div className="flex items-center gap-1 ml-4">
-              <Button
-                onClick={() => onNavigateImage("first")}
                 variant="outline"
-                className="h-9 px-3"
-                disabled={currentPage <= 1}
+                className="h-9 opacity-50"
+                disabled
               >
-                <ChevronsLeft className="h-4 w-4" />
+                <Images className="mr-2 h-4 w-4" />
+                Multi Edit
               </Button>
-              <Button
-                onClick={() => onNavigateImage("prev")}
-                variant="outline"
-                className="h-9 px-3"
-                disabled={currentPage <= 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
+
+              {/* ALWAYS add SimplePagination component */}
+              {onNavigateImage && (
+                <SimplePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onNavigate={onNavigateImage}
+                  className="ml-2"
+                />
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button onClick={handleReset} variant="outline" className="h-9">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reset
               </Button>
-              <span className="text-sm px-2 text-white">
-                {currentPage} / {totalPages}
-              </span>
+
+              {/* Back to gallery - renamed */}
+              {onClose && (
+                <Button onClick={onClose} variant="outline" className="h-9">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Upload
+                </Button>
+              )}
+
+              {/* Remove all */}
+              {onRemoveAll && (
+                <Button
+                  onClick={onRemoveAll}
+                  variant="destructive"
+                  className="h-9"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Remove All Images
+                </Button>
+              )}
+
+              {/* Theme button */}
+              {mounted && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={toggleTheme}
+                  className="h-9 w-9"
+                >
+                  {theme === "dark" ? (
+                    <Moon className="h-4 w-4" />
+                  ) : (
+                    <Sun className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
+
+              {/* User button - disabled */}
               <Button
-                onClick={() => onNavigateImage("next")}
                 variant="outline"
-                className="h-9 px-3"
-                disabled={currentPage >= totalPages}
+                size="icon"
+                disabled
+                className="h-9 w-9"
               >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={() => onNavigateImage("last")}
-                variant="outline"
-                className="h-9 px-3"
-                disabled={currentPage >= totalPages}
-              >
-                <ChevronsRight className="h-4 w-4" />
+                <User className="h-4 w-4" />
               </Button>
             </div>
-          )}
-        </div>
-
-        {/* Right section: Action buttons - only shown in resizeAndOptimize mode */}
-        {editorState === "resizeAndOptimize" && (
-          <div className="flex items-center gap-2">
-            {/* Reset button */}
-            <Button onClick={handleReset} variant="outline" className="h-10">
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Reset
-            </Button>
-
-            {/* Download button */}
-            <Button onClick={handleDownload} variant="outline" className="h-10">
-              <Download className="mr-2 h-4 w-4" />
-              Download
-            </Button>
-
-            {/* Back to gallery */}
-            {onClose && (
-              <Button onClick={onClose} variant="outline" className="h-10">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Upload
-              </Button>
-            )}
-
-            {/* Remove all */}
-            {onRemoveAll && (
+          </>
+        )}
+        {/* editImage state toolbar with 3-column grid layout */}
+        {editorState === "edit" && (
+          <div className="w-full grid grid-cols-3 items-center">
+            {/* Left section - icons only, no text */}
+            <div className="flex items-center gap-2 justify-self-start">
               <Button
-                onClick={onRemoveAll}
-                variant="destructive"
-                className="h-10"
+                onClick={handleZoomOut}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                title="Zoom Out"
               >
-                Remove All Images
+                <Minus className="h-4 w-4" />
               </Button>
-            )}
+              <Button
+                onClick={handleZoomIn}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                title="Zoom In"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleUndo}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                disabled={historyIndex <= 0}
+                title="Undo"
+              >
+                <Undo className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleRedo}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                disabled={historyIndex >= history.length - 1}
+                title="Redo"
+              >
+                <Redo className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleRotateCounterClockwise}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                title="Rotate Left"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleRotateClockwise}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                title="Rotate Right"
+              >
+                <RotateCw className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Center section - state changing buttons with text */}
+            <div className="flex items-center gap-2 justify-self-center">
+              <Button
+                onClick={() => setEditorState("crop")}
+                variant="outline"
+                className="h-9"
+              >
+                <Crop className="mr-2 h-4 w-4" />
+                Crop Image
+              </Button>
+              <Button
+                onClick={() => setEditorState("blur")}
+                variant="outline"
+                className="h-9"
+              >
+                <Droplets className="mr-2 h-4 w-4" />
+                Blur Tool
+              </Button>
+              <Button
+                onClick={() => setEditorState("paint")}
+                variant="outline"
+                className="h-9"
+              >
+                <Paintbrush className="mr-2 h-4 w-4" />
+                Paint Tool
+              </Button>
+              <Button
+                onClick={() => setEditorState("text")}
+                variant="outline"
+                className="h-9"
+              >
+                <Type className="mr-2 h-4 w-4" />
+                Text Tool
+              </Button>
+            </div>
+
+            {/* Right section - Exit button */}
+            <div className="flex items-center gap-2 justify-self-end">
+              <Button
+                onClick={() => setEditorState("view")}
+                variant="outline"
+                className="h-9"
+              >
+                <X className="mr-2 h-4 w-4" />
+                Exit Edit Mode
+              </Button>
+            </div>
           </div>
+        )}
+
+        {/* Tool-specific states */}
+        {(editorState === "crop" ||
+          editorState === "blur" ||
+          editorState === "paint" ||
+          editorState === "text") && (
+          <>
+            <div className="flex items-center gap-2">
+              {/* Zoom controls */}
+              <Button
+                onClick={handleZoomOut}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleZoomIn}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+
+              {/* Tool-specific controls */}
+              {editorState === "crop" && (
+                <>
+                  <Button
+                    onClick={handleApplyCrop}
+                    variant="default"
+                    className="h-9"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Crop
+                  </Button>
+                  <Button
+                    onClick={() => setEditorState("edit")}
+                    variant="outline"
+                    className="h-9"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                </>
+              )}
+
+              {editorState === "blur" && (
+                <>
+                  <Button
+                    onClick={handleApplyBlur}
+                    variant="default"
+                    className="h-9"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Blur
+                  </Button>
+                  <Button
+                    onClick={() => setEditorState("edit")}
+                    variant="outline"
+                    className="h-9"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                </>
+              )}
+
+              {editorState === "paint" && (
+                <>
+                  <Button
+                    onClick={handleApplyPaint}
+                    variant="default"
+                    className="h-9"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Paint
+                  </Button>
+                  <Button
+                    onClick={() => setIsEraser(!isEraser)}
+                    variant={isEraser ? "default" : "outline"}
+                    className="h-9"
+                  >
+                    <Eraser className="mr-2 h-4 w-4" />
+                    {isEraser ? "Brush" : "Eraser"}
+                  </Button>
+                  <Button
+                    onClick={() => setEditorState("edit")}
+                    variant="outline"
+                    className="h-9"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                </>
+              )}
+
+              {editorState === "text" && (
+                <>
+                  <Button
+                    onClick={handleApplyText}
+                    variant="default"
+                    className="h-9"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Text
+                  </Button>
+                  <Button
+                    onClick={() => setEditorState("edit")}
+                    variant="outline"
+                    className="h-9"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                </>
+              )}
+            </div>
+          </>
         )}
       </div>
 
-      {/* Tool-specific secondary toolbar */}
+      {/* Tool-specific secondary toolbars */}
       {editorState === "blur" && (
         <div className="flex items-center gap-4 p-2 bg-gray-700 rounded-lg mb-4">
           <div className="flex-1">
@@ -704,64 +1023,6 @@ export default function ImageEditor({
               onChange={(e) => setBrushColor(e.target.value)}
               className="h-8 w-8 ml-2 rounded cursor-pointer"
             />
-            <Button
-              onClick={toggleEraser}
-              variant={isEraser ? "default" : "outline"}
-              className="h-9 ml-2"
-            >
-              <Eraser className="mr-2 h-4 w-4" />
-              {isEraser ? "Using Eraser" : "Use Eraser"}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {editorState === "text" && (
-        <div className="flex items-center gap-4 p-2 bg-gray-700 rounded-lg mb-4">
-          <div className="flex-1">
-            <label className="text-sm font-medium block mb-1 text-white">
-              Font:
-            </label>
-            <select className="w-full bg-gray-600 text-white p-2 rounded">
-              <option>Arial</option>
-              <option>Times New Roman</option>
-              <option>Courier New</option>
-              <option>Georgia</option>
-              <option>Verdana</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-white mr-2">
-              Text Color:
-            </label>
-            <div className="flex gap-1">
-              {[
-                "#ff0000",
-                "#00ff00",
-                "#0000ff",
-                "#ffff00",
-                "#ffffff",
-                "#000000",
-              ].map((color) => (
-                <button
-                  key={color}
-                  className="w-6 h-6 rounded-full border border-gray-600"
-                  style={{ backgroundColor: color }}
-                />
-              ))}
-            </div>
-            <input
-              type="color"
-              defaultValue="#ffffff"
-              className="h-8 w-8 ml-2 rounded cursor-pointer"
-            />
-          </div>
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Enter text..."
-              className="w-full bg-gray-600 text-white p-2 rounded"
-            />
           </div>
         </div>
       )}
@@ -776,8 +1037,8 @@ export default function ImageEditor({
                   <CroppingTool
                     ref={cropToolRef}
                     imageUrl={imageUrl}
-                    onApply={handleApplyCrop}
-                    onCancel={cancelTool}
+                    onApply={handleCropResult}
+                    onCancel={() => setEditorState("edit")}
                   />
                 ) : editorState === "blur" ? (
                   <BlurBrushCanvas
@@ -786,8 +1047,8 @@ export default function ImageEditor({
                     blurAmount={blurAmount}
                     blurRadius={blurRadius}
                     zoom={zoom}
-                    onApply={handleBlurApply}
-                    onCancel={cancelTool}
+                    onApply={handleBlurResult}
+                    onCancel={() => setEditorState("edit")}
                     onBlurAmountChange={setBlurAmount}
                     onBlurRadiusChange={setBlurRadius}
                   />
@@ -795,10 +1056,22 @@ export default function ImageEditor({
                   <PaintTool
                     ref={paintToolRef}
                     imageUrl={imageUrl}
-                    onApplyPaint={handlePaintApply}
-                    onCancel={cancelTool}
-                    onToggleEraser={toggleEraser}
+                    onApplyPaint={handlePaintResult}
+                    onCancel={() => setEditorState("edit")}
+                    onToggleEraser={() => setIsEraser(!isEraser)}
                     isEraser={isEraser}
+                  />
+                ) : editorState === "text" ? (
+                  <TextTool
+                    ref={textToolRef}
+                    imageUrl={imageUrl}
+                    onApplyText={handleTextResult}
+                    onCancel={() => setEditorState("edit")}
+                    setEditorState={(state: string) =>
+                      setEditorState(state as EditorMode)
+                    } // Fixed with adapter
+                    setBold={setIsBold}
+                    setItalic={setIsItalic}
                   />
                 ) : (
                   <div
@@ -821,30 +1094,36 @@ export default function ImageEditor({
             </div>
           </section>
 
-          {/* Sidebar with controls */}
+          {/* Sidebar with controls - FIXED for consistent behavior */}
           <aside className="md:col-span-1 space-y-6">
-            {/* Only show resizer in resizeAndOptimize mode */}
-            {editorState === "resizeAndOptimize" && (
-              <ImageResizer
-                width={width}
-                height={height}
-                maxWidth={originalStats?.width || 1000}
-                maxHeight={originalStats?.height || 1000}
-                onResize={handleResize}
-                onApplyResize={handleApplyResize}
-                format={format}
-                onFormatChange={setFormat}
-                onDownload={handleDownload}
-                isCompressing={isCompressing}
-              />
-            )}
+            {/* Only show these elements in "view" mode */}
+            {editorState === "view" && (
+              <>
+                <ImageResizer
+                  width={width}
+                  height={height}
+                  maxWidth={originalStats?.width || 1000}
+                  maxHeight={originalStats?.height || 1000}
+                  onResize={handleResize}
+                  onApplyResize={handleApplyResize}
+                  format={format}
+                  onFormatChange={setFormat}
+                  onDownload={handleDownload}
+                  isCompressing={isCompressing}
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onNavigateImage={onNavigateImage}
+                />
 
-            {hasEdited && <ImageZoomView imageUrl={imageUrl} />}
+                {/* Show ImageZoomView in view mode if the image has been edited */}
+                {hasEdited && <ImageZoomView imageUrl={imageUrl} />}
+              </>
+            )}
           </aside>
         </div>
 
-        {/* Image Information Cards - only shown in resizeAndOptimize mode */}
-        {editorState === "resizeAndOptimize" && originalStats && (
+        {/* Image Information Cards - only shown in view mode */}
+        {editorState === "view" && originalStats && (
           <ImageStats
             originalStats={originalStats}
             newStats={newStats}

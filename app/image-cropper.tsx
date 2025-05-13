@@ -18,15 +18,12 @@ import {
   safeRevokeURL,
 } from "./utils/image-transformations";
 import { getMimeType, getFileFormat } from "./utils/image-utils";
-import { ImageFile, ImageCropperProps } from "@/types/types";
+import {
+  ImageCropperProps,
+  NavigationDirection,
+  ImageStats as StatsType,
+} from "@/types/types";
 import imageDB from "@/app/utils/indexedDB";
-
-interface ImageStats {
-  width: number;
-  height: number;
-  size: number;
-  format: string;
-}
 
 const PLACEHOLDER_IMAGE = "/placeholder.svg";
 
@@ -74,8 +71,8 @@ export default function ImageCropper({
   const [isEraser, setIsEraser] = useState<boolean>(false);
 
   // Stats states
-  const [originalStats, setOriginalStats] = useState<ImageStats | null>(null);
-  const [newStats, setNewStats] = useState<ImageStats | null>(null);
+  const [originalStats, setOriginalStats] = useState<StatsType | null>(null);
+  const [newStats, setNewStats] = useState<StatsType | null>(null);
   const [dataSavings, setDataSavings] = useState<number>(0);
   const [hasEdited, setHasEdited] = useState<boolean>(false);
 
@@ -307,7 +304,7 @@ export default function ImageCropper({
 
   // Handle image navigation
   const handleNavigateImage = useCallback(
-    (direction: "next" | "prev" | "first" | "last") => {
+    (direction: NavigationDirection) => {
       if (onNavigateImage) {
         onNavigateImage(direction);
       }
@@ -747,6 +744,8 @@ export default function ImageCropper({
 
           {!isEditMode && !isBlurring && !isPainting && (
             <aside className="md:col-span-1 space-y-6">
+              {/* Add pagination controls above the resizer */}
+
               <ImageResizer
                 width={width}
                 height={height}

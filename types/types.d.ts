@@ -1,20 +1,26 @@
-/**
- * Image editor interface types
- */
-
 // Editor modes
-export type EditorMode = "view" | "edit" | "crop" | "blur" | "paint";
+export type EditorMode = "view" | "edit" | "crop" | "blur" | "paint" | "text";
 
 // Format types
 export type ImageFormat = "jpeg" | "png" | "webp";
 
-// types.ts - Image related types
+export type NavigationDirection =
+  | "next" // Move to next item
+  | "prev" // Move to previous item
+  | "next10" // Jump forward 10 items
+  | "prev10"; // Jump backward 10 items
 
 export interface ImageFile {
   id: string;
   file: File;
   url: string;
-  isNew?: boolean;
+}
+
+export interface ImageInfo {
+  width: number;
+  height: number;
+  size: number;
+  format: string;
 }
 
 export interface ImageStats {
@@ -24,6 +30,69 @@ export interface ImageStats {
   format: string;
 }
 
+export interface EditorState {
+  history: string[];
+  historyIndex: number;
+  hasEdited: boolean;
+  zoom: number;
+}
+
+// Pagination component types
+export interface PaginationControlsProps {
+  currentPage: number;
+  totalPages: number;
+  onNavigateImage: (direction: NavigationDirection) => void;
+  isDisabled?: boolean;
+  className?: string;
+  compact?: boolean;
+}
+
+export interface PaginationWithPreviewProps extends PaginationControlsProps {
+  currentImageUrl?: string;
+  nextImageUrl?: string;
+  prevImageUrl?: string;
+}
+
+export interface ImageListPaginationProps {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  className?: string;
+}
+
+export interface ThumbnailStripProps {
+  images: ImageInfo[];
+  currentImageId?: string;
+  onSelectImage: (id: string) => void;
+  onRemoveImage?: (id: string) => void;
+  className?: string;
+  visibleCount?: number;
+}
+
+export interface ImagePaginationControlsProps {
+  currentPage: number;
+  totalPages: number;
+  onNavigateImage: (direction: NavigationDirection) => void;
+  isDisabled?: boolean;
+  className?: string;
+}
+
+export interface SimplePaginationProps {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  className?: string;
+}
+
+export interface ImagePaginationControlsProps {
+  currentPage: number;
+  totalPages: number;
+  onNavigateImage: (direction: NavigationDirection) => void;
+  isDisabled?: boolean;
+  className?: string;
+}
+
+// Editor component props
 export interface ImageCropperProps {
   image: ImageFile | null;
   onUploadNew: () => void;
@@ -31,16 +100,21 @@ export interface ImageCropperProps {
   onBackToGallery?: () => void;
   isStandalone?: boolean;
   onEditModeChange?: (isEditMode: boolean) => void;
+  onCompressionStateChange?: (isCompressing: boolean) => void; // Added compression state handler
   // Pagination props
   currentPage?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;
-  onNavigateImage?: (direction: "next" | "prev" | "first" | "last") => void;
+  onNavigateImage?: (direction: NavigationDirection) => void;
+  // Enhanced pagination props
+  allImages?: ImageInfo[];
+  currentImageId?: string;
+  onSelectImage?: (id: string) => void;
 }
 
 export interface ImageEditorProps {
   imageUrl: string;
-  onImageChange: (newImageUrl: string) => void;
+  onImageChange?: (url: string) => void;
   onReset?: () => void;
   onDownload?: () => void;
   onClose?: () => void;
@@ -51,9 +125,13 @@ export interface ImageEditorProps {
   // Pagination props
   currentPage?: number;
   totalPages?: number;
-  onNavigateImage?: (direction: "next" | "prev" | "first" | "last") => void;
+  onNavigateImage?: (direction: NavigationDirection) => void;
+  // Additional props
   onRemoveAll?: () => void;
   onUploadNew?: () => void;
+  allImages?: ImageFile[];
+  currentImageId?: string;
+  onSelectImage?: (image: ImageFile) => void;
 }
 
 export interface ImageResizerProps {
@@ -65,12 +143,12 @@ export interface ImageResizerProps {
   onApplyResize: () => void;
   format: string;
   onFormatChange: (format: string) => void;
-  onDownload?: () => void;
+  onDownload: () => void;
   isCompressing?: boolean;
-  // Optional pagination props
+  // Pagination props - make sure these are consistent
   currentPage?: number;
   totalPages?: number;
-  onNavigateImage?: (direction: "next" | "prev" | "first" | "last") => void;
+  onNavigateImage?: (direction: NavigationDirection) => void;
 }
 
 export interface ImageStatsProps {
@@ -84,8 +162,6 @@ export interface ImageStatsProps {
 }
 
 // Canvas and tool types
-export type EditorMode = "view" | "edit" | "crop" | "blur" | "paint";
-
 export interface BlurControlsProps {
   blurAmount: number;
   blurRadius: number;
@@ -107,14 +183,31 @@ export interface BlurBrushCanvasRef {
 
 export interface PaintToolRef {
   getCanvasDataUrl: () => string | null;
+  clear: () => void;
+}
+
+export interface TextToolRef {
+  applyText: () => void;
+  getCanvasDataUrl: () => string | null;
+}
+
+export interface TextToolProps {
+  imageUrl: string;
+  onApplyText: (dataUrl: string) => void;
+  onCancel: () => void;
+  // This is the fixed type - now it correctly accepts a string
+  setEditorState: (state: string) => void;
+  setBold: (isBold: boolean) => void;
+  setItalic: (isItalic: boolean) => void;
 }
 
 export interface CroppingToolRef {
   getCanvasDataUrl: () => string | null;
-  getCrop: () => PixelCrop | null;
+  getCrop: () => any | null;
   getImageRef: () => HTMLImageElement | null;
   applyCrop: () => void;
 }
+
 // Cropping tool props
 export interface CroppingToolProps {
   imageUrl: string;
@@ -123,52 +216,35 @@ export interface CroppingToolProps {
   className?: string;
 }
 
-// Image Cropper props
-export interface ImageCropperProps {
-  image: ImageFile;
-  onUploadNew: () => void;
-  onRemoveAll: () => void;
-  onBackToGallery?: () => void;
-  isStandalone?: boolean;
-  onEditModeChange?: (isEditing: boolean) => void;
-  currentPage?: number;
-  totalPages?: number;
-  onPageChange?: (page: number) => void;
-  onNavigateImage?: (direction: "next" | "prev" | "first" | "last") => void;
+// Blur brush canvas props
+export interface BlurBrushCanvasProps {
+  imageUrl: string;
+  blurAmount: number;
+  blurRadius: number;
+  zoom?: number;
+  onApply: (blurredImageUrl: string) => void;
+  onCancel: () => void;
+  onBlurAmountChange?: (amount: number) => void;
+  onBlurRadiusChange?: (radius: number) => void;
 }
 
-// Image stats props
-export interface ImageStatsProps {
-  originalStats: ImageStats | null;
-  newStats: ImageStats | null;
-  dataSavings: number;
-  hasEdited: boolean;
-  fileName: string;
-  format: string;
-  fileType: string;
-  currentPage?: number;
-  totalPages?: number;
-  onNavigateImage?: (direction: "next" | "prev" | "first" | "last") => void;
+// Paint tool props
+export interface PaintToolProps {
+  imageUrl: string;
+  onApplyPaint: (paintedImageUrl: string) => void;
+  onCancel: () => void;
+  onToggleEraser: () => void;
+  isEraser: boolean;
+  brushSize?: number;
+  brushColor?: string;
+  onBrushSizeChange?: (size: number) => void;
+  onBrushColorChange?: (color: string) => void;
 }
 
-// Image resizer props
-
-export interface ImageResizerProps {
-  width: number;
-  height: number;
-  maxWidth: number;
-  maxHeight: number;
-  onResize: (width: number, height: number) => void;
-  onApplyResize: () => void;
-  format: string;
-  onFormatChange: (format: string) => void;
-  onDownload?: () => void;
-  // Pagination props
-  currentPage?: number;
-  totalPages?: number;
-  onNavigateImage?: (direction: "next" | "prev" | "first" | "last") => void;
-  // Add this new property
-  isCompressing?: boolean;
+// Image zoom view props
+export interface ImageZoomViewProps {
+  imageUrl: string;
+  className?: string;
 }
 
 // Placeholder component props
@@ -194,23 +270,6 @@ export interface MagnifierPlaceholderProps {
   className?: string;
 }
 
-export interface SimplePaginationProps {
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-  className?: string;
-}
-
-// Image editor props
-export interface ImageEditorProps {
-  imageUrl: string;
-  onImageChange: (newImageUrl: string) => void;
-  onReset?: () => void;
-  onDownload?: () => void;
-  onClose?: () => void;
-  className?: string;
-}
-
 // Main Toolbar Props
 export interface ToolbarProps {
   // Mode flags
@@ -219,7 +278,7 @@ export interface ToolbarProps {
   isBlurring: boolean;
   isPainting: boolean;
   isEraser: boolean;
-  isCompressing?: boolean; // New flag to track compression state
+  isCompressing?: boolean;
 
   // Format
   format: string;
@@ -248,27 +307,91 @@ export interface ToolbarProps {
   onBackToGallery?: () => void;
   onExitEditMode: () => void;
 
-  // Blur controls
-  blurAmount?: number;
-  blurRadius?: number;
-  onBlurAmountChange?: (size: number) => void;
-  onBlurRadiusChange?: (size: number) => void;
-
-  // Paint controls
-  brushSize?: number;
-  brushColor?: string;
-  onBrushSizeChange?: (size: number) => void;
-  onBrushColorChange?: (color: string) => void;
-
   // Pagination
-  images?: any[];
-  selectedImage?: any;
-  setSelectedImage?: (image: any) => void;
   currentPage?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;
-  onNavigateImage?: (direction: "next" | "prev" | "first" | "last") => void;
+  onNavigateImage?: (direction: NavigationDirection) => void;
 
   isStandalone?: boolean;
   className?: string;
 }
+
+// Enhanced Toolbar Props
+export interface EnhancedToolbarProps {
+  // Editor state
+  editorState: string;
+  setEditorState: (state: string) => void;
+
+  // Format
+  format: string;
+  onFormatChange: (format: string) => void;
+
+  // Zoom controls
+  zoom: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+
+  // Tool states
+  isEraser: boolean;
+  setIsEraser: (value: boolean) => void;
+  blurAmount: number;
+  setBlurAmount: (value: number) => void;
+  blurRadius: number;
+  setBlurRadius: (value: number) => void;
+  brushSize: number;
+  setBrushSize: (value: number) => void;
+  brushColor: string;
+  setBrushColor: (value: string) => void;
+
+  // Action handlers
+  onReset?: () => void;
+  onDownload?: () => void;
+  onClose?: () => void;
+  onRemoveAll?: () => void;
+  onUploadNew?: () => void;
+
+  // Tool action handlers
+  onApplyCrop?: () => void;
+  onApplyBlur?: () => void;
+  onApplyPaint?: () => void;
+  onApplyText?: () => void;
+
+  // History handlers
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+
+  // Rotation handlers
+  onRotateClockwise?: () => void;
+  onRotateCounterClockwise?: () => void;
+
+  // Pagination
+  currentPage?: number;
+  totalPages?: number;
+  onNavigateImage?: (direction: NavigationDirection) => void;
+
+  // Enhanced pagination
+  allImages?: ImageInfo[];
+  currentImageId?: string;
+  onSelectImage?: (id: string) => void;
+
+  className?: string;
+}
+
+// Image Gallery Props
+export interface SimplePaginationProps {
+  currentPage: number;
+  totalPages: number;
+  onBackTen?: () => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  onForwardTen?: () => void;
+  onNavigate?: (direction: NavigationDirection) => void; // Added for compatibility
+  isDisabled?: boolean;
+  className?: string;
+}
+
+// For backward compatibility
+export type ImagePaginationControlsProps = SimplePaginationProps;
