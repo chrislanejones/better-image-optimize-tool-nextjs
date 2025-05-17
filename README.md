@@ -2,7 +2,7 @@
 
 ImageHorse is a modern, feature-rich image editing application built with React and Next.js. It provides intuitive tools for image manipulation, optimization, and editing with a responsive user interface.
 
-![ImageHorse Logo](/Image-Horse-Logo.svg)
+![ImageHorse Logo](/public/Image-Horse-Logo.svg)
 
 ## Live Demo
 
