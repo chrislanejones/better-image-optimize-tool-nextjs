@@ -1,4 +1,4 @@
-// Updated image-editor.tsx to always display pagination with multiple photos
+// Updated image-editor.tsx to merge functionality from image-gallery.tsx and use consistent state names
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
@@ -10,10 +10,8 @@ import {
   Paintbrush,
   Check,
   RefreshCw,
-  Upload,
   Trash2,
   Eraser,
-  Download,
   Type,
   Images,
   Moon,
@@ -25,8 +23,10 @@ import {
   RotateCcw,
   ArrowLeft,
   Pencil,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import CroppingTool, { type CroppingToolRef } from "./components/cropping-tool";
 import BlurBrushCanvas from "./components/blur-tool";
 import PaintTool from "./components/paint-tool";
@@ -42,6 +42,16 @@ import {
   EditorMode,
 } from "@/types/types";
 import { useTheme } from "next-themes";
+
+// Define the editor states
+export type EditorState =
+  | "resizeAndOptimize" // Simple resize & optimize state (view) - Has aside
+  | "editImage" // Basic Edit Tools (edit)
+  | "multiImageEdit" // Coming soon
+  | "crop" // Cropping mode
+  | "blur" // Blur tool mode
+  | "paint" // Paint tool mode
+  | "text"; // Text tool mode
 
 export default function ImageEditor({
   imageUrl,
@@ -64,7 +74,8 @@ export default function ImageEditor({
   onSelectImage,
 }: ImageEditorProps) {
   // Editor state
-  const [editorState, setEditorState] = useState<EditorMode>("view");
+  const [editorState, setEditorState] =
+    useState<EditorState>("resizeAndOptimize");
   const [isCompressing, setIsCompressing] = useState<boolean>(false);
   const [zoom, setZoom] = useState<number>(1);
   const { theme, setTheme } = useTheme();
@@ -132,7 +143,7 @@ export default function ImageEditor({
 
   // Reset editor state when image changes via pagination
   useEffect(() => {
-    setEditorState("view");
+    setEditorState("resizeAndOptimize");
     setZoom(1);
     setIsEraser(false);
     setHistory([imageUrl]);
@@ -274,7 +285,7 @@ export default function ImageEditor({
         }
 
         setHasEdited(true);
-        setEditorState("edit"); // Return to edit mode after applying crop
+        setEditorState("editImage"); // Return to edit mode after applying crop
 
         // Add to history
         addToHistory(croppedImageUrl);
@@ -329,7 +340,7 @@ export default function ImageEditor({
         }
 
         setHasEdited(true);
-        setEditorState("edit"); // Return to edit mode after applying blur
+        setEditorState("editImage"); // Return to edit mode after applying blur
 
         // Add to history
         addToHistory(blurredImageUrl);
@@ -384,7 +395,7 @@ export default function ImageEditor({
         }
 
         setHasEdited(true);
-        setEditorState("edit"); // Return to edit mode after applying paint
+        setEditorState("editImage"); // Return to edit mode after applying paint
 
         // Add to history
         addToHistory(paintedImageUrl);
@@ -438,7 +449,7 @@ export default function ImageEditor({
         }
 
         setHasEdited(true);
-        setEditorState("edit"); // Return to edit mode after applying text
+        setEditorState("editImage"); // Return to edit mode after applying text
 
         // Add to history
         addToHistory(textedImageUrl);
@@ -600,7 +611,7 @@ export default function ImageEditor({
       {/* Toolbar - with states as requested */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
         {/* resizeAndOptimize state toolbar */}
-        {editorState === "view" && (
+        {editorState === "resizeAndOptimize" && (
           <>
             <div className="flex items-center gap-2">
               {/* Zoom controls */}
@@ -620,7 +631,7 @@ export default function ImageEditor({
               </Button>
 
               <Button
-                onClick={() => setEditorState("edit")}
+                onClick={() => setEditorState("editImage")}
                 variant="outline"
                 className="h-9"
                 data-testid="edit-image-button"
@@ -631,7 +642,7 @@ export default function ImageEditor({
 
               <Button
                 onClick={() => {
-                  /* Disabled */
+                  /* Disabled - will be implemented in the future */
                 }}
                 variant="outline"
                 className="h-9 opacity-50"
@@ -706,111 +717,121 @@ export default function ImageEditor({
             </div>
           </>
         )}
-        {/* editImage state toolbar with 3-column grid layout */}
-        {editorState === "edit" && (
-          <div className="w-full grid grid-cols-3 items-center">
-            {/* Left section - icons only, no text */}
-            <div className="flex items-center gap-2 justify-self-start">
-              <Button
-                onClick={handleZoomOut}
-                variant="outline"
-                className="h-9 w-9 p-0"
-                title="Zoom Out"
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={handleZoomIn}
-                variant="outline"
-                className="h-9 w-9 p-0"
-                title="Zoom In"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={handleUndo}
-                variant="outline"
-                className="h-9 w-9 p-0"
-                disabled={historyIndex <= 0}
-                title="Undo"
-              >
-                <Undo className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={handleRedo}
-                variant="outline"
-                className="h-9 w-9 p-0"
-                disabled={historyIndex >= history.length - 1}
-                title="Redo"
-              >
-                <Redo className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={handleRotateCounterClockwise}
-                variant="outline"
-                className="h-9 w-9 p-0"
-                title="Rotate Left"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={handleRotateClockwise}
-                variant="outline"
-                className="h-9 w-9 p-0"
-                title="Rotate Right"
-              >
-                <RotateCw className="h-4 w-4" />
-              </Button>
+        {/* editImage state toolbar with 3-column grid layout and centered lock text */}
+        {editorState === "editImage" && (
+          <>
+            {/* Centered Lock Icon with Edit Image Mode text */}
+            <div className="w-full text-center mb-4">
+              <div className="inline-flex items-center gap-2 justify-center">
+                <Lock className="h-4 w-4" />
+                <span className="font-medium">Edit Image Mode</span>
+              </div>
             </div>
 
-            {/* Center section - state changing buttons with text */}
-            <div className="flex items-center gap-2 justify-self-center">
-              <Button
-                onClick={() => setEditorState("crop")}
-                variant="outline"
-                className="h-9"
-              >
-                <Crop className="mr-2 h-4 w-4" />
-                Crop Image
-              </Button>
-              <Button
-                onClick={() => setEditorState("blur")}
-                variant="outline"
-                className="h-9"
-              >
-                <Droplets className="mr-2 h-4 w-4" />
-                Blur Tool
-              </Button>
-              <Button
-                onClick={() => setEditorState("paint")}
-                variant="outline"
-                className="h-9"
-              >
-                <Paintbrush className="mr-2 h-4 w-4" />
-                Paint Tool
-              </Button>
-              <Button
-                onClick={() => setEditorState("text")}
-                variant="outline"
-                className="h-9"
-              >
-                <Type className="mr-2 h-4 w-4" />
-                Text Tool
-              </Button>
-            </div>
+            <div className="w-full grid grid-cols-3 items-center">
+              {/* Left section - icons only, no text */}
+              <div className="flex items-center gap-2 justify-self-start">
+                <Button
+                  onClick={handleZoomOut}
+                  variant="outline"
+                  className="h-9 w-9 p-0"
+                  title="Zoom Out"
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={handleZoomIn}
+                  variant="outline"
+                  className="h-9 w-9 p-0"
+                  title="Zoom In"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={handleUndo}
+                  variant="outline"
+                  className="h-9 w-9 p-0"
+                  disabled={historyIndex <= 0}
+                  title="Undo"
+                >
+                  <Undo className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={handleRedo}
+                  variant="outline"
+                  className="h-9 w-9 p-0"
+                  disabled={historyIndex >= history.length - 1}
+                  title="Redo"
+                >
+                  <Redo className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={handleRotateCounterClockwise}
+                  variant="outline"
+                  className="h-9 w-9 p-0"
+                  title="Rotate Left"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={handleRotateClockwise}
+                  variant="outline"
+                  className="h-9 w-9 p-0"
+                  title="Rotate Right"
+                >
+                  <RotateCw className="h-4 w-4" />
+                </Button>
+              </div>
 
-            {/* Right section - Exit button */}
-            <div className="flex items-center gap-2 justify-self-end">
-              <Button
-                onClick={() => setEditorState("view")}
-                variant="outline"
-                className="h-9"
-              >
-                <X className="mr-2 h-4 w-4" />
-                Exit Edit Mode
-              </Button>
+              {/* Center section - state changing buttons with text */}
+              <div className="flex items-center gap-2 justify-self-center">
+                <Button
+                  onClick={() => setEditorState("crop")}
+                  variant="outline"
+                  className="h-9"
+                >
+                  <Crop className="mr-2 h-4 w-4" />
+                  Crop Image
+                </Button>
+                <Button
+                  onClick={() => setEditorState("blur")}
+                  variant="outline"
+                  className="h-9"
+                >
+                  <Droplets className="mr-2 h-4 w-4" />
+                  Blur Tool
+                </Button>
+                <Button
+                  onClick={() => setEditorState("paint")}
+                  variant="outline"
+                  className="h-9"
+                >
+                  <Paintbrush className="mr-2 h-4 w-4" />
+                  Paint Tool
+                </Button>
+                <Button
+                  onClick={() => setEditorState("text")}
+                  variant="outline"
+                  className="h-9"
+                >
+                  <Type className="mr-2 h-4 w-4" />
+                  Text Tool
+                </Button>
+              </div>
+
+              {/* Right section - Exit button */}
+              <div className="flex items-center gap-2 justify-self-end">
+                <Button
+                  onClick={() => setEditorState("resizeAndOptimize")}
+                  variant="outline"
+                  className="h-9"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Exit Edit Mode
+                </Button>
+              </div>
             </div>
-          </div>
+          </>
         )}
 
         {/* Tool-specific states */}
@@ -848,7 +869,7 @@ export default function ImageEditor({
                     Apply Crop
                   </Button>
                   <Button
-                    onClick={() => setEditorState("edit")}
+                    onClick={() => setEditorState("editImage")}
                     variant="outline"
                     className="h-9"
                   >
@@ -869,7 +890,7 @@ export default function ImageEditor({
                     Apply Blur
                   </Button>
                   <Button
-                    onClick={() => setEditorState("edit")}
+                    onClick={() => setEditorState("editImage")}
                     variant="outline"
                     className="h-9"
                   >
@@ -898,7 +919,7 @@ export default function ImageEditor({
                     {isEraser ? "Brush" : "Eraser"}
                   </Button>
                   <Button
-                    onClick={() => setEditorState("edit")}
+                    onClick={() => setEditorState("editImage")}
                     variant="outline"
                     className="h-9"
                   >
@@ -919,7 +940,7 @@ export default function ImageEditor({
                     Apply Text
                   </Button>
                   <Button
-                    onClick={() => setEditorState("edit")}
+                    onClick={() => setEditorState("editImage")}
                     variant="outline"
                     className="h-9"
                   >
@@ -986,7 +1007,7 @@ export default function ImageEditor({
                     ref={cropToolRef}
                     imageUrl={imageUrl}
                     onApply={handleCropResult}
-                    onCancel={() => setEditorState("edit")}
+                    onCancel={() => setEditorState("editImage")}
                   />
                 ) : editorState === "blur" ? (
                   <BlurBrushCanvas
@@ -996,7 +1017,7 @@ export default function ImageEditor({
                     blurRadius={blurRadius}
                     zoom={zoom}
                     onApply={handleBlurResult}
-                    onCancel={() => setEditorState("edit")}
+                    onCancel={() => setEditorState("editImage")}
                     onBlurAmountChange={setBlurAmount}
                     onBlurRadiusChange={setBlurRadius}
                   />
@@ -1005,7 +1026,7 @@ export default function ImageEditor({
                     ref={paintToolRef}
                     imageUrl={imageUrl}
                     onApplyPaint={handlePaintResult}
-                    onCancel={() => setEditorState("edit")}
+                    onCancel={() => setEditorState("editImage")}
                     onToggleEraser={() => setIsEraser(!isEraser)}
                     isEraser={isEraser}
                   />
@@ -1014,10 +1035,10 @@ export default function ImageEditor({
                     ref={textToolRef}
                     imageUrl={imageUrl}
                     onApplyText={handleTextResult}
-                    onCancel={() => setEditorState("edit")}
+                    onCancel={() => setEditorState("editImage")}
                     setEditorState={(state: string) =>
-                      setEditorState(state as EditorMode)
-                    } // Fixed with adapter
+                      setEditorState(state as EditorState)
+                    }
                     setBold={setIsBold}
                     setItalic={setIsItalic}
                   />
@@ -1045,7 +1066,7 @@ export default function ImageEditor({
           {/* Sidebar with controls - FIXED for consistent behavior */}
           <aside className="md:col-span-1 space-y-6">
             {/* Only show these elements in "view" mode */}
-            {editorState === "view" && (
+            {editorState === "resizeAndOptimize" && (
               <>
                 <ImageResizer
                   width={width}
@@ -1071,7 +1092,7 @@ export default function ImageEditor({
         </div>
 
         {/* Image Information Cards - only shown in view mode */}
-        {editorState === "view" && originalStats && (
+        {editorState === "resizeAndOptimize" && originalStats && (
           <ImageStats
             originalStats={originalStats}
             newStats={newStats}

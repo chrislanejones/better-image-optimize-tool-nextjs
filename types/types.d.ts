@@ -1,4 +1,4 @@
-// Editor modes
+// Updated types.d.ts with proper interface definitions
 export type EditorMode = "view" | "edit" | "crop" | "blur" | "paint" | "text";
 
 // Format types
@@ -14,13 +14,18 @@ export interface ImageFile {
   id: string;
   file: File;
   url: string;
+  width?: number;
+  height?: number;
+  metadata?: Record<string, any>;
 }
 
 export interface ImageInfo {
+  id: string;
   width: number;
   height: number;
   size: number;
   format: string;
+  url: string;
 }
 
 export interface ImageStats {
@@ -77,17 +82,15 @@ export interface ImagePaginationControlsProps {
   className?: string;
 }
 
+// SimplePagination props
 export interface SimplePaginationProps {
   currentPage: number;
   totalPages: number;
-  onPageChange: (page: number) => void;
-  className?: string;
-}
-
-export interface ImagePaginationControlsProps {
-  currentPage: number;
-  totalPages: number;
-  onNavigateImage: (direction: NavigationDirection) => void;
+  onBackTen?: () => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  onForwardTen?: () => void;
+  onNavigate?: (direction: NavigationDirection) => void;
   isDisabled?: boolean;
   className?: string;
 }
@@ -100,7 +103,7 @@ export interface ImageCropperProps {
   onBackToGallery?: () => void;
   isStandalone?: boolean;
   onEditModeChange?: (isEditMode: boolean) => void;
-  onCompressionStateChange?: (isCompressing: boolean) => void; // Added compression state handler
+  onCompressionStateChange?: (isCompressing: boolean) => void;
   // Pagination props
   currentPage?: number;
   totalPages?: number;
@@ -112,6 +115,7 @@ export interface ImageCropperProps {
   onSelectImage?: (id: string) => void;
 }
 
+// Image Editor Props - now with proper typing
 export interface ImageEditorProps {
   imageUrl: string;
   onImageChange?: (url: string) => void;
@@ -132,6 +136,21 @@ export interface ImageEditorProps {
   allImages?: ImageFile[];
   currentImageId?: string;
   onSelectImage?: (image: ImageFile) => void;
+}
+
+// Image Gallery Props - new interface for the gallery component
+export interface ImageGalleryProps {
+  images: ImageFile[];
+  onUploadNew: () => void;
+  onRemoveAll: () => void;
+  onClose?: () => void;
+  onSelectImage?: (image: ImageFile) => void;
+  onRemoveImage?: (id: string) => void;
+  onNavigateImage?: (direction: NavigationDirection) => void;
+  className?: string;
+  currentPage?: number;
+  totalPages?: number;
+  currentImageId?: string;
 }
 
 export interface ImageResizerProps {
@@ -195,7 +214,6 @@ export interface TextToolProps {
   imageUrl: string;
   onApplyText: (dataUrl: string) => void;
   onCancel: () => void;
-  // This is the fixed type - now it correctly accepts a string
   setEditorState: (state: string) => void;
   setBold: (isBold: boolean) => void;
   setItalic: (isItalic: boolean) => void;
@@ -214,6 +232,7 @@ export interface CroppingToolProps {
   onApply: (croppedImageUrl: string) => void;
   onCancel: () => void;
   className?: string;
+  aspectRatio?: number | undefined;
 }
 
 // Blur brush canvas props
@@ -244,29 +263,6 @@ export interface PaintToolProps {
 // Image zoom view props
 export interface ImageZoomViewProps {
   imageUrl: string;
-  className?: string;
-}
-
-// Placeholder component props
-export interface ImagePlaceholderProps {
-  className?: string;
-  alt?: string;
-}
-
-export interface LoadingPlaceholderProps {
-  text?: string;
-  className?: string;
-}
-
-export interface EmptyPlaceholderProps {
-  icon?: React.ReactNode;
-  title: string;
-  description?: string;
-  children?: React.ReactNode;
-  className?: string;
-}
-
-export interface MagnifierPlaceholderProps {
   className?: string;
 }
 
@@ -316,82 +312,3 @@ export interface ToolbarProps {
   isStandalone?: boolean;
   className?: string;
 }
-
-// Enhanced Toolbar Props
-export interface EnhancedToolbarProps {
-  // Editor state
-  editorState: string;
-  setEditorState: (state: string) => void;
-
-  // Format
-  format: string;
-  onFormatChange: (format: string) => void;
-
-  // Zoom controls
-  zoom: number;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-
-  // Tool states
-  isEraser: boolean;
-  setIsEraser: (value: boolean) => void;
-  blurAmount: number;
-  setBlurAmount: (value: number) => void;
-  blurRadius: number;
-  setBlurRadius: (value: number) => void;
-  brushSize: number;
-  setBrushSize: (value: number) => void;
-  brushColor: string;
-  setBrushColor: (value: string) => void;
-
-  // Action handlers
-  onReset?: () => void;
-  onDownload?: () => void;
-  onClose?: () => void;
-  onRemoveAll?: () => void;
-  onUploadNew?: () => void;
-
-  // Tool action handlers
-  onApplyCrop?: () => void;
-  onApplyBlur?: () => void;
-  onApplyPaint?: () => void;
-  onApplyText?: () => void;
-
-  // History handlers
-  onUndo?: () => void;
-  onRedo?: () => void;
-  canUndo?: boolean;
-  canRedo?: boolean;
-
-  // Rotation handlers
-  onRotateClockwise?: () => void;
-  onRotateCounterClockwise?: () => void;
-
-  // Pagination
-  currentPage?: number;
-  totalPages?: number;
-  onNavigateImage?: (direction: NavigationDirection) => void;
-
-  // Enhanced pagination
-  allImages?: ImageInfo[];
-  currentImageId?: string;
-  onSelectImage?: (id: string) => void;
-
-  className?: string;
-}
-
-// Image Gallery Props
-export interface SimplePaginationProps {
-  currentPage: number;
-  totalPages: number;
-  onBackTen?: () => void;
-  onPrevious?: () => void;
-  onNext?: () => void;
-  onForwardTen?: () => void;
-  onNavigate?: (direction: NavigationDirection) => void; // Added for compatibility
-  isDisabled?: boolean;
-  className?: string;
-}
-
-// For backward compatibility
-export type ImagePaginationControlsProps = SimplePaginationProps;
