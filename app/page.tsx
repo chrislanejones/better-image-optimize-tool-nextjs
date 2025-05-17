@@ -307,12 +307,18 @@ export default function ImageUploader() {
       <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center justify-center">
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader className="text-center">
-            <div className="mx-auto bg-primary/10 p-4 rounded-full w-16 h-16 flex items-center justify-center mb-2">
-              <ImageIcon className="h-8 w-8 text-primary" />
+            <div className="mx-auto bg-primary/50 p-4 rounded-full w-50 h-50 flex items-center justify-center mb-2">
+              <Image
+                src="/Image-Horse-Logo.svg"
+                alt="Horse Icon"
+                width={200}
+                height={200}
+                className="p-1 m-5"
+              />
             </div>
-            <CardTitle className="text-2xl">Upload Images</CardTitle>
+            <CardTitle className="text-2xl">ImageHorse</CardTitle>
             <CardDescription>
-              Upload multiple images for editing and compression
+              Upload Multiple Images for Editing and Compression
             </CardDescription>
           </CardHeader>
           <CardContent>
