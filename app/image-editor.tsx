@@ -1,5 +1,4 @@
-// Updated image-editor.tsx to merge functionality from image-gallery.tsx and use consistent state names
-
+// Updated image-editor.tsx with full-width edit mode, fixed Core Web Vitals scoring, and proper mode transitions
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   X,
@@ -24,9 +23,11 @@ import {
   ArrowLeft,
   Pencil,
   Lock,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { useToast } from "@/components/ui/use-toast";
 import CroppingTool, { type CroppingToolRef } from "./components/cropping-tool";
 import BlurBrushCanvas from "./components/blur-tool";
 import PaintTool from "./components/paint-tool";
@@ -42,6 +43,11 @@ import {
   EditorMode,
 } from "@/types/types";
 import { useTheme } from "next-themes";
+import {
+  compressImage,
+  getBlobFromUrl,
+  normalizeQuality,
+} from "./utils/image-transformations";
 
 // Define the editor states
 export type EditorState =
@@ -52,6 +58,11 @@ export type EditorState =
   | "blur" // Blur tool mode
   | "paint" // Paint tool mode
   | "text"; // Text tool mode
+
+// Update ImageEditorProps to include onEditModeChange in types/types.ts
+interface ExtendedImageEditorProps extends ImageEditorProps {
+  onEditModeChange?: (isEditMode: boolean) => void;
+}
 
 export default function ImageEditor({
   imageUrl,
@@ -72,7 +83,9 @@ export default function ImageEditor({
   allImages = [],
   currentImageId = "",
   onSelectImage,
-}: ImageEditorProps) {
+  // Edit mode change handler
+  onEditModeChange,
+}: ExtendedImageEditorProps) {
   // Editor state
   const [editorState, setEditorState] =
     useState<EditorState>("resizeAndOptimize");
@@ -80,6 +93,7 @@ export default function ImageEditor({
   const [zoom, setZoom] = useState<number>(1);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [padlockAnimation, setPadlockAnimation] = useState<boolean>(false);
 
   // Tool states
   const [isEraser, setIsEraser] = useState<boolean>(false);
@@ -87,9 +101,10 @@ export default function ImageEditor({
   const [blurRadius, setBlurRadius] = useState<number>(10);
   const [brushSize, setBrushSize] = useState<number>(10);
   const [brushColor, setBrushColor] = useState<string>("#ff0000");
-  const [format, setFormat] = useState<string>("jpeg");
+  const [format, setFormat] = useState<string>("webp"); // Default to WebP for better Core Web Vitals
   const [isBold, setIsBold] = useState<boolean>(false);
   const [isItalic, setIsItalic] = useState<boolean>(false);
+  const [quality, setQuality] = useState<number>(85); // Added quality state
 
   // Image stats
   const [width, setWidth] = useState<number>(0);
@@ -110,6 +125,8 @@ export default function ImageEditor({
   const blurCanvasRef = useRef<any>(null);
   const paintToolRef = useRef<any>(null);
   const textToolRef = useRef<any>(null);
+  const [compressionProgress, setCompressionProgress] = useState<number>(0);
+  const { toast } = useToast();
 
   // Wait for component to mount to avoid hydration issues with theme
   useEffect(() => {
@@ -121,6 +138,71 @@ export default function ImageEditor({
     if (!mounted) return;
     setTheme(theme === "dark" ? "light" : "dark");
   }, [mounted, theme, setTheme]);
+
+  // Notify parent when edit mode changes
+  useEffect(() => {
+    if (onEditModeChange) {
+      onEditModeChange(
+        editorState === "editImage" ||
+          editorState === "multiImageEdit" ||
+          editorState === "crop" ||
+          editorState === "blur" ||
+          editorState === "paint" ||
+          editorState === "text"
+      );
+    }
+  }, [editorState, onEditModeChange]);
+
+  // Play padlock animation when entering edit mode
+  useEffect(() => {
+    if (editorState === "editImage" || editorState === "multiImageEdit") {
+      setPadlockAnimation(true);
+      const timer = setTimeout(() => {
+        setPadlockAnimation(false);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [editorState]);
+
+  // Update Core Web Vitals score based on format and dimensions
+  const updateCoreWebVitalsScore = useCallback(() => {
+    if (!originalStats) return;
+
+    // Calculate current size
+    const originalSize = originalStats.width * originalStats.height;
+    const currentSize = width * height;
+
+    // Calculate compression ratio based on format
+    let compressionRatio = 1.0;
+    if (format === "webp") {
+      compressionRatio = 0.65; // WebP is typically 65% of JPEG size
+    } else if (format === "jpeg") {
+      compressionRatio = 1.0; // Baseline
+    } else if (format === "png") {
+      compressionRatio = 1.5; // PNG is typically larger
+    }
+
+    // Apply quality adjustment to compression ratio
+    const qualityFactor = quality / 85;
+    compressionRatio *= qualityFactor;
+
+    // Estimate new size
+    const estimatedSize = currentSize * compressionRatio;
+    const originalFileSize = originalStats.size;
+    const estimatedFileSize = (estimatedSize / originalSize) * originalFileSize;
+
+    // Update stats
+    setNewStats({
+      width,
+      height,
+      size: Math.round(estimatedFileSize),
+      format,
+    });
+
+    // Calculate data savings
+    const savings = 100 - (estimatedFileSize / originalFileSize) * 100;
+    setDataSavings(savings);
+  }, [originalStats, width, height, format, quality]);
 
   // Initialize image dimensions and stats
   useEffect(() => {
@@ -139,6 +221,9 @@ export default function ImageEditor({
       });
     };
     img.src = imageUrl;
+
+    // Reset compressing state whenever image changes
+    setIsCompressing(false);
   }, [imageUrl, fileSize, fileType]);
 
   // Reset editor state when image changes via pagination
@@ -153,55 +238,43 @@ export default function ImageEditor({
     setDataSavings(0);
   }, [imageUrl]);
 
+  // Handle format change
+  const handleFormatChange = useCallback(
+    (newFormat: string) => {
+      setFormat(newFormat);
+      // Update Core Web Vitals score when format changes
+      updateCoreWebVitalsScore();
+    },
+    [updateCoreWebVitalsScore]
+  );
+
   // Handle resize
-  const handleResize = useCallback((newWidth: number, newHeight: number) => {
-    if (!imgRef.current) return;
+  const handleResize = useCallback(
+    (newWidth: number, newHeight: number) => {
+      if (!imgRef.current) return;
 
-    setWidth(newWidth);
-    setHeight(newHeight);
-    setIsCompressing(true);
-  }, []);
+      // Set dimensions
+      setWidth(newWidth);
+      setHeight(newHeight);
 
-  // Apply resize
-  const handleApplyResize = useCallback(async () => {
-    if (!imgRef.current || !originalStats) return;
+      // IMPORTANT: Don't automatically set isCompressing to true
+      // setIsCompressing(true); <- REMOVE THIS LINE
 
-    try {
-      // Calculate new size (simplified estimation)
-      const areaRatio =
-        (width * height) / (originalStats.width * originalStats.height);
-      const newSize = Math.floor(originalStats.size * Math.max(areaRatio, 0.6));
+      // Update the preview statistics
+      updateCoreWebVitalsScore();
+    },
+    [updateCoreWebVitalsScore]
+  );
 
-      // Update stats
-      setNewStats({
-        width,
-        height,
-        size: newSize,
-        format: format,
-      });
-
-      // Calculate data savings
-      const savings = 100 - (newSize / originalStats.size) * 100;
-      setDataSavings(savings);
-      setHasEdited(true);
-
-      // Add to history
-      addToHistory(imageUrl);
-
-      // Notify parent if needed
-      if (onImageChange) {
-        onImageChange(imageUrl);
-      }
-
-      // Exit compression mode after a delay
-      setTimeout(() => {
-        setIsCompressing(false);
-      }, 800);
-    } catch (error) {
-      console.error("Error applying resize:", error);
-      setIsCompressing(false);
-    }
-  }, [width, height, format, originalStats, imageUrl, onImageChange]);
+  // Handle quality change
+  const handleQualityChange = useCallback(
+    (newQuality: number) => {
+      setQuality(newQuality);
+      // Update Core Web Vitals score when quality changes
+      updateCoreWebVitalsScore();
+    },
+    [updateCoreWebVitalsScore]
+  );
 
   // History management
   const addToHistory = useCallback(
@@ -215,6 +288,135 @@ export default function ImageEditor({
     },
     [historyIndex]
   );
+
+  // Apply resize
+  const handleApplyResize = useCallback(async () => {
+    console.log("🔍 handleApplyResize called in image-editor.tsx");
+
+    if (!imgRef.current || !originalStats) {
+      console.log("❌ Early return: imgRef.current or originalStats is null");
+      console.log("imgRef.current:", imgRef.current);
+      console.log("originalStats:", originalStats);
+      return;
+    }
+
+    try {
+      // Start compression
+      setIsCompressing(true);
+
+      // Simulate progress steps for better UX
+      let progress = 0;
+      const progressTimer = setInterval(() => {
+        progress += 5;
+        setCompressionProgress(progress);
+        if (progress >= 95) {
+          clearInterval(progressTimer);
+        }
+      }, 100);
+
+      console.log(
+        `Applying resize to ${width}x${height} with format ${format} and quality ${quality}`
+      );
+
+      // Actually perform the compression and resize using the utility function
+      const result = await compressImage(
+        imageUrl,
+        format,
+        quality,
+        width // Pass the target width to enable resizing
+      );
+
+      // Get the compressed result
+      const {
+        url: compressedUrl,
+        blob,
+        width: newWidth,
+        height: newHeight,
+      } = result;
+
+      console.log(
+        `Compression result: ${(blob.size / 1024).toFixed(
+          2
+        )} KB, ${newWidth}x${newHeight}`
+      );
+
+      // Update dimensions in case they changed during compression
+      setWidth(newWidth);
+      setHeight(newHeight);
+
+      // Set final progress
+      setCompressionProgress(100);
+
+      // Update the preview with the new compressed image
+      if (onImageChange) {
+        onImageChange(compressedUrl);
+      }
+
+      // Update stats - this ensures ImageStats component gets updated
+      const updatedStats = {
+        width: newWidth,
+        height: newHeight,
+        size: blob.size,
+        format,
+      };
+
+      setNewStats(updatedStats);
+
+      // Calculate data savings
+      const savings = originalStats
+        ? 100 - (blob.size / originalStats.size) * 100
+        : 0;
+      setDataSavings(savings);
+
+      // Important: Mark as edited so stats are displayed
+      setHasEdited(true);
+
+      // Add to history
+      addToHistory(compressedUrl);
+
+      // Exit compression mode after a delay
+      setTimeout(() => {
+        setIsCompressing(false);
+        setCompressionProgress(0);
+
+        // Version 1: Simple string message
+        toast({
+          title: `Image optimized! Reduced file size by ${Math.round(
+            savings
+          )}% to ${(blob.size / 1024).toFixed(0)} KB`,
+          variant: "default",
+        });
+      }, 800);
+    } catch (error) {
+      console.error("Error applying resize:", error);
+      setIsCompressing(false);
+      setCompressionProgress(0);
+
+      // Simple error toast
+      toast({
+        title:
+          "Compression error. Failed to compress the image. Please try again.",
+        variant: "destructive",
+      });
+
+      // Or with title only if supported
+      // toast({
+      //   title: "Compression error. Failed to compress the image. Please try again.",
+      //   variant: "destructive"
+      // });
+    }
+  }, [
+    imgRef,
+    width,
+    height,
+    format,
+    quality,
+    originalStats,
+    imageUrl,
+    onImageChange,
+    addToHistory,
+    toast,
+  ]);
 
   const handleUndo = useCallback(() => {
     if (historyIndex > 0) {
@@ -340,7 +542,7 @@ export default function ImageEditor({
         }
 
         setHasEdited(true);
-        setEditorState("editImage"); // Return to edit mode after applying blur
+        setEditorState("editImage"); // Always return to edit mode after applying blur
 
         // Add to history
         addToHistory(blurredImageUrl);
@@ -395,7 +597,7 @@ export default function ImageEditor({
         }
 
         setHasEdited(true);
-        setEditorState("editImage"); // Return to edit mode after applying paint
+        setEditorState("editImage"); // Always return to edit mode after applying paint
 
         // Add to history
         addToHistory(paintedImageUrl);
@@ -449,7 +651,7 @@ export default function ImageEditor({
         }
 
         setHasEdited(true);
-        setEditorState("editImage"); // Return to edit mode after applying text
+        setEditorState("editImage"); // Always return to edit mode after applying text
 
         // Add to history
         addToHistory(textedImageUrl);
@@ -486,44 +688,99 @@ export default function ImageEditor({
 
   // Download image
   const handleDownload = useCallback(() => {
-    if (!canvasRef.current) return;
+    if (!imgRef.current || !canvasRef.current) return;
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+    try {
+      // Start a small loading indicator
+      setIsCompressing(true);
+      setCompressionProgress(50);
 
-    if (!ctx || !imgRef.current) return;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
 
-    // Set canvas dimensions to match current image
-    canvas.width = imgRef.current.naturalWidth;
-    canvas.height = imgRef.current.naturalHeight;
+      if (!ctx) {
+        throw new Error("Failed to get canvas context");
+      }
 
-    // Draw the current image to canvas
-    ctx.drawImage(imgRef.current, 0, 0);
+      // Set canvas dimensions to match current image
+      canvas.width = imgRef.current.naturalWidth;
+      canvas.height = imgRef.current.naturalHeight;
 
-    // Convert to the selected format and download
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
+      // Draw the current image to canvas
+      ctx.drawImage(imgRef.current, 0, 0);
+
+      // Get the correct file extension
+      const extension =
+        format === "webp" ? "webp" : format === "png" ? "png" : "jpg";
+
+      // Convert quality from 0-100 to 0-1
+      const normalizedQuality = quality / 100;
+
+      // Convert to the selected format and download
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            throw new Error("Failed to create blob");
+          }
+
+          console.log(
+            `Downloaded image size: ${(blob.size / 1024).toFixed(2)} KB`
+          );
+
+          // Create download link
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
           const fileNameWithoutExt = fileName.split(".")[0] || "image";
-          a.download = `${fileNameWithoutExt}-edited.${
-            format === "webp" ? "webp" : format === "jpeg" ? "jpg" : "png"
-          }`;
+          a.download = `${fileNameWithoutExt}-edited.${extension}`;
+          document.body.appendChild(a);
           a.click();
+          document.body.removeChild(a);
           URL.revokeObjectURL(url);
-        }
-      },
-      `image/${format}`,
-      0.9
-    );
 
-    if (onDownload) {
-      onDownload();
+          // End loading state
+          setIsCompressing(false);
+          setCompressionProgress(0);
+
+          // Show success notification with simple string
+          toast({
+            title: `Download complete! File saved as ${format.toUpperCase()}, ${(
+              blob.size / 1024
+            ).toFixed(0)} KB`,
+            variant: "default",
+          });
+
+          // Or with title only if supported
+          // toast({
+          //   title: `Download complete! File saved as ${format.toUpperCase()}, ${(blob.size / 1024).toFixed(0)} KB`
+          // });
+        },
+        getMimeType(format),
+        normalizedQuality
+      );
+
+      if (onDownload) {
+        onDownload();
+      }
+    } catch (error) {
+      console.error("Error downloading image:", error);
+      setIsCompressing(false);
+      setCompressionProgress(0);
+
+      // Show error toast
+      toast({
+        title:
+          "Download error. Failed to download the image. Please try again.",
+        variant: "destructive",
+      });
+
+      // Or with title only if supported
+      // toast({
+      //   title: "Download error. Failed to download the image. Please try again.",
+      //   variant: "destructive"
+      // });
     }
-  }, [imgRef, canvasRef, fileName, format, onDownload]);
-
+  }, [imgRef, canvasRef, fileName, format, quality, onDownload, toast]);
   // Zoom in/out functions
   const handleZoomIn = useCallback(() => {
     setZoom((prev) => Math.min(prev + 0.1, 3));
@@ -555,7 +812,7 @@ export default function ImageEditor({
     );
 
     // Get the rotated image
-    const rotatedImageUrl = canvas.toDataURL(`image/${format}`);
+    const rotatedImageUrl = canvas.toDataURL(`image/${format}`, quality / 100);
 
     // Update dimensions
     setWidth(canvas.width);
@@ -568,7 +825,7 @@ export default function ImageEditor({
     if (onImageChange) {
       onImageChange(rotatedImageUrl);
     }
-  }, [imgRef, canvasRef, format, onImageChange, addToHistory]);
+  }, [imgRef, canvasRef, format, quality, onImageChange, addToHistory]);
 
   const handleRotateCounterClockwise = useCallback(() => {
     if (!canvasRef.current || !imgRef.current) return;
@@ -591,7 +848,7 @@ export default function ImageEditor({
     );
 
     // Get the rotated image
-    const rotatedImageUrl = canvas.toDataURL(`image/${format}`);
+    const rotatedImageUrl = canvas.toDataURL(`image/${format}`, quality / 100);
 
     // Update dimensions
     setWidth(canvas.width);
@@ -604,10 +861,34 @@ export default function ImageEditor({
     if (onImageChange) {
       onImageChange(rotatedImageUrl);
     }
-  }, [imgRef, canvasRef, format, onImageChange, addToHistory]);
+  }, [imgRef, canvasRef, format, quality, onImageChange, addToHistory]);
+
+  function getMimeType(format: string): string {
+    if (format === "webp") return "image/webp";
+    if (format === "jpeg") return "image/jpeg";
+    if (format === "png") return "image/png";
+    return "image/jpeg"; // Default fallback
+  }
 
   return (
     <div className={`flex flex-col gap-6 ${className}`}>
+      {/* Padlock in edit mode where gallery would be - ABOVE the toolbar */}
+      {(editorState === "editImage" || editorState === "multiImageEdit") && (
+        <div
+          className={`w-full flex justify-center items-center mb-4
+            ${padlockAnimation ? "animate-pulse" : ""}`}
+        >
+          <div className="inline-flex items-center gap-2 justify-center px-4 py-2 rounded-full bg-gray-600 border border-gray-500">
+            <Lock
+              className={`h-4 w-4 ${
+                padlockAnimation ? "text-yellow-300" : "text-white"
+              }`}
+            />
+            <span className="font-medium">Edit Image Mode</span>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar - with states as requested */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
         {/* resizeAndOptimize state toolbar */}
@@ -652,7 +933,7 @@ export default function ImageEditor({
                 Multi Edit
               </Button>
 
-              {/* ALWAYS add SimplePagination component */}
+              {/* ALWAYS add SimplePagination component in resizeAndOptimize mode */}
               {onNavigateImage && (
                 <SimplePagination
                   currentPage={currentPage}
@@ -667,6 +948,15 @@ export default function ImageEditor({
               <Button onClick={handleReset} variant="outline" className="h-9">
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Reset
+              </Button>
+
+              <Button
+                onClick={handleDownload}
+                variant="outline"
+                className="h-9"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download
               </Button>
 
               {/* Back to gallery - renamed */}
@@ -717,121 +1007,112 @@ export default function ImageEditor({
             </div>
           </>
         )}
-        {/* editImage state toolbar with 3-column grid layout and centered lock text */}
+
+        {/* editImage state toolbar without centered padlock */}
         {editorState === "editImage" && (
-          <>
-            {/* Centered Lock Icon with Edit Image Mode text */}
-            <div className="w-full text-center mb-4">
-              <div className="inline-flex items-center gap-2 justify-center">
-                <Lock className="h-4 w-4" />
-                <span className="font-medium">Edit Image Mode</span>
-              </div>
+          <div className="w-full grid grid-cols-3 items-center">
+            {/* Left section - icons only, no text */}
+            <div className="flex items-center gap-2 justify-self-start">
+              <Button
+                onClick={handleZoomOut}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                title="Zoom Out"
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleZoomIn}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                title="Zoom In"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleUndo}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                disabled={historyIndex <= 0}
+                title="Undo"
+              >
+                <Undo className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleRedo}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                disabled={historyIndex >= history.length - 1}
+                title="Redo"
+              >
+                <Redo className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleRotateCounterClockwise}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                title="Rotate Left"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleRotateClockwise}
+                variant="outline"
+                className="h-9 w-9 p-0"
+                title="Rotate Right"
+              >
+                <RotateCw className="h-4 w-4" />
+              </Button>
             </div>
 
-            <div className="w-full grid grid-cols-3 items-center">
-              {/* Left section - icons only, no text */}
-              <div className="flex items-center gap-2 justify-self-start">
-                <Button
-                  onClick={handleZoomOut}
-                  variant="outline"
-                  className="h-9 w-9 p-0"
-                  title="Zoom Out"
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <Button
-                  onClick={handleZoomIn}
-                  variant="outline"
-                  className="h-9 w-9 p-0"
-                  title="Zoom In"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-                <Button
-                  onClick={handleUndo}
-                  variant="outline"
-                  className="h-9 w-9 p-0"
-                  disabled={historyIndex <= 0}
-                  title="Undo"
-                >
-                  <Undo className="h-4 w-4" />
-                </Button>
-                <Button
-                  onClick={handleRedo}
-                  variant="outline"
-                  className="h-9 w-9 p-0"
-                  disabled={historyIndex >= history.length - 1}
-                  title="Redo"
-                >
-                  <Redo className="h-4 w-4" />
-                </Button>
-                <Button
-                  onClick={handleRotateCounterClockwise}
-                  variant="outline"
-                  className="h-9 w-9 p-0"
-                  title="Rotate Left"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-                <Button
-                  onClick={handleRotateClockwise}
-                  variant="outline"
-                  className="h-9 w-9 p-0"
-                  title="Rotate Right"
-                >
-                  <RotateCw className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Center section - state changing buttons with text */}
-              <div className="flex items-center gap-2 justify-self-center">
-                <Button
-                  onClick={() => setEditorState("crop")}
-                  variant="outline"
-                  className="h-9"
-                >
-                  <Crop className="mr-2 h-4 w-4" />
-                  Crop Image
-                </Button>
-                <Button
-                  onClick={() => setEditorState("blur")}
-                  variant="outline"
-                  className="h-9"
-                >
-                  <Droplets className="mr-2 h-4 w-4" />
-                  Blur Tool
-                </Button>
-                <Button
-                  onClick={() => setEditorState("paint")}
-                  variant="outline"
-                  className="h-9"
-                >
-                  <Paintbrush className="mr-2 h-4 w-4" />
-                  Paint Tool
-                </Button>
-                <Button
-                  onClick={() => setEditorState("text")}
-                  variant="outline"
-                  className="h-9"
-                >
-                  <Type className="mr-2 h-4 w-4" />
-                  Text Tool
-                </Button>
-              </div>
-
-              {/* Right section - Exit button */}
-              <div className="flex items-center gap-2 justify-self-end">
-                <Button
-                  onClick={() => setEditorState("resizeAndOptimize")}
-                  variant="outline"
-                  className="h-9"
-                >
-                  <X className="mr-2 h-4 w-4" />
-                  Exit Edit Mode
-                </Button>
-              </div>
+            {/* Center section - state changing buttons with text */}
+            <div className="flex items-center gap-2 justify-self-center">
+              <Button
+                onClick={() => setEditorState("crop")}
+                variant="outline"
+                className="h-9"
+              >
+                <Crop className="mr-2 h-4 w-4" />
+                Crop Image
+              </Button>
+              <Button
+                onClick={() => setEditorState("blur")}
+                variant="outline"
+                className="h-9"
+              >
+                <Droplets className="mr-2 h-4 w-4" />
+                Blur Tool
+              </Button>
+              <Button
+                onClick={() => setEditorState("paint")}
+                variant="outline"
+                className="h-9"
+              >
+                <Paintbrush className="mr-2 h-4 w-4" />
+                Paint Tool
+              </Button>
+              <Button
+                onClick={() => setEditorState("text")}
+                variant="outline"
+                className="h-9"
+              >
+                <Type className="mr-2 h-4 w-4" />
+                Text Tool
+              </Button>
             </div>
-          </>
+
+            {/* Right section - Exit button */}
+            <div className="flex items-center gap-2 justify-self-end">
+              <Button
+                onClick={() => setEditorState("resizeAndOptimize")}
+                variant="outline"
+                className="h-9"
+              >
+                <X className="mr-2 h-4 w-4" />
+                Exit Edit Mode
+              </Button>
+            </div>
+          </div>
         )}
 
         {/* Tool-specific states */}
@@ -964,13 +1245,13 @@ export default function ImageEditor({
             >
               Blur Amount: {blurAmount}px
             </label>
-            <input
+            <Slider
               id="blur-amount"
-              type="range"
-              min="1"
-              max="20"
-              value={blurAmount}
-              onChange={(e) => setBlurAmount(parseInt(e.target.value))}
+              min={1}
+              max={20}
+              step={1}
+              value={[blurAmount]}
+              onValueChange={(values) => setBlurAmount(values[0])}
               className="w-full"
             />
           </div>
@@ -981,25 +1262,29 @@ export default function ImageEditor({
             >
               Brush Size: {blurRadius}px
             </label>
-            <input
+            <Slider
               id="blur-radius"
-              type="range"
-              min="5"
-              max="50"
-              value={blurRadius}
-              onChange={(e) => setBlurRadius(parseInt(e.target.value))}
+              min={5}
+              max={50}
+              step={1}
+              value={[blurRadius]}
+              onValueChange={(values) => setBlurRadius(values[0])}
               className="w-full"
             />
           </div>
         </div>
       )}
 
-      {editorState === "paint" && <></>}
-
       <div className="flex flex-col gap-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* Main editing area */}
-          <section className="md:col-span-3">
+          {/* Main editing area - Full width in editImage/crop/blur/paint/text mode */}
+          <section
+            className={`${
+              editorState !== "resizeAndOptimize"
+                ? "col-span-full"
+                : "md:col-span-3"
+            }`}
+          >
             <div className="space-y-2">
               <div className="relative border rounded-lg overflow-hidden">
                 {editorState === "crop" ? (
@@ -1063,35 +1348,34 @@ export default function ImageEditor({
             </div>
           </section>
 
-          {/* Sidebar with controls - FIXED for consistent behavior */}
-          <aside className="md:col-span-1 space-y-6">
-            {/* Only show these elements in "view" mode */}
-            {editorState === "resizeAndOptimize" && (
-              <>
-                <ImageResizer
-                  width={width}
-                  height={height}
-                  maxWidth={originalStats?.width || 1000}
-                  maxHeight={originalStats?.height || 1000}
-                  onResize={handleResize}
-                  onApplyResize={handleApplyResize}
-                  format={format}
-                  onFormatChange={setFormat}
-                  onDownload={handleDownload}
-                  isCompressing={isCompressing}
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onNavigateImage={onNavigateImage}
-                />
+          {/* Sidebar - Only shown in resizeAndOptimize mode */}
+          {editorState === "resizeAndOptimize" && (
+            <aside className="md:col-span-1 space-y-6">
+              <ImageResizer
+                width={width}
+                height={height}
+                maxWidth={originalStats?.width || 1000}
+                maxHeight={originalStats?.height || 1000}
+                onResize={handleResize}
+                onApplyResize={handleApplyResize}
+                format={format}
+                onFormatChange={handleFormatChange}
+                onDownload={handleDownload}
+                isCompressing={isCompressing}
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onNavigateImage={onNavigateImage}
+                quality={quality}
+                onQualityChange={handleQualityChange}
+              />
 
-                {/* Show ImageZoomView in view mode if the image has been edited */}
-                {hasEdited && <ImageZoomView imageUrl={imageUrl} />}
-              </>
-            )}
-          </aside>
+              {/* Show ImageZoomView in view mode if the image has been edited */}
+              {hasEdited && <ImageZoomView imageUrl={imageUrl} />}
+            </aside>
+          )}
         </div>
 
-        {/* Image Information Cards - only shown in view mode */}
+        {/* Image Information Cards - only shown in resizeAndOptimize mode */}
         {editorState === "resizeAndOptimize" && originalStats && (
           <ImageStats
             originalStats={originalStats}

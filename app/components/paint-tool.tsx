@@ -317,9 +317,9 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
     }));
 
     return (
-      <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Canvas Area */}
+      <div className="grid grid-cols-2 gap-2">
+        {/* Canvas Column */}
+        <div className="col-1 bg-gray-800 rounded-lg p-4">
           <div className="relative border rounded-lg overflow-hidden">
             <canvas
               ref={canvasRef}
@@ -327,254 +327,239 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
               onMouseUp={finishDrawing}
               onMouseMove={draw}
               onMouseLeave={finishDrawing}
-              className="max-w-full cursor-crosshair"
-              style={{ width: "100%", height: "auto" }}
+              className="w-full h-auto cursor-crosshair"
             />
           </div>
+        </div>
 
-          {/* Controls Area */}
-          <div className="flex flex-col space-y-4 bg-gray-800 rounded-lg p-4">
-            {/* Tool Header and Undo/Redo */}
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-medium text-white">Paint Tools</h3>
-              <div className="flex space-x-2">
+        {/* Tools Column */}
+        <div className="col-1 flex flex-col gap-4 bg-gray-800 rounded-lg p-4">
+          {/* Header + Undo/Redo */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium text-white">Paint Tools</h3>
+            <div className="flex space-x-2">
+              <Button
+                onClick={handleUndo}
+                variant="secondary"
+                className="h-9 w-9 p-0"
+                disabled={historyIndex <= 0}
+                title="Undo"
+              >
+                <Undo className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={handleRedo}
+                variant="secondary"
+                className="h-9 w-9 p-0"
+                disabled={historyIndex >= history.length - 1}
+                title="Redo"
+              >
+                <Redo className="h-4 w-4" />
+              </Button>
+              <Button onClick={clear} variant="destructive" size="sm">
+                Clear
+              </Button>
+            </div>
+          </div>
+
+          {/* Tool Selection */}
+          <div className="grid grid-cols-3 gap-2">
+            <Button
+              onClick={() => toggleTool("brush")}
+              variant={tool === "brush" ? "default" : "outline"}
+              className={`flex items-center justify-center h-12 ${
+                tool === "brush" ? "bg-blue-600" : ""
+              }`}
+            >
+              <Paintbrush className="mr-2 h-5 w-5" />
+              Brush
+            </Button>
+            <Button
+              onClick={() => toggleTool("eraser")}
+              variant={tool === "eraser" ? "default" : "outline"}
+              className={`flex items-center justify-center h-12 ${
+                tool === "eraser" ? "bg-blue-600" : ""
+              }`}
+            >
+              <Eraser className="mr-2 h-5 w-5" />
+              Eraser
+            </Button>
+            <Button
+              onClick={() => toggleTool("emoji")}
+              variant={tool === "emoji" ? "default" : "outline"}
+              className={`flex items-center justify-center h-12 ${
+                tool === "emoji" ? "bg-blue-600" : ""
+              }`}
+            >
+              <Smile className="mr-2 h-5 w-5" />
+              Emoji
+            </Button>
+          </div>
+
+          {/* Emoji Picker */}
+          {tool === "emoji" && (
+            <div className="bg-gray-700 p-3 rounded-md">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-medium text-white">
+                  Selected: <span className="text-xl">{selectedEmoji}</span>
+                </h4>
                 <Button
-                  onClick={handleUndo}
-                  variant="secondary"
-                  className="h-9 w-9 p-0"
-                  disabled={historyIndex <= 0}
-                  title="Undo"
-                >
-                  <Undo className="h-4 w-4" />
-                </Button>
-                <Button
-                  onClick={handleRedo}
-                  variant="secondary"
-                  className="h-9 w-9 p-0"
-                  disabled={historyIndex >= history.length - 1}
-                  title="Redo"
-                >
-                  <Redo className="h-4 w-4" />
-                </Button>
-                <Button
-                  onClick={clear}
-                  variant="destructive"
                   size="sm"
-                  className="ml-2"
+                  variant={showEmojiPicker ? "default" : "outline"}
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                 >
-                  Clear
+                  {showEmojiPicker ? "Hide Picker" : "Show Picker"}
                 </Button>
               </div>
-            </div>
 
-            {/* Tool Selection */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              <Button
-                onClick={() => toggleTool("brush")}
-                variant={tool === "brush" ? "default" : "outline"}
-                className={`flex items-center justify-center h-12 ${
-                  tool === "brush" ? "bg-blue-600" : ""
-                }`}
-              >
-                <Paintbrush className="mr-2 h-5 w-5" />
-                Brush
-              </Button>
-              <Button
-                onClick={() => toggleTool("eraser")}
-                variant={tool === "eraser" ? "default" : "outline"}
-                className={`flex items-center justify-center h-12 ${
-                  tool === "eraser" ? "bg-blue-600" : ""
-                }`}
-              >
-                <Eraser className="mr-2 h-5 w-5" />
-                Eraser
-              </Button>
-              <Button
-                onClick={() => toggleTool("emoji")}
-                variant={tool === "emoji" ? "default" : "outline"}
-                className={`flex items-center justify-center h-12 ${
-                  tool === "emoji" ? "bg-blue-600" : ""
-                }`}
-              >
-                <Smile className="mr-2 h-5 w-5" />
-                Emoji
-              </Button>
-            </div>
-
-            {/* Emoji Picker */}
-            {tool === "emoji" && (
-              <div className="bg-gray-700 p-3 rounded-md">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-medium text-white">
-                    Selected: <span className="text-xl">{selectedEmoji}</span>
-                  </h4>
-                  <Button
-                    size="sm"
-                    variant={showEmojiPicker ? "default" : "outline"}
-                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  >
-                    {showEmojiPicker ? "Hide Picker" : "Show Picker"}
-                  </Button>
+              {showEmojiPicker && (
+                <div className="mt-2 mb-4 emoji-picker-container">
+                  <EmojiPicker
+                    onEmojiClick={handleEmojiSelect}
+                    width="100%"
+                    height={300}
+                    searchDisabled={false}
+                    skinTonesDisabled={false}
+                    lazyLoadEmojis={true}
+                  />
                 </div>
+              )}
 
-                {showEmojiPicker && (
-                  <div className="mt-2 mb-4 emoji-picker-container">
-                    <EmojiPicker
-                      onEmojiClick={handleEmojiSelect}
-                      width="100%"
-                      height={300}
-                      searchDisabled={false}
-                      skinTonesDisabled={false}
-                      lazyLoadEmojis={true}
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-2 mt-2">
-                  <div className="flex justify-between">
-                    <label
-                      htmlFor="emoji-size"
-                      className="text-sm font-medium text-white"
-                    >
-                      Emoji Size: {brushSize}px
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-white text-xs">10px</span>
-                    <Slider
-                      id="emoji-size"
-                      min={10}
-                      max={100}
-                      step={5}
-                      value={[brushSize]}
-                      onValueChange={(value) => setBrushSize(value[0])}
-                      className="flex-1"
-                    />
-                    <span className="text-white text-xs">100px</span>
-                  </div>
-                  <div className="mt-2 flex justify-center">
-                    <div
-                      className="flex items-center justify-center"
-                      style={{
-                        fontSize: `${brushSize}px`,
-                      }}
-                    >
-                      {selectedEmoji}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Brush/Eraser Size Control */}
-            {tool !== "emoji" && (
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <label
-                    htmlFor="brush-size"
+                    htmlFor="emoji-size"
                     className="text-sm font-medium text-white"
                   >
-                    {tool === "brush" ? "Brush" : "Eraser"} Size: {brushSize}px
+                    Emoji Size: {brushSize}px
                   </label>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-white text-xs">1px</span>
+                  <span className="text-white text-xs">10px</span>
                   <Slider
-                    id="brush-size"
-                    min={1}
-                    max={50}
-                    step={1}
+                    id="emoji-size"
+                    min={10}
+                    max={100}
+                    step={5}
                     value={[brushSize]}
-                    onValueChange={(value) => setBrushSize(value[0])}
+                    onValueChange={(v) => setBrushSize(v[0])}
                     className="flex-1"
                   />
-                  <span className="text-white text-xs">50px</span>
+                  <span className="text-white text-xs">100px</span>
                 </div>
                 <div className="mt-2 flex justify-center">
                   <div
-                    className="rounded-full border border-white bg-transparent flex items-center justify-center"
-                    style={{
-                      width: `${Math.min(brushSize * 2, 60)}px`,
-                      height: `${Math.min(brushSize * 2, 60)}px`,
-                      backgroundColor:
-                        tool === "eraser" ? "transparent" : brushColor,
-                    }}
+                    style={{ fontSize: `${brushSize}px` }}
+                    className="flex items-center justify-center"
                   >
-                    {tool === "eraser" ? (
-                      <Eraser className="h-4 w-4 text-white" />
-                    ) : (
-                      <Paintbrush
-                        className="h-4 w-4"
-                        color={
-                          getBrightness(brushColor) > 128
-                            ? "#000000"
-                            : "#ffffff"
-                        }
-                      />
-                    )}
+                    {selectedEmoji}
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Color Selection (only for brush) */}
-            {tool === "brush" && (
-              <div className="space-y-2 mt-2">
-                <label className="text-sm font-medium text-white">
-                  Brush Color
+          {/* Brush/Eraser Size */}
+          {tool !== "emoji" && (
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <label
+                  htmlFor="brush-size"
+                  className="text-sm font-medium text-white"
+                >
+                  {tool === "brush" ? "Brush" : "Eraser"} Size: {brushSize}px
                 </label>
-                <div className="grid grid-cols-8 gap-1">
-                  {colorPalette.map((color) => (
-                    <button
-                      key={color}
-                      className={`w-8 h-8 rounded-md transition-transform ${
-                        brushColor === color
-                          ? "border-2 border-white scale-110 shadow-lg z-10"
-                          : "border border-gray-700"
-                      }`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => setBrushColor(color)}
-                      title={color}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-white text-xs">1px</span>
+                <Slider
+                  id="brush-size"
+                  min={1}
+                  max={50}
+                  step={1}
+                  value={[brushSize]}
+                  onValueChange={(v) => setBrushSize(v[0])}
+                  className="flex-1"
+                />
+                <span className="text-white text-xs">50px</span>
+              </div>
+              <div className="mt-2 flex justify-center">
+                <div
+                  className="rounded-full border border-white flex items-center justify-center"
+                  style={{
+                    width: `${Math.min(brushSize * 2, 60)}px`,
+                    height: `${Math.min(brushSize * 2, 60)}px`,
+                    backgroundColor:
+                      tool === "eraser" ? "transparent" : brushColor,
+                  }}
+                >
+                  {tool === "eraser" ? (
+                    <Eraser className="h-4 w-4 text-white" />
+                  ) : (
+                    <Paintbrush
+                      className="h-4 w-4"
+                      color={
+                        getBrightness(brushColor) > 128 ? "#000000" : "#ffffff"
+                      }
                     />
-                  ))}
-                </div>
-
-                {/* Custom color picker */}
-                <div className="flex items-center mt-2">
-                  <label className="text-sm font-medium text-white mr-2">
-                    Custom:
-                  </label>
-                  <input
-                    type="color"
-                    value={brushColor}
-                    onChange={(e) => setBrushColor(e.target.value)}
-                    className="w-8 h-8 cursor-pointer bg-transparent"
-                  />
-                  <span className="ml-2 text-white text-xs font-mono">
-                    {brushColor}
-                  </span>
+                  )}
                 </div>
               </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-2 mt-auto pt-4">
-              <Button onClick={onCancel} variant="outline">
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  const dataUrl = canvasRef.current?.toDataURL(
-                    "image/jpeg",
-                    0.9
-                  );
-                  if (dataUrl) onApplyPaint(dataUrl);
-                }}
-                variant="default"
-              >
-                Apply Changes
-              </Button>
             </div>
+          )}
+
+          {/* Color Picker */}
+          {tool === "brush" && (
+            <div className="space-y-2 mt-2">
+              <label className="text-sm font-medium text-white">
+                Brush Color
+              </label>
+              <div className="grid grid-cols-8 gap-1">
+                {colorPalette.map((color) => (
+                  <button
+                    key={color}
+                    className={`w-8 h-8 rounded-md transition-transform ${
+                      brushColor === color
+                        ? "border-2 border-white scale-110 shadow-lg z-10"
+                        : "border border-gray-700"
+                    }`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setBrushColor(color)}
+                    title={color}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center mt-2">
+                <label className="text-sm font-medium text-white mr-2">
+                  Custom:
+                </label>
+                <input
+                  type="color"
+                  value={brushColor}
+                  onChange={(e) => setBrushColor(e.target.value)}
+                  className="w-8 h-8 cursor-pointer bg-transparent"
+                />
+                <span className="ml-2 text-white text-xs font-mono">
+                  {brushColor}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-2 mt-auto pt-4">
+            <Button onClick={onCancel} variant="outline">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const dataUrl = canvasRef.current?.toDataURL("image/jpeg", 0.9);
+                if (dataUrl) onApplyPaint(dataUrl);
+              }}
+              variant="default"
+            >
+              Apply Changes
+            </Button>
           </div>
         </div>
       </div>

@@ -183,6 +183,11 @@ export default function ImageUploader() {
     setSelectedImage({ ...selectedImage, url: newImageUrl });
   };
 
+  // Handle edit mode change from the editor
+  const handleEditModeChange = useCallback((isInEditMode: boolean) => {
+    setIsEditMode(isInEditMode);
+  }, []);
+
   const handleNavigateImage = useCallback(
     (direction: NavigationDirection) => {
       if (images.length === 0 || !selectedImage) return;
@@ -375,44 +380,46 @@ export default function ImageUploader() {
   if (selectedImage) {
     return (
       <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col">
-        {/* Thumbnail strip */}
-        <div className="grid grid-cols-5 md:grid-cols-10 gap-2 p-2 bg-gray-800 rounded-lg mb-6">
-          {currentImages.map((image, index) => (
-            <div
-              key={image.id}
-              className={`relative group aspect-square animate-fade-scale-in ${
-                selectedImage?.id === image.id ? "ring-2 ring-blue-500" : ""
-              }`}
-              style={{ animationDelay: `${index * 0.05}s` }}
-              onClick={() => selectImage(image)}
-            >
-              <Image
-                src={image.url}
-                alt="Uploaded image"
-                fill
-                className="object-cover rounded-md"
-              />
-              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100">
+        {/* Thumbnail strip - Only shown when NOT in edit mode */}
+        {!isEditMode && (
+          <div className="grid grid-cols-5 md:grid-cols-10 gap-2 p-2 bg-gray-800 rounded-lg mb-6">
+            {currentImages.map((image, index) => (
+              <div
+                key={image.id}
+                className={`relative group aspect-square animate-fade-scale-in ${
+                  selectedImage?.id === image.id ? "ring-2 ring-blue-500" : ""
+                }`}
+                style={{ animationDelay: `${index * 0.05}s` }}
+                onClick={() => selectImage(image)}
+              >
+                <Image
+                  src={image.url}
+                  alt="Uploaded image"
+                  fill
+                  className="object-cover rounded-md"
+                />
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <button
+                    className="p-2 bg-blue-500 text-white rounded-full transform transition-transform group-hover:scale-110"
+                    aria-label="Expand image"
+                  >
+                    <Maximize2 size={20} />
+                  </button>
+                </div>
                 <button
-                  className="p-2 bg-blue-500 text-white rounded-full transform transition-transform group-hover:scale-110"
-                  aria-label="Expand image"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeImage(image.id);
+                  }}
+                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Remove image"
                 >
-                  <Maximize2 size={20} />
+                  <X size={16} />
                 </button>
               </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeImage(image.id);
-                }}
-                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                aria-label="Remove image"
-              >
-                <X size={16} />
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Image Editor */}
         <ImageEditor
@@ -439,6 +446,7 @@ export default function ImageUploader() {
           onNavigateImage={handleNavigateImage}
           onRemoveAll={resetUpload}
           onUploadNew={handleUploadClick}
+          onEditModeChange={handleEditModeChange}
         />
 
         <input

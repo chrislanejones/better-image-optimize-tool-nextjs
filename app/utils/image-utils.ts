@@ -1,3 +1,4 @@
+// Updated image-utils.ts with fixes for quality normalization
 "use client";
 
 import type { PixelCrop } from "react-image-crop";
@@ -72,6 +73,19 @@ export function getSafeImageUrl(url?: string): string {
 }
 
 /**
+ * Normalize quality value to ensure it's in 0-1 range
+ * This helps prevent issues with the canvas.toBlob quality parameter
+ */
+export function normalizeQuality(quality: number): number {
+  // If quality is in 0-100 range, convert to 0-1
+  if (quality > 1) {
+    return quality / 100;
+  }
+  // Ensure quality is between 0 and 1
+  return Math.max(0, Math.min(1, quality));
+}
+
+/**
  * Apply crop to an image and return the result as a URL
  */
 export async function cropImage(
@@ -109,8 +123,15 @@ export async function cropImage(
       crop.height
     );
 
+    // Normalize quality
+    const normalizedQuality = normalizeQuality(quality);
+
     // Convert to blob and create URL
-    const blob = await canvasToBlob(canvas, format, quality);
+    const blob = await canvasToBlob(canvas, format, normalizedQuality);
+
+    // Log blob size for debugging
+    console.log(`Cropped image blob size: ${(blob.size / 1024).toFixed(2)} KB`);
+
     return URL.createObjectURL(blob);
   } catch (error) {
     console.error("Error cropping image:", error);
@@ -140,11 +161,27 @@ export async function resizeImage(
     canvas.width = width;
     canvas.height = height;
 
+    // Enable high quality image rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+
     // Draw the image with new dimensions
     ctx.drawImage(image, 0, 0, width, height);
 
+    // Normalize quality
+    const normalizedQuality = normalizeQuality(quality);
+
+    // Log resize operation for debugging
+    console.log(
+      `Resizing to ${width}x${height} with format ${format} and quality ${normalizedQuality}`
+    );
+
     // Convert to blob and create URL
-    const blob = await canvasToBlob(canvas, format, quality);
+    const blob = await canvasToBlob(canvas, format, normalizedQuality);
+
+    // Log blob size for debugging
+    console.log(`Resized image blob size: ${(blob.size / 1024).toFixed(2)} KB`);
+
     return URL.createObjectURL(blob);
   } catch (error) {
     console.error("Error resizing image:", error);
@@ -153,7 +190,7 @@ export async function resizeImage(
 }
 
 /**
- * Convert a canvas to a blob
+ * Convert a canvas to a blob with proper quality handling
  */
 export function canvasToBlob(
   canvas: HTMLCanvasElement,
@@ -161,16 +198,48 @@ export function canvasToBlob(
   quality = 0.9
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
+    // Normalize quality to ensure it's between 0-1
+    const normalizedQuality = normalizeQuality(quality);
+
     canvas.toBlob(
       (blob) => {
         if (!blob) {
           reject(new Error("Canvas to Blob conversion failed"));
           return;
         }
-        resolve(blob);
+
+        // If blob is too large (over 2MB) and not PNG, try stronger compression
+        if (blob.size > 2 * 1024 * 1024 && format !== "png") {
+          // Try again with lower quality
+          const lowerQuality = Math.max(0.5, normalizedQuality * 0.7);
+          console.log(
+            `Blob too large (${(blob.size / 1024 / 1024).toFixed(
+              2
+            )}MB), retrying with quality ${lowerQuality}`
+          );
+
+          canvas.toBlob(
+            (compressedBlob) => {
+              if (!compressedBlob) {
+                reject(new Error("Secondary compression failed"));
+                return;
+              }
+              console.log(
+                `Compressed to ${(compressedBlob.size / 1024 / 1024).toFixed(
+                  2
+                )}MB`
+              );
+              resolve(compressedBlob);
+            },
+            getMimeType(format),
+            lowerQuality
+          );
+        } else {
+          resolve(blob);
+        }
       },
       getMimeType(format),
-      quality
+      normalizedQuality
     );
   });
 }
@@ -186,6 +255,7 @@ export async function getImageDetails(url: string): Promise<{
 }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
       resolve({
         width: img.width,
@@ -265,115 +335,55 @@ export function base64ToBlob(
 }
 
 /**
- * Compress an image to a target size (in bytes)
- * @param imageUrl The URL of the image to compress
- * @param targetSize The target size in bytes
- * @param format The output format
- * @param initialQuality The starting quality (0-1)
- * @param maxIterations Maximum number of compression attempts
- * @returns The URL of the compressed image
+ * Get a blob from a URL (dataURL or objectURL)
  */
-export async function compressImageToTargetSize(
-  imageUrl: string,
-  targetSize: number,
-  format: ImageFormat = "jpeg",
-  initialQuality = 0.9,
-  maxIterations = 10
-): Promise<string> {
-  // Load the image
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Failed to load image"));
-    image.src = imageUrl;
+export async function getBlobFromUrl(url: string): Promise<Blob> {
+  // Handle data URLs directly
+  if (url.startsWith("data:")) {
+    const response = await fetch(url);
+    return await response.blob();
+  }
+
+  // Handle object URLs or regular URLs
+  return new Promise((resolve, reject) => {
+    fetch(url)
+      .then((response) => response.blob())
+      .then((blob) => {
+        console.log(
+          `Fetched blob with size: ${(blob.size / 1024).toFixed(2)} KB`
+        );
+        resolve(blob);
+      })
+      .catch((error) => reject(error));
   });
-
-  // Create a canvas with the image dimensions
-  const canvas = document.createElement("canvas");
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Failed to get canvas context");
-
-  // Draw the image to the canvas
-  ctx.drawImage(img, 0, 0);
-
-  // Binary search for the optimal quality
-  let minQuality = 0.1;
-  let maxQuality = initialQuality;
-  let currentQuality = maxQuality;
-  let bestBlob: Blob | null = null;
-  let iterations = 0;
-
-  while (iterations < maxIterations) {
-    iterations++;
-
-    // Try with the current quality
-    const blob = await canvasToBlob(canvas, format, currentQuality);
-
-    // Check if we're close enough to target size
-    if (Math.abs(blob.size - targetSize) / targetSize < 0.05) {
-      // Within 5% of target, good enough
-      bestBlob = blob;
-      break;
-    }
-
-    if (blob.size > targetSize) {
-      // Too big, reduce quality
-      maxQuality = currentQuality;
-    } else {
-      // Too small, increase quality
-      minQuality = currentQuality;
-      bestBlob = blob; // This is a valid result as it's under target size
-    }
-
-    // Calculate new quality to try
-    currentQuality = (minQuality + maxQuality) / 2;
-
-    // If we've converged, exit
-    if (maxQuality - minQuality < 0.01) {
-      // We have the best blob already stored
-      break;
-    }
-  }
-
-  // Use the best blob if we found one, otherwise use the last iteration
-  if (!bestBlob) {
-    bestBlob = await canvasToBlob(canvas, format, currentQuality);
-  }
-
-  // Create and return object URL
-  return URL.createObjectURL(bestBlob);
 }
 
 /**
- * Create a downscaled version of an image optimized for web
- * This is great for creating thumbnails or responsive images
+ * Aggressive image compression function
+ * Useful for thumbnails or when size is critical
  */
-export async function createOptimizedImage(
-  imageUrl: string,
+export async function compressImageAggressively(
+  url: string,
   maxWidth: number = 1200,
-  maxHeight: number = 1200,
-  format: ImageFormat = "webp",
-  quality = 0.8
-): Promise<string> {
+  format: ImageFormat = "webp"
+): Promise<{ url: string; blob: Blob; size: number }> {
   // Load the image
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
+    image.crossOrigin = "anonymous";
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error("Failed to load image"));
-    image.src = imageUrl;
+    image.src = url;
   });
 
   // Calculate new dimensions while maintaining aspect ratio
   let width = img.naturalWidth;
   let height = img.naturalHeight;
 
-  if (width > maxWidth || height > maxHeight) {
-    const ratio = Math.min(maxWidth / width, maxHeight / height);
-    width = Math.floor(width * ratio);
-    height = Math.floor(height * ratio);
+  if (width > maxWidth) {
+    const ratio = maxWidth / width;
+    width = maxWidth;
+    height = Math.round(height * ratio);
   }
 
   // Create a canvas with the new dimensions
@@ -387,7 +397,27 @@ export async function createOptimizedImage(
   // Draw the image to the canvas with the new dimensions
   ctx.drawImage(img, 0, 0, width, height);
 
-  // Convert to blob and create URL
-  const blob = await canvasToBlob(canvas, format, quality);
-  return URL.createObjectURL(blob);
+  // Use aggressive compression
+  const quality = format === "webp" ? 0.6 : 0.7;
+
+  // Convert to blob
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (resultBlob) => {
+        if (!resultBlob) {
+          reject(new Error("Failed to create blob"));
+          return;
+        }
+        resolve(resultBlob);
+      },
+      getMimeType(format),
+      quality
+    );
+  });
+
+  console.log(`Aggressively compressed to ${(blob.size / 1024).toFixed(2)} KB`);
+
+  // Create and return URL
+  const resultUrl = URL.createObjectURL(blob);
+  return { url: resultUrl, blob, size: blob.size };
 }

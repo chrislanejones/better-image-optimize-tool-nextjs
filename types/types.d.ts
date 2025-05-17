@@ -1,8 +1,21 @@
-// Updated types.d.ts with proper interface definitions
+// Complete updated types.d.ts with combined definitions
 export type EditorMode = "view" | "edit" | "crop" | "blur" | "paint" | "text";
+
+// Define editor states matching the component implementation
+export type EditorState =
+  | "resizeAndOptimize" // Simple resize & optimize state (view) - Has aside
+  | "editImage" // Basic Edit Tools (edit)
+  | "multiImageEdit" // Coming soon
+  | "crop" // Cropping mode
+  | "blur" // Blur tool mode
+  | "paint" // Paint tool mode
+  | "text"; // Text tool mode
 
 // Format types
 export type ImageFormat = "jpeg" | "png" | "webp";
+
+// Core Web Vitals Score Type
+export type CoreWebVitalsScore = "poor" | "needs-improvement" | "good";
 
 export type NavigationDirection =
   | "next" // Move to next item
@@ -35,7 +48,7 @@ export interface ImageStats {
   format: string;
 }
 
-export interface EditorState {
+export interface EditorStateInfo {
   history: string[];
   historyIndex: number;
   hasEdited: boolean;
@@ -136,6 +149,13 @@ export interface ImageEditorProps {
   allImages?: ImageFile[];
   currentImageId?: string;
   onSelectImage?: (image: ImageFile) => void;
+  // For edit mode state management
+  onEditModeChange?: (isEditMode: boolean) => void;
+}
+
+// Extended Image Editor Props with additional functions
+export interface ExtendedImageEditorProps extends ImageEditorProps {
+  onEditModeChange?: (isEditMode: boolean) => void;
 }
 
 // Image Gallery Props - new interface for the gallery component
@@ -153,6 +173,7 @@ export interface ImageGalleryProps {
   currentImageId?: string;
 }
 
+// Updated ImageResizerProps with quality handling
 export interface ImageResizerProps {
   width: number;
   height: number;
@@ -164,10 +185,19 @@ export interface ImageResizerProps {
   onFormatChange: (format: string) => void;
   onDownload: () => void;
   isCompressing?: boolean;
-  // Pagination props - make sure these are consistent
+  // Pagination props
   currentPage?: number;
   totalPages?: number;
   onNavigateImage?: (direction: NavigationDirection) => void;
+  // New props for quality
+  quality?: number;
+  onQualityChange?: (quality: number) => void;
+}
+
+// Extended ImageResizerProps
+export interface ExtendedImageResizerProps extends ImageResizerProps {
+  quality?: number;
+  onQualityChange?: (quality: number) => void;
 }
 
 export interface ImageStatsProps {
@@ -288,20 +318,20 @@ export interface ToolbarProps {
   onToggleEraser: () => void;
 
   // Action handlers
-  onApplyCrop: () => void;
-  onApplyBlur: (url: string) => void;
-  onApplyPaint: (url: string) => void;
+  onApplyCrop?: () => void;
+  onApplyBlur?: (url: string) => void;
+  onApplyPaint?: (url: string) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onReset?: () => void;
   onDownload?: () => void;
   onUploadNew?: () => void;
   onRemoveAll?: () => void;
-  onCancelBlur: () => void;
-  onCancelCrop: () => void;
-  onCancelPaint: () => void;
+  onCancelBlur?: () => void;
+  onCancelCrop?: () => void;
+  onCancelPaint?: () => void;
   onBackToGallery?: () => void;
-  onExitEditMode: () => void;
+  onExitEditMode?: () => void;
 
   // Pagination
   currentPage?: number;
