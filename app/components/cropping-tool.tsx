@@ -87,25 +87,35 @@ const CroppingTool = forwardRef<CroppingToolRef, CroppingToolProps>(
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       if (!ctx) {
-        setError("Could not get canvas context");
+        console.error("Could not get canvas context");
         return null;
       }
 
-      // Set the canvas dimensions to the cropped area size
-      canvas.width = pixelCrop.width;
-      canvas.height = pixelCrop.height;
+      // Calculate scaling factors between displayed image and natural image size
+      const scaleX = image.naturalWidth / image.width;
+      const scaleY = image.naturalHeight / image.height;
+
+      // Scale the crop coordinates and dimensions based on the actual image size
+      const scaledX = pixelCrop.x * scaleX;
+      const scaledY = pixelCrop.y * scaleY;
+      const scaledWidth = pixelCrop.width * scaleX;
+      const scaledHeight = pixelCrop.height * scaleY;
+
+      // Set the canvas dimensions to the scaled cropped area size
+      canvas.width = scaledWidth;
+      canvas.height = scaledHeight;
 
       // Draw the cropped portion of the image onto the canvas
       ctx.drawImage(
         image,
-        pixelCrop.x,
-        pixelCrop.y,
-        pixelCrop.width,
-        pixelCrop.height,
+        scaledX,
+        scaledY,
+        scaledWidth,
+        scaledHeight,
         0,
         0,
-        pixelCrop.width,
-        pixelCrop.height
+        scaledWidth,
+        scaledHeight
       );
 
       return canvas;

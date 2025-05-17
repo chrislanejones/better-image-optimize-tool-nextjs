@@ -455,14 +455,17 @@ export default function ImageCropper({
   // Cancel functions
   const cancelBlur = useCallback(() => {
     setIsBlurring(false);
+    setIsEditMode(true);
   }, []);
 
   const cancelCrop = useCallback(() => {
     setIsCropping(false);
+    setIsEditMode(true);
   }, []);
 
   const cancelPaint = useCallback(() => {
     setIsPainting(false);
+    setIsEditMode(true);
   }, []);
 
   // Other handlers (blur, paint, zoom, etc.)

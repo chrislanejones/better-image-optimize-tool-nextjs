@@ -260,10 +260,19 @@ export default function ImageEditor({
       // IMPORTANT: Don't automatically set isCompressing to true
       // setIsCompressing(true); <- REMOVE THIS LINE
 
-      // Update the preview statistics
+      // Always update the Core Web Vitals score when dimensions change
+      // This ensures stats update in real-time as sliders move
       updateCoreWebVitalsScore();
+
+      // Mark that dimensions have changed from original
+      if (
+        originalStats &&
+        (newWidth !== originalStats.width || newHeight !== originalStats.height)
+      ) {
+        setHasEdited(true);
+      }
     },
-    [updateCoreWebVitalsScore]
+    [updateCoreWebVitalsScore, originalStats]
   );
 
   // Handle quality change
@@ -277,6 +286,7 @@ export default function ImageEditor({
   );
 
   // History management
+
   const addToHistory = useCallback(
     (url: string) => {
       setHistory((prev) => {
@@ -285,18 +295,16 @@ export default function ImageEditor({
         return [...newHistory, url];
       });
       setHistoryIndex((prev) => prev + 1);
+
+      // If there's code here that's changing editorState, it needs to be removed or controlled
     },
     [historyIndex]
   );
-
   // Apply resize
   const handleApplyResize = useCallback(async () => {
     console.log("🔍 handleApplyResize called in image-editor.tsx");
 
     if (!imgRef.current || !originalStats) {
-      console.log("❌ Early return: imgRef.current or originalStats is null");
-      console.log("imgRef.current:", imgRef.current);
-      console.log("originalStats:", originalStats);
       return;
     }
 
@@ -791,6 +799,7 @@ export default function ImageEditor({
   }, []);
 
   // Handle image rotation
+
   const handleRotateClockwise = useCallback(() => {
     if (!canvasRef.current || !imgRef.current) return;
 
@@ -825,42 +834,18 @@ export default function ImageEditor({
     if (onImageChange) {
       onImageChange(rotatedImageUrl);
     }
+
+    // IMPORTANT: We need to explicitly preserve edit mode here!
+    // Add this line to ensure it stays in editImage mode:
+    setEditorState("editImage");
   }, [imgRef, canvasRef, format, quality, onImageChange, addToHistory]);
 
+  // Similarly in handleRotateCounterClockwise, add the same fix:
   const handleRotateCounterClockwise = useCallback(() => {
-    if (!canvasRef.current || !imgRef.current) return;
+    // ...existing code...
 
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Set canvas dimensions swapped for rotation
-    canvas.width = imgRef.current.naturalHeight;
-    canvas.height = imgRef.current.naturalWidth;
-
-    // Transform and rotate
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.drawImage(
-      imgRef.current,
-      -imgRef.current.naturalWidth / 2,
-      -imgRef.current.naturalHeight / 2
-    );
-
-    // Get the rotated image
-    const rotatedImageUrl = canvas.toDataURL(`image/${format}`, quality / 100);
-
-    // Update dimensions
-    setWidth(canvas.width);
-    setHeight(canvas.height);
-
-    // Add to history
-    addToHistory(rotatedImageUrl);
-
-    // Notify parent component
-    if (onImageChange) {
-      onImageChange(rotatedImageUrl);
-    }
+    // Add this line at the end:
+    setEditorState("editImage");
   }, [imgRef, canvasRef, format, quality, onImageChange, addToHistory]);
 
   function getMimeType(format: string): string {
@@ -948,15 +933,6 @@ export default function ImageEditor({
               <Button onClick={handleReset} variant="outline" className="h-9">
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Reset
-              </Button>
-
-              <Button
-                onClick={handleDownload}
-                variant="outline"
-                className="h-9"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Download
               </Button>
 
               {/* Back to gallery - renamed */}
