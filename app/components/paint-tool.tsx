@@ -29,15 +29,20 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Eraser, Paintbrush, Undo, Redo, Smile } from "lucide-react";
+import {
+  Eraser,
+  Paintbrush,
+  Undo,
+  Redo,
+  Smile,
+  MoveUpRight,
+} from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 
 interface PaintToolProps {
   imageUrl: string;
   onApplyPaint: (paintedImageUrl: string) => void;
   onCancel: () => void;
-  onToggleEraser: () => void;
-  isEraser: boolean;
 }
 
 export interface PaintToolRef {
@@ -84,16 +89,22 @@ const colorPalette = [
 ];
 
 const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
-  ({ imageUrl, onApplyPaint, onCancel, onToggleEraser, isEraser }, ref) => {
+  ({ imageUrl, onApplyPaint, onCancel }, ref) => {
     // State
     const [brushColor, setBrushColor] = useState<string>("#ff0000");
     const [brushSize, setBrushSize] = useState<number>(10);
     const [isDrawing, setIsDrawing] = useState<boolean>(false);
     const [history, setHistory] = useState<ImageData[]>([]);
     const [historyIndex, setHistoryIndex] = useState<number>(-1);
-    const [tool, setTool] = useState<"brush" | "eraser" | "emoji">("brush");
+    const [tool, setTool] = useState<
+      "brush" | "eraser" | "emoji" | "arrow" | "doubleArrow"
+    >("brush");
     const [selectedEmoji, setSelectedEmoji] = useState<string>("😀");
     const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
+    const [arrowStart, setArrowStart] = useState<{
+      x: number;
+      y: number;
+    } | null>(null);
 
     // Refs
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -191,6 +202,75 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
     }, [history, historyIndex]);
 
     // Drawing functions
+    const drawArrow = useCallback(
+      (
+        fromX: number,
+        fromY: number,
+        toX: number,
+        toY: number,
+        isDouble: boolean = false
+      ) => {
+        if (!contextRef.current) return;
+
+        const ctx = contextRef.current;
+        const headLength = 20; // length of arrow head
+        const headAngle = Math.PI / 8; // angle of arrow head
+        const angle = Math.atan2(toY - fromY, toX - fromX);
+
+        // Save current style
+        ctx.save();
+
+        // Set arrow style
+        ctx.strokeStyle = brushColor;
+        ctx.fillStyle = brushColor;
+        ctx.lineWidth = brushSize;
+        ctx.lineCap = "butt";
+        ctx.lineJoin = "miter";
+
+        // Draw the line
+        ctx.beginPath();
+        ctx.moveTo(fromX, fromY);
+        ctx.lineTo(toX, toY);
+        ctx.stroke();
+
+        // Draw the arrow head at the end (pointing away from start)
+        ctx.beginPath();
+        ctx.moveTo(toX, toY);
+        ctx.lineTo(
+          toX - headLength * Math.cos(angle - headAngle),
+          toY - headLength * Math.sin(angle - headAngle)
+        );
+        ctx.lineTo(
+          toX - headLength * Math.cos(angle + headAngle),
+          toY - headLength * Math.sin(angle + headAngle)
+        );
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw the arrow head at the start if double arrow (pointing away from end)
+        if (isDouble) {
+          ctx.beginPath();
+          ctx.moveTo(fromX, fromY);
+          ctx.lineTo(
+            fromX + headLength * Math.cos(angle - headAngle),
+            fromY + headLength * Math.sin(angle - headAngle)
+          );
+          ctx.lineTo(
+            fromX + headLength * Math.cos(angle + headAngle),
+            fromY + headLength * Math.sin(angle + headAngle)
+          );
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // Restore style
+        ctx.restore();
+      },
+      [brushColor, brushSize]
+    );
+
     const startDrawing = useCallback(
       (e: React.MouseEvent<HTMLCanvasElement>) => {
         if (!contextRef.current || !canvasRef.current) return;
@@ -211,6 +291,10 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
 
           // Save state after emoji is placed
           saveState();
+        } else if (tool === "arrow" || tool === "doubleArrow") {
+          // Start arrow drawing
+          setArrowStart({ x, y });
+          setIsDrawing(true);
         } else {
           contextRef.current.beginPath();
           contextRef.current.moveTo(x, y);
@@ -237,39 +321,71 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
 
+        if (tool === "arrow" || tool === "doubleArrow") {
+          // For arrow tool, we don't draw while moving, just track the position
+          return;
+        }
+
         contextRef.current.lineTo(x, y);
         contextRef.current.stroke();
       },
       [isDrawing, tool]
     );
 
-    const finishDrawing = useCallback(() => {
-      if (!contextRef.current || tool === "emoji") return;
+    const finishDrawing = useCallback(
+      (e?: React.MouseEvent<HTMLCanvasElement>) => {
+        if (!contextRef.current || tool === "emoji") return;
 
-      contextRef.current.closePath();
-      setIsDrawing(false);
+        if (
+          (tool === "arrow" || tool === "doubleArrow") &&
+          arrowStart &&
+          e &&
+          canvasRef.current
+        ) {
+          // Draw the arrow from start to end position
+          const canvas = canvasRef.current;
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+          const endX = (e.clientX - rect.left) * scaleX;
+          const endY = (e.clientY - rect.top) * scaleY;
 
-      // Save state after drawing is complete
-      saveState();
-    }, [saveState, tool]);
+          drawArrow(
+            arrowStart.x,
+            arrowStart.y,
+            endX,
+            endY,
+            tool === "doubleArrow"
+          );
+          setArrowStart(null);
+        } else if (tool !== "arrow" && tool !== "doubleArrow") {
+          contextRef.current.closePath();
+        }
+
+        setIsDrawing(false);
+
+        // Save state after drawing is complete
+        saveState();
+      },
+      [saveState, tool, arrowStart, drawArrow]
+    );
 
     // Toggle tool function
     const toggleTool = useCallback(
-      (newTool: "brush" | "eraser" | "emoji") => {
-        if (newTool === "eraser") {
-          onToggleEraser(); // External toggle for compatibility
-        } else if (tool === "eraser" && newTool !== "eraser") {
-          onToggleEraser(); // Turn off eraser mode if switching to another tool
-        }
-
+      (newTool: "brush" | "eraser" | "emoji" | "arrow" | "doubleArrow") => {
         setTool(newTool);
 
         // If switching to emoji tool, show the emoji picker
         if (newTool === "emoji") {
           setShowEmojiPicker(true);
         }
+
+        // Clear arrow start if switching away from arrow tool
+        if (newTool !== "arrow" && newTool !== "doubleArrow") {
+          setArrowStart(null);
+        }
       },
-      [tool, onToggleEraser]
+      []
     );
 
     // Handle emoji selection
@@ -326,7 +442,13 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
               onMouseDown={startDrawing}
               onMouseUp={finishDrawing}
               onMouseMove={draw}
-              onMouseLeave={finishDrawing}
+              onMouseLeave={(e) => {
+                if ((tool === "arrow" || tool === "doubleArrow") && isDrawing) {
+                  finishDrawing(e);
+                } else {
+                  finishDrawing();
+                }
+              }}
               className="w-full h-auto cursor-crosshair"
             />
           </div>
@@ -363,7 +485,7 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
           </div>
 
           {/* Tool Selection */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             <Button
               onClick={() => toggleTool("brush")}
               variant={tool === "brush" ? "default" : "outline"}
@@ -393,6 +515,26 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
             >
               <Smile className="mr-2 h-5 w-5" />
               Emoji
+            </Button>
+            <Button
+              onClick={() => toggleTool("arrow")}
+              variant={tool === "arrow" ? "default" : "outline"}
+              className={`flex items-center justify-center h-12 ${
+                tool === "arrow" ? "bg-blue-600" : ""
+              }`}
+            >
+              <MoveUpRight className="mr-2 h-5 w-5" />
+              Arrow
+            </Button>
+            <Button
+              onClick={() => toggleTool("doubleArrow")}
+              variant={tool === "doubleArrow" ? "default" : "outline"}
+              className={`flex items-center justify-center h-12 ${
+                tool === "doubleArrow" ? "bg-blue-600" : ""
+              }`}
+            >
+              <span className="mr-2 text-base font-bold">↔</span>
+              Double
             </Button>
           </div>
 
@@ -459,15 +601,23 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
             </div>
           )}
 
-          {/* Brush/Eraser Size */}
-          {tool !== "emoji" && (
+          {/* Brush/Eraser/Arrow Size */}
+          {(tool === "brush" ||
+            tool === "eraser" ||
+            tool === "arrow" ||
+            tool === "doubleArrow") && (
             <div className="space-y-2">
               <div className="flex justify-between">
                 <label
                   htmlFor="brush-size"
                   className="text-sm font-medium text-white"
                 >
-                  {tool === "brush" ? "Brush" : "Eraser"} Size: {brushSize}px
+                  {tool === "brush"
+                    ? "Brush"
+                    : tool === "eraser"
+                    ? "Eraser"
+                    : "Arrow"}{" "}
+                  Size: {brushSize}px
                 </label>
               </div>
               <div className="flex items-center gap-2">
@@ -495,6 +645,13 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
                 >
                   {tool === "eraser" ? (
                     <Eraser className="h-4 w-4 text-white" />
+                  ) : tool === "arrow" || tool === "doubleArrow" ? (
+                    <MoveUpRight
+                      className="h-4 w-4"
+                      color={
+                        getBrightness(brushColor) > 128 ? "#000000" : "#ffffff"
+                      }
+                    />
                   ) : (
                     <Paintbrush
                       className="h-4 w-4"
@@ -508,11 +665,11 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
             </div>
           )}
 
-          {/* Color Picker */}
-          {tool === "brush" && (
+          {/* Color Picker for Brush and Arrow */}
+          {(tool === "brush" || tool === "arrow" || tool === "doubleArrow") && (
             <div className="space-y-2 mt-2">
               <label className="text-sm font-medium text-white">
-                Brush Color
+                {tool === "brush" ? "Brush" : "Arrow"} Color
               </label>
               <div className="grid grid-cols-8 gap-1">
                 {colorPalette.map((color) => (
@@ -545,22 +702,6 @@ const PaintTool = forwardRef<PaintToolRef, PaintToolProps>(
               </div>
             </div>
           )}
-
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-2 mt-auto pt-4">
-            <Button onClick={onCancel} variant="outline">
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                const dataUrl = canvasRef.current?.toDataURL("image/jpeg", 0.9);
-                if (dataUrl) onApplyPaint(dataUrl);
-              }}
-              variant="default"
-            >
-              Apply Changes
-            </Button>
-          </div>
         </div>
       </div>
     );

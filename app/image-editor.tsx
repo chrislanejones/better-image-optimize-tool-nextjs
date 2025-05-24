@@ -105,6 +105,7 @@ export default function ImageEditor({
   const [isBold, setIsBold] = useState<boolean>(false);
   const [isItalic, setIsItalic] = useState<boolean>(false);
   const [quality, setQuality] = useState<number>(85); // Added quality state
+  const [isRotating, setIsRotating] = useState<boolean>(false);
 
   // Image stats
   const [width, setWidth] = useState<number>(0);
@@ -228,15 +229,19 @@ export default function ImageEditor({
 
   // Reset editor state when image changes via pagination
   useEffect(() => {
-    setEditorState("resizeAndOptimize");
-    setZoom(1);
-    setIsEraser(false);
-    setHistory([imageUrl]);
-    setHistoryIndex(0);
-    setHasEdited(false);
-    setNewStats(null);
-    setDataSavings(0);
-  }, [imageUrl]);
+    // Don't reset if we're just rotating the image
+    if (!isRotating) {
+      // ADD THIS CONDITION
+      setEditorState("resizeAndOptimize");
+      setZoom(1);
+      setIsEraser(false);
+      setHistory([imageUrl]);
+      setHistoryIndex(0);
+      setHasEdited(false);
+      setNewStats(null);
+      setDataSavings(0);
+    }
+  }, [imageUrl, isRotating]);
 
   // Handle format change
   const handleFormatChange = useCallback(
@@ -781,12 +786,6 @@ export default function ImageEditor({
           "Download error. Failed to download the image. Please try again.",
         variant: "destructive",
       });
-
-      // Or with title only if supported
-      // toast({
-      //   title: "Download error. Failed to download the image. Please try again.",
-      //   variant: "destructive"
-      // });
     }
   }, [imgRef, canvasRef, fileName, format, quality, onDownload, toast]);
   // Zoom in/out functions
@@ -827,26 +826,89 @@ export default function ImageEditor({
     setWidth(canvas.width);
     setHeight(canvas.height);
 
-    // Add to history
-    addToHistory(rotatedImageUrl);
+    // Add to history WITHOUT triggering the imageUrl change
+    setHistory((prev) => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      return [...newHistory, rotatedImageUrl];
+    });
+    setHistoryIndex((prev) => prev + 1);
 
-    // Notify parent component
-    if (onImageChange) {
-      onImageChange(rotatedImageUrl);
+    // Update the image ref directly instead of using onImageChange
+    if (imgRef.current) {
+      imgRef.current.src = rotatedImageUrl;
     }
 
-    // IMPORTANT: We need to explicitly preserve edit mode here!
-    // Add this line to ensure it stays in editImage mode:
-    setEditorState("editImage");
-  }, [imgRef, canvasRef, format, quality, onImageChange, addToHistory]);
+    // Mark as edited
+    setHasEdited(true);
+
+    // Update stats if needed
+    if (originalStats) {
+      setNewStats({
+        width: canvas.width,
+        height: canvas.height,
+        size: originalStats.size, // Keep same size for now
+        format: format,
+      });
+    }
+
+    // Stay in edit mode - no state change!
+  }, [imgRef, canvasRef, format, quality, historyIndex, originalStats]);
 
   // Similarly in handleRotateCounterClockwise, add the same fix:
   const handleRotateCounterClockwise = useCallback(() => {
-    // ...existing code...
+    if (!canvasRef.current || !imgRef.current) return;
 
-    // Add this line at the end:
-    setEditorState("editImage");
-  }, [imgRef, canvasRef, format, quality, onImageChange, addToHistory]);
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Set canvas dimensions swapped for rotation
+    canvas.width = imgRef.current.naturalHeight;
+    canvas.height = imgRef.current.naturalWidth;
+
+    // Transform and rotate counter-clockwise
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.drawImage(
+      imgRef.current,
+      -imgRef.current.naturalWidth / 2,
+      -imgRef.current.naturalHeight / 2
+    );
+
+    // Get the rotated image
+    const rotatedImageUrl = canvas.toDataURL(`image/${format}`, quality / 100);
+
+    // Update dimensions
+    setWidth(canvas.width);
+    setHeight(canvas.height);
+
+    // Add to history WITHOUT triggering the imageUrl change
+    setHistory((prev) => {
+      const newHistory = prev.slice(0, historyIndex + 1);
+      return [...newHistory, rotatedImageUrl];
+    });
+    setHistoryIndex((prev) => prev + 1);
+
+    // Update the image ref directly instead of using onImageChange
+    if (imgRef.current) {
+      imgRef.current.src = rotatedImageUrl;
+    }
+
+    // Mark as edited
+    setHasEdited(true);
+
+    // Update stats if needed
+    if (originalStats) {
+      setNewStats({
+        width: canvas.width,
+        height: canvas.height,
+        size: originalStats.size, // Keep same size for now
+        format: format,
+      });
+    }
+
+    // Stay in edit mode - no state change!
+  }, [imgRef, canvasRef, format, quality, historyIndex, originalStats]);
 
   function getMimeType(format: string): string {
     if (format === "webp") return "image/webp";
@@ -1166,35 +1228,6 @@ export default function ImageEditor({
                   >
                     <Check className="mr-2 h-4 w-4" />
                     Apply Paint
-                  </Button>
-                  <Button
-                    onClick={() => setIsEraser(!isEraser)}
-                    variant={isEraser ? "default" : "outline"}
-                    className="h-9"
-                  >
-                    <Eraser className="mr-2 h-4 w-4" />
-                    {isEraser ? "Brush" : "Eraser"}
-                  </Button>
-                  <Button
-                    onClick={() => setEditorState("editImage")}
-                    variant="outline"
-                    className="h-9"
-                  >
-                    <X className="mr-2 h-4 w-4" />
-                    Cancel
-                  </Button>
-                </>
-              )}
-
-              {editorState === "text" && (
-                <>
-                  <Button
-                    onClick={handleApplyText}
-                    variant="default"
-                    className="h-9"
-                  >
-                    <Check className="mr-2 h-4 w-4" />
-                    Apply Text
                   </Button>
                   <Button
                     onClick={() => setEditorState("editImage")}
