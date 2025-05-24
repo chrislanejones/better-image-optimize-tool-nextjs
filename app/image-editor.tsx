@@ -1239,6 +1239,27 @@ export default function ImageEditor({
                   </Button>
                 </>
               )}
+
+              {editorState === "text" && (
+                <>
+                  <Button
+                    onClick={handleApplyText}
+                    variant="default"
+                    className="h-9"
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Apply Text
+                  </Button>
+                  <Button
+                    onClick={() => setEditorState("editImage")}
+                    variant="outline"
+                    className="h-9"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                </>
+              )}
             </div>
           </>
         )}

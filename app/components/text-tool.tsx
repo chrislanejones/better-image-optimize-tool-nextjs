@@ -21,6 +21,7 @@ import { Type, Plus, Minus } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { TextToolRef } from "@/types/types";
 import { TextToolProps } from "@/types/types";
+
 // Main TextTool component with proper forwardRef
 const TextTool = forwardRef<TextToolRef, TextToolProps>(
   (
@@ -45,7 +46,6 @@ const TextTool = forwardRef<TextToolRef, TextToolProps>(
 
     // Refs
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const textLayerRef = useRef<HTMLDivElement>(null);
     const imageContainerRef = useRef<HTMLDivElement>(null);
 
     // Initialize canvas with image
@@ -86,13 +86,26 @@ const TextTool = forwardRef<TextToolRef, TextToolProps>(
       setColor(e.target.value);
     };
 
+    // Handle canvas click to position text
+    const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!imageContainerRef.current) return;
+
+      const rect = imageContainerRef.current.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+      setPosition({
+        x: Math.max(0, Math.min(100, x)),
+        y: Math.max(0, Math.min(100, y)),
+      });
+    };
+
     // Handle moving text with mouse
     const handleMouseDown = (e: React.MouseEvent) => {
-      if (
-        textLayerRef.current &&
-        textLayerRef.current.contains(e.target as Node)
-      ) {
+      const target = e.target as HTMLElement;
+      if (target.classList.contains("text-preview")) {
         setIsDragging(true);
+        e.preventDefault();
       }
     };
 
@@ -133,33 +146,43 @@ const TextTool = forwardRef<TextToolRef, TextToolProps>(
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      // Save the current state
-      ctx.save();
+      // First redraw the original image
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        // Clear and redraw image
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
 
-      // Set font properties
-      const fontStyle = `${isItalic ? "italic " : ""}${
-        isBold ? "bold " : ""
-      }${size}px ${font}`;
-      ctx.font = fontStyle;
-      ctx.fillStyle = color;
-      ctx.textAlign = alignment;
+        // Save the current state
+        ctx.save();
 
-      // Calculate position
-      const x = (position.x / 100) * canvas.width;
-      const y = (position.y / 100) * canvas.height;
+        // Set font properties
+        const fontStyle = `${isItalic ? "italic " : ""}${
+          isBold ? "bold " : ""
+        }${size}px ${font}`;
+        ctx.font = fontStyle;
+        ctx.fillStyle = color;
+        ctx.textAlign = alignment;
 
-      // Add text to canvas
-      ctx.fillText(text, x, y);
+        // Calculate position
+        const x = (position.x / 100) * canvas.width;
+        const y = (position.y / 100) * canvas.height;
 
-      // Restore canvas state
-      ctx.restore();
+        // Add text to canvas
+        ctx.fillText(text, x, y);
 
-      // Generate image URL and pass to parent
-      const textedImageUrl = canvas.toDataURL();
-      onApplyText(textedImageUrl);
+        // Restore canvas state
+        ctx.restore();
 
-      // Handle editor state - using string directly for compatibility
-      setEditorState("editImage");
+        // Generate image URL and pass to parent
+        const textedImageUrl = canvas.toDataURL();
+        onApplyText(textedImageUrl);
+
+        // Handle editor state - using string directly for compatibility
+        setEditorState("editImage");
+      };
+      img.src = imageUrl;
     }, [
       text,
       font,
@@ -169,16 +192,10 @@ const TextTool = forwardRef<TextToolRef, TextToolProps>(
       isBold,
       isItalic,
       alignment,
+      imageUrl,
       onApplyText,
       setEditorState,
     ]);
-
-    // Cancel text operation and return to edit mode
-    const handleCancel = () => {
-      onCancel();
-      // Handle editor state - using string directly for compatibility
-      setEditorState("editImage");
-    };
 
     // Get canvas data URL
     const getCanvasDataUrl = useCallback(() => {
@@ -193,52 +210,144 @@ const TextTool = forwardRef<TextToolRef, TextToolProps>(
     }));
 
     return (
-      <div className="flex flex-col h-full">
-        {/* Text editing toolbar */}
-        <div className="space-y-4 p-4 bg-gray-800 rounded-lg mb-4">
-          <div className="flex items-center gap-2">
-            <Input
-              type="text"
-              placeholder="Enter text..."
-              value={text}
-              onChange={handleTextChange}
-              className="flex-1"
+      <div className="grid grid-cols-2 gap-2">
+        {/* Canvas Column */}
+        <div className="col-1 bg-gray-800 rounded-lg p-4">
+          <div
+            ref={imageContainerRef}
+            className="relative border rounded-lg overflow-hidden cursor-crosshair"
+            onClick={handleCanvasClick}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
+            <canvas ref={canvasRef} className="hidden" />
+            <img
+              src={imageUrl}
+              alt="Original image for text overlay"
+              className="w-full h-auto"
             />
 
-            <Button
-              onClick={toggleBold}
-              variant={isBold ? "default" : "outline"}
-              className="h-10 w-10 p-0 font-bold"
+            {/* Text position indicator - crosshair style */}
+            <div
+              className="absolute pointer-events-none"
+              style={{
+                left: `${position.x}%`,
+                top: `${position.y}%`,
+                transform: "translate(-50%, -50%)",
+              }}
             >
-              B
-            </Button>
+              {/* Horizontal line */}
+              <div
+                className="absolute w-8 h-0.5 bg-red-500 opacity-75"
+                style={{
+                  left: "50%",
+                  top: "50%",
+                  transform: "translate(-50%, -50%)",
+                }}
+              />
+              {/* Vertical line */}
+              <div
+                className="absolute w-0.5 h-8 bg-red-500 opacity-75"
+                style={{
+                  left: "50%",
+                  top: "50%",
+                  transform: "translate(-50%, -50%)",
+                }}
+              />
+              {/* Center dot */}
+              <div
+                className="absolute w-2 h-2 bg-red-500 rounded-full"
+                style={{
+                  left: "50%",
+                  top: "50%",
+                  transform: "translate(-50%, -50%)",
+                }}
+              />
+            </div>
 
-            <Button
-              onClick={toggleItalic}
-              variant={isItalic ? "default" : "outline"}
-              className="h-10 w-10 p-0 italic"
-            >
-              I
-            </Button>
-
-            <Select
-              value={alignment}
-              onValueChange={(value: any) => setAlignment(value)}
-            >
-              <SelectTrigger className="w-20">
-                <SelectValue placeholder="Align" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="left">Left</SelectItem>
-                <SelectItem value="center">Center</SelectItem>
-                <SelectItem value="right">Right</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Text preview */}
+            {text && (
+              <div
+                className={`text-preview absolute p-2 cursor-move ${
+                  isDragging ? "opacity-70" : ""
+                }`}
+                style={{
+                  left: `${position.x}%`,
+                  top: `${position.y}%`,
+                  transform: "translate(-50%, -50%)",
+                  fontFamily: font,
+                  fontSize: `${size}px`,
+                  fontWeight: isBold ? "bold" : "normal",
+                  fontStyle: isItalic ? "italic" : "normal",
+                  color: color,
+                  textAlign: alignment,
+                  textShadow: "1px 1px 2px rgba(0,0,0,0.5)",
+                  pointerEvents: "auto",
+                }}
+              >
+                {text}
+              </div>
+            )}
           </div>
+        </div>
 
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="text-sm font-medium block mb-1 text-white">
+        {/* Controls Column */}
+        <div className="col-1 flex flex-col gap-4 bg-gray-800 rounded-lg p-4">
+          <h3 className="text-lg font-medium text-white">Text Tools</h3>
+
+          <div className="space-y-4">
+            {/* Text input and style buttons */}
+            <div className="flex items-center gap-2">
+              <Input
+                type="text"
+                placeholder="Enter text..."
+                value={text}
+                onChange={handleTextChange}
+                className="flex-1"
+              />
+
+              <Button
+                onClick={toggleBold}
+                variant={isBold ? "default" : "outline"}
+                className="h-10 w-10 p-0 font-bold"
+              >
+                B
+              </Button>
+
+              <Button
+                onClick={toggleItalic}
+                variant={isItalic ? "default" : "outline"}
+                className="h-10 w-10 p-0 italic"
+              >
+                I
+              </Button>
+            </div>
+
+            {/* Alignment */}
+            <div>
+              <label className="text-sm font-medium block mb-2 text-white">
+                Text Alignment
+              </label>
+              <Select
+                value={alignment}
+                onValueChange={(value: any) => setAlignment(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Align" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="left">Left</SelectItem>
+                  <SelectItem value="center">Center</SelectItem>
+                  <SelectItem value="right">Right</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Font Family */}
+            <div>
+              <label className="text-sm font-medium block mb-2 text-white">
                 Font Family
               </label>
               <Select value={font} onValueChange={handleFontChange}>
@@ -253,107 +362,94 @@ const TextTool = forwardRef<TextToolRef, TextToolProps>(
                   <SelectItem value="Courier New">Courier New</SelectItem>
                   <SelectItem value="Georgia">Georgia</SelectItem>
                   <SelectItem value="Verdana">Verdana</SelectItem>
+                  <SelectItem value="Comic Sans MS">Comic Sans MS</SelectItem>
+                  <SelectItem value="Impact">Impact</SelectItem>
+                  <SelectItem value="Trebuchet MS">Trebuchet MS</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="flex-1">
-              <label className="text-sm font-medium block mb-1 text-white">
+            {/* Font Size */}
+            <div>
+              <label className="text-sm font-medium block mb-2 text-white">
+                Font Size: {size}px
+              </label>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => setSize(Math.max(8, size - 2))}
+                  variant="outline"
+                  className="h-8 w-8 p-0"
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <Slider
+                  value={[size]}
+                  min={8}
+                  max={72}
+                  step={1}
+                  onValueChange={handleSizeChange}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={() => setSize(Math.min(72, size + 2))}
+                  variant="outline"
+                  className="h-8 w-8 p-0"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Text Color */}
+            <div>
+              <label className="text-sm font-medium block mb-2 text-white">
                 Text Color
               </label>
               <div className="flex gap-2 items-center">
                 <div
-                  className="w-8 h-8 rounded-md border border-gray-600"
+                  className="w-12 h-12 rounded-md border border-gray-600"
                   style={{ backgroundColor: color }}
                 />
                 <input
                   type="color"
                   value={color}
                   onChange={handleColorChange}
-                  className="h-8 w-20"
+                  className="h-12 w-20 cursor-pointer"
                 />
+                <span className="text-white text-sm font-mono">{color}</span>
               </div>
             </div>
-          </div>
 
-          <div>
-            <label className="text-sm font-medium block mb-1 text-white">
-              Font Size: {size}px
-            </label>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setSize(Math.max(8, size - 2))}
-                variant="outline"
-                className="h-8 w-8 p-0"
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
-              <Slider
-                value={[size]}
-                min={8}
-                max={72}
-                step={1}
-                onValueChange={handleSizeChange}
-                className="flex-1"
-              />
-              <Button
-                onClick={() => setSize(Math.min(72, size + 2))}
-                variant="outline"
-                className="h-8 w-8 p-0"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
+            {/* Position indicator */}
+            <div className="bg-gray-700 p-3 rounded-md">
+              <p className="text-sm text-gray-300 mb-2">
+                Click on the image to position text
+              </p>
+              <p className="text-xs text-gray-400">
+                Position: X: {Math.round(position.x)}%, Y:{" "}
+                {Math.round(position.y)}%
+              </p>
             </div>
+
+            {/* Text preview */}
+            {text && (
+              <div className="bg-gray-700 p-4 rounded-md">
+                <p className="text-sm text-gray-300 mb-2">Preview:</p>
+                <div
+                  className="text-center p-2"
+                  style={{
+                    fontFamily: font,
+                    fontSize: `${Math.min(size, 32)}px`,
+                    fontWeight: isBold ? "bold" : "normal",
+                    fontStyle: isItalic ? "italic" : "normal",
+                    color: color,
+                  }}
+                >
+                  {text}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Image canvas with text overlay */}
-        <div
-          ref={imageContainerRef}
-          className="relative border rounded-lg overflow-hidden"
-          style={{ height: "calc(70vh - 200px)" }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        >
-          <canvas ref={canvasRef} className="hidden" />
-          <img
-            src={imageUrl}
-            alt="Original image for text overlay"
-            className="w-full h-full object-contain"
-          />
-          {text && (
-            <div
-              ref={textLayerRef}
-              className={`absolute p-2 cursor-move ${
-                isDragging ? "opacity-70" : ""
-              }`}
-              style={{
-                left: `${position.x}%`,
-                top: `${position.y}%`,
-                transform: "translate(-50%, -50%)",
-                fontFamily: font,
-                fontSize: `${size}px`,
-                fontWeight: isBold ? "bold" : "normal",
-                fontStyle: isItalic ? "italic" : "normal",
-                color: color,
-                textAlign: alignment,
-              }}
-            >
-              {text}
-            </div>
-          )}
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex justify-between mt-4">
-          <Button onClick={handleCancel} variant="outline">
-            Cancel
-          </Button>
-          <Button onClick={applyText} variant="default" disabled={!text}>
-            Apply Text
-          </Button>
         </div>
       </div>
     );

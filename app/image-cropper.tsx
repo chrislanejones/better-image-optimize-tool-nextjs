@@ -25,6 +25,7 @@ import {
   ArrowLeft,
   Pencil,
   Lock,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
