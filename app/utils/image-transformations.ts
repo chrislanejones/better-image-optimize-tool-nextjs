@@ -60,6 +60,51 @@ export const cropImage = (
 };
 
 /**
+ * Rotate an image by a given degree clockwise and return a data URL.
+ */
+export async function rotateImage(
+  imageUrl: string,
+  degrees: number,
+  format: string = "image/jpeg",
+  quality: number = 0.85
+): Promise<string> {
+  const img = await loadImage(imageUrl);
+  const radians = (degrees * Math.PI) / 180;
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Unable to get canvas context");
+
+  // Set canvas size to fit rotated image
+  if (degrees % 180 === 0) {
+    canvas.width = img.width;
+    canvas.height = img.height;
+  } else {
+    canvas.width = img.height;
+    canvas.height = img.width;
+  }
+
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(radians);
+  ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+  return canvas.toDataURL(format, quality);
+}
+
+/**
+ * Load an image from a URL into an HTMLImageElement.
+ */
+export function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+/**
  * Resize an image and return the result as a URL with proper compression
  */
 export const resizeImage = (

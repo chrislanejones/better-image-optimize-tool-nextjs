@@ -386,11 +386,11 @@ export default function ImageUploader() {
             {currentImages.map((image, index) => (
               <div
                 key={image.id}
-                className={`relative group aspect-square animate-fade-scale-in ${
+                className={`relative group aspect-square animate-fade-scale-in cursor-pointer ${
                   selectedImage?.id === image.id ? "ring-2 ring-blue-500" : ""
                 }`}
                 style={{ animationDelay: `${index * 0.05}s` }}
-                onClick={() => selectImage(image)}
+                onClick={() => setSelectedImage(image)}
               >
                 <Image
                   src={image.url}
@@ -398,14 +398,7 @@ export default function ImageUploader() {
                   fill
                   className="object-cover rounded-md"
                 />
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100">
-                  <button
-                    className="p-2 bg-blue-500 text-white rounded-full transform transition-transform group-hover:scale-110"
-                    aria-label="Expand image"
-                  >
-                    <Maximize2 size={20} />
-                  </button>
-                </div>
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100"></div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

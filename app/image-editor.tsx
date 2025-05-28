@@ -42,30 +42,26 @@ import {
   ImageInfo,
   EditorMode,
   CroppingToolRef,
+  ExtendedImageEditorProps,
 } from "@/types/types";
 import { useTheme } from "next-themes";
 import {
+  rotateImage,
   compressImage,
   getBlobFromUrl,
   normalizeQuality,
 } from "./utils/image-transformations";
 
-// Define the editor states
 export type EditorState =
-  | "resizeAndOptimize" // Simple resize & optimize state (view) - Has aside
-  | "editImage" // Basic Edit Tools (edit)
-  | "multiImageEdit" // Coming soon
-  | "crop" // Cropping mode
-  | "blur" // Blur tool mode
-  | "paint" // Paint tool mode
-  | "text"; // Text tool mode
+  | "resizeAndOptimize"
+  | "editImage"
+  | "multiImageEdit"
+  | "crop"
+  | "blur"
+  | "paint"
+  | "text";
 
-// Update ImageEditorProps to include onEditModeChange in types/types.ts
-interface ExtendedImageEditorProps extends ImageEditorProps {
-  onEditModeChange?: (isEditMode: boolean) => void;
-}
-
-export default function ImageEditor({
+const ImageEditor: React.FC<ExtendedImageEditorProps> = ({
   imageUrl,
   onImageChange,
   onReset,
@@ -80,21 +76,28 @@ export default function ImageEditor({
   onNavigateImage,
   onRemoveAll,
   onUploadNew,
-  // Additional props for enhanced pagination
   allImages = [],
   currentImageId = "",
   onSelectImage,
-  // Edit mode change handler
   onEditModeChange,
-}: ExtendedImageEditorProps) {
-  // Editor state
+}) => {
+  // ✅ You had an outer ImageEditor which used imageUrl too early (removed)
   const [editorState, setEditorState] =
     useState<EditorState>("resizeAndOptimize");
-  const [isCompressing, setIsCompressing] = useState<boolean>(false);
-  const [zoom, setZoom] = useState<number>(1);
+  const [zoom, setZoom] = useState(1);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [padlockAnimation, setPadlockAnimation] = useState<boolean>(false);
+  const [padlockAnimation, setPadlockAnimation] = useState(false);
+  const [history, setHistory] = useState<string[]>([imageUrl]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [currentImage, setCurrentImage] = useState<string>(imageUrl);
+  const [isCompressing, setIsCompressing] = useState(false);
+
+  useEffect(() => {
+    setCurrentImage(imageUrl);
+    setHistory([imageUrl]);
+    setHistoryIndex(0);
+  }, [imageUrl]);
 
   // Tool states
   const [isEraser, setIsEraser] = useState<boolean>(false);
@@ -105,7 +108,7 @@ export default function ImageEditor({
   const [format, setFormat] = useState<string>("webp"); // Default to WebP for better Core Web Vitals
   const [isBold, setIsBold] = useState<boolean>(false);
   const [isItalic, setIsItalic] = useState<boolean>(false);
-  const [quality, setQuality] = useState<number>(85); // Added quality state
+  const [quality, setQuality] = useState<number>(85);
   const [isRotating, setIsRotating] = useState<boolean>(false);
 
   // Image stats
@@ -115,10 +118,6 @@ export default function ImageEditor({
   const [newStats, setNewStats] = useState<any>(null);
   const [dataSavings, setDataSavings] = useState<number>(0);
   const [hasEdited, setHasEdited] = useState<boolean>(false);
-
-  // History states
-  const [history, setHistory] = useState<string[]>([imageUrl]);
-  const [historyIndex, setHistoryIndex] = useState<number>(0);
 
   // Refs
   const imgRef = useRef<HTMLImageElement>(null);
@@ -130,18 +129,56 @@ export default function ImageEditor({
   const [compressionProgress, setCompressionProgress] = useState<number>(0);
   const { toast } = useToast();
 
+  // History management
+
+  const addToHistory = useCallback(
+    (url: string) => {
+      setHistory((prev) => {
+        // If we're not at the end of history, remove everything after current index
+        const newHistory = prev.slice(0, historyIndex + 1);
+        return [...newHistory, url];
+      });
+      setHistoryIndex((prev) => prev + 1);
+
+      // If there's code here that's changing editorState, it needs to be removed or controlled
+    },
+    [historyIndex]
+  );
+
+  useEffect(() => {
+    if (imageUrl) {
+      setHistory([imageUrl]);
+      setHistoryIndex(0);
+    }
+  }, [imageUrl]);
+
+  const handleRotateClockwise = useCallback(async () => {
+    setIsRotating(true);
+    const rotatedUrl = await rotateImage(currentImage ?? "", 90);
+    onImageChange?.(rotatedUrl);
+    addToHistory(rotatedUrl);
+    setIsRotating(false);
+    setHasEdited(true);
+  }, [currentImage, onImageChange, addToHistory]);
+
+  const handleRotateCounterClockwise = useCallback(async () => {
+    setIsRotating(true);
+    const rotatedUrl = await rotateImage(currentImage ?? "", -90);
+    onImageChange?.(rotatedUrl);
+    addToHistory(rotatedUrl);
+    setIsRotating(false);
+    setHasEdited(true);
+  }, [currentImage, onImageChange, addToHistory]);
   // Wait for component to mount to avoid hydration issues with theme
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Toggle theme function
   const toggleTheme = useCallback(() => {
     if (!mounted) return;
     setTheme(theme === "dark" ? "light" : "dark");
   }, [mounted, theme, setTheme]);
 
-  // Notify parent when edit mode changes
   useEffect(() => {
     if (onEditModeChange) {
       onEditModeChange(
@@ -154,7 +191,6 @@ export default function ImageEditor({
       );
     }
   }, [editorState, onEditModeChange]);
-
   // Play padlock animation when entering edit mode
   useEffect(() => {
     if (editorState === "editImage" || editorState === "multiImageEdit") {
@@ -170,41 +206,34 @@ export default function ImageEditor({
   const updateCoreWebVitalsScore = useCallback(() => {
     if (!originalStats) return;
 
-    // Calculate current size
     const originalSize = originalStats.width * originalStats.height;
     const currentSize = width * height;
 
-    // Calculate compression ratio based on format
     let compressionRatio = 1.0;
     if (format === "webp") {
-      compressionRatio = 0.65; // WebP is typically 65% of JPEG size
+      compressionRatio = 0.65;
     } else if (format === "jpeg") {
-      compressionRatio = 1.0; // Baseline
+      compressionRatio = 1.0;
     } else if (format === "png") {
-      compressionRatio = 1.5; // PNG is typically larger
+      compressionRatio = 1.5;
     }
 
-    // Apply quality adjustment to compression ratio
     const qualityFactor = quality / 85;
     compressionRatio *= qualityFactor;
 
-    // Estimate new size
     const estimatedSize = currentSize * compressionRatio;
     const originalFileSize = originalStats.size;
     const estimatedFileSize = (estimatedSize / originalSize) * originalFileSize;
 
-    // Update stats
     setNewStats({
       width,
       height,
-      size: Math.round(estimatedFileSize),
-      format,
+      estimatedFileSize,
     });
 
-    // Calculate data savings
-    const savings = 100 - (estimatedFileSize / originalFileSize) * 100;
-    setDataSavings(savings);
-  }, [originalStats, width, height, format, quality]);
+    const savings = originalFileSize - estimatedFileSize;
+    setDataSavings((savings / originalFileSize) * 100);
+  }, [width, height, format, quality, originalStats]);
 
   // Initialize image dimensions and stats
   useEffect(() => {
@@ -291,21 +320,6 @@ export default function ImageEditor({
     [updateCoreWebVitalsScore]
   );
 
-  // History management
-
-  const addToHistory = useCallback(
-    (url: string) => {
-      setHistory((prev) => {
-        // If we're not at the end of history, remove everything after current index
-        const newHistory = prev.slice(0, historyIndex + 1);
-        return [...newHistory, url];
-      });
-      setHistoryIndex((prev) => prev + 1);
-
-      // If there's code here that's changing editorState, it needs to be removed or controlled
-    },
-    [historyIndex]
-  );
   // Apply resize
   const handleApplyResize = useCallback(async () => {
     console.log("🔍 handleApplyResize called in image-editor.tsx");
@@ -797,119 +811,6 @@ export default function ImageEditor({
   const handleZoomOut = useCallback(() => {
     setZoom((prev) => Math.max(prev - 0.1, 0.5));
   }, []);
-
-  // Handle image rotation
-
-  const handleRotateClockwise = useCallback(() => {
-    if (!canvasRef.current || !imgRef.current) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Set canvas dimensions swapped for rotation
-    canvas.width = imgRef.current.naturalHeight;
-    canvas.height = imgRef.current.naturalWidth;
-
-    // Transform and rotate
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate(Math.PI / 2);
-    ctx.drawImage(
-      imgRef.current,
-      -imgRef.current.naturalWidth / 2,
-      -imgRef.current.naturalHeight / 2
-    );
-
-    // Get the rotated image
-    const rotatedImageUrl = canvas.toDataURL(`image/${format}`, quality / 100);
-
-    // Update dimensions
-    setWidth(canvas.width);
-    setHeight(canvas.height);
-
-    // Add to history WITHOUT triggering the imageUrl change
-    setHistory((prev) => {
-      const newHistory = prev.slice(0, historyIndex + 1);
-      return [...newHistory, rotatedImageUrl];
-    });
-    setHistoryIndex((prev) => prev + 1);
-
-    // Update the image ref directly instead of using onImageChange
-    if (imgRef.current) {
-      imgRef.current.src = rotatedImageUrl;
-    }
-
-    // Mark as edited
-    setHasEdited(true);
-
-    // Update stats if needed
-    if (originalStats) {
-      setNewStats({
-        width: canvas.width,
-        height: canvas.height,
-        size: originalStats.size, // Keep same size for now
-        format: format,
-      });
-    }
-
-    // Stay in edit mode - no state change!
-  }, [imgRef, canvasRef, format, quality, historyIndex, originalStats]);
-
-  // Similarly in handleRotateCounterClockwise, add the same fix:
-  const handleRotateCounterClockwise = useCallback(() => {
-    if (!canvasRef.current || !imgRef.current) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Set canvas dimensions swapped for rotation
-    canvas.width = imgRef.current.naturalHeight;
-    canvas.height = imgRef.current.naturalWidth;
-
-    // Transform and rotate counter-clockwise
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.drawImage(
-      imgRef.current,
-      -imgRef.current.naturalWidth / 2,
-      -imgRef.current.naturalHeight / 2
-    );
-
-    // Get the rotated image
-    const rotatedImageUrl = canvas.toDataURL(`image/${format}`, quality / 100);
-
-    // Update dimensions
-    setWidth(canvas.width);
-    setHeight(canvas.height);
-
-    // Add to history WITHOUT triggering the imageUrl change
-    setHistory((prev) => {
-      const newHistory = prev.slice(0, historyIndex + 1);
-      return [...newHistory, rotatedImageUrl];
-    });
-    setHistoryIndex((prev) => prev + 1);
-
-    // Update the image ref directly instead of using onImageChange
-    if (imgRef.current) {
-      imgRef.current.src = rotatedImageUrl;
-    }
-
-    // Mark as edited
-    setHasEdited(true);
-
-    // Update stats if needed
-    if (originalStats) {
-      setNewStats({
-        width: canvas.width,
-        height: canvas.height,
-        size: originalStats.size, // Keep same size for now
-        format: format,
-      });
-    }
-
-    // Stay in edit mode - no state change!
-  }, [imgRef, canvasRef, format, quality, historyIndex, originalStats]);
 
   function getMimeType(format: string): string {
     if (format === "webp") return "image/webp";
@@ -1424,4 +1325,6 @@ export default function ImageEditor({
       </div>
     </div>
   );
-}
+};
+
+export default ImageEditor;
