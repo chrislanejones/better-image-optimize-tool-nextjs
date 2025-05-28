@@ -8,18 +8,7 @@ import React, {
   useImperativeHandle,
   useCallback,
 } from "react";
-import { BlurBrushCanvasRef } from "@/types/types";
-
-export interface BlurBrushCanvasProps {
-  imageUrl: string;
-  blurAmount: number;
-  blurRadius: number;
-  zoom?: number;
-  onApply: (blurredImageUrl: string) => void;
-  onCancel: () => void;
-  onBlurAmountChange?: (amount: number) => void;
-  onBlurRadiusChange?: (radius: number) => void;
-}
+import { BlurBrushCanvasRef, BlurBrushCanvasProps } from "@/types/types";
 
 const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
   (

@@ -29,18 +29,18 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import CroppingTool, { type CroppingToolRef } from "./components/cropping-tool";
+import CroppingTool from "./components/cropping-tool";
 import BlurBrushCanvas from "./components/blur-tool";
 import PaintTool from "./components/paint-tool";
 import ImageResizer from "./components/image-resizer";
 import ImageStats from "./components/image-stats";
 import ImageZoomView from "./components/image-zoom-view";
-import SimplePagination from "./components/pagination-controls";
 import {
   ImageCropperProps,
   NavigationDirection,
   ImageInfo,
   EditorMode,
+  CroppingToolRef,
 } from "@/types/types";
 import {
   compressImage,

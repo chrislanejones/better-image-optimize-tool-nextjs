@@ -14,24 +14,9 @@ import ReactCrop, {
   type PixelCrop,
 } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
-import { Button } from "@/components/ui/button";
-import { Info } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/components/ui/use-toast"; // Adjust path if needed
 
-export interface CroppingToolRef {
-  getCanvasDataUrl: () => string | null;
-  getCrop: () => PixelCrop | null;
-  getImageRef: () => HTMLImageElement | null;
-  applyCrop: () => void;
-}
-
-interface CroppingToolProps {
-  imageUrl: string;
-  onApply: (croppedImageUrl: string) => void;
-  onCancel: () => void;
-  className?: string;
-  aspectRatio?: number | undefined;
-}
+import { CroppingToolRef, CroppingToolProps } from "@/types/types"; // Adjust path if needed
 
 const CroppingTool = forwardRef<CroppingToolRef, CroppingToolProps>(
   ({ imageUrl, onApply, onCancel, className, aspectRatio }, ref) => {
@@ -42,6 +27,7 @@ const CroppingTool = forwardRef<CroppingToolRef, CroppingToolProps>(
       x: 25, // Center the crop box
       y: 25,
     });
+    const { toast } = useToast();
     const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
     const [imageLoaded, setImageLoaded] = useState<boolean>(false);
     const imgRef = useRef<HTMLImageElement>(null);
@@ -145,6 +131,15 @@ const CroppingTool = forwardRef<CroppingToolRef, CroppingToolProps>(
     };
 
     // Function to apply the crop - this is called from the parent component
+    useEffect(() => {
+      toast({
+        title: "Crop Mode",
+        description:
+          "Drag to adjust crop area. Use toolbar buttons to apply or cancel.",
+        variant: "default", // or "destructive" if needed
+      });
+    }, []);
+
     const applyCrop = useCallback(() => {
       if (!completedCrop) {
         setError("Please select an area to crop first");
@@ -217,14 +212,6 @@ const CroppingTool = forwardRef<CroppingToolRef, CroppingToolProps>(
               onLoad={onImageLoad}
             />
           </ReactCrop>
-
-          {/* Help message */}
-          {showHelp && imageLoaded && (
-            <div className="crop-help-text">
-              <Info className="inline-block mr-1 h-4 w-4" /> Drag to adjust crop
-              area. Use toolbar buttons to apply or cancel.
-            </div>
-          )}
         </div>
 
         {/* Removed bottom buttons - using only toolbar buttons */}

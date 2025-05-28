@@ -38,17 +38,7 @@ import {
   MoveUpRight,
 } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
-
-interface PaintToolProps {
-  imageUrl: string;
-  onApplyPaint: (paintedImageUrl: string) => void;
-  onCancel: () => void;
-}
-
-export interface PaintToolRef {
-  getCanvasDataUrl: () => string | null;
-  clear: () => void;
-}
+import { PaintToolProps, PaintToolRef } from "@/types/types";
 
 const colorPalette = [
   // Reds

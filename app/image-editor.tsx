@@ -28,7 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/components/ui/use-toast";
-import CroppingTool, { type CroppingToolRef } from "./components/cropping-tool";
+import CroppingTool from "./components/cropping-tool";
 import BlurBrushCanvas from "./components/blur-tool";
 import PaintTool from "./components/paint-tool";
 import TextTool from "./components/text-tool";
@@ -41,6 +41,7 @@ import {
   NavigationDirection,
   ImageInfo,
   EditorMode,
+  CroppingToolRef,
 } from "@/types/types";
 import { useTheme } from "next-themes";
 import {

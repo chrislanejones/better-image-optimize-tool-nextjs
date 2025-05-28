@@ -6,14 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 
-interface ImageZoomViewProps {
-  imageUrl: string;
-}
-
-interface MousePosition {
-  x: number;
-  y: number;
-}
+import { ImageZoomViewProps, MousePosition } from "@/types/types"; // Adjust the import path as needed
 
 export default function ImageZoomView({ imageUrl }: ImageZoomViewProps) {
   const [magnifierZoom, setMagnifierZoom] = useState<number>(3);

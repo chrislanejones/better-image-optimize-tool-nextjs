@@ -15,7 +15,11 @@ export type EditorState =
 export type ImageFormat = "jpeg" | "png" | "webp";
 
 // Core Web Vitals Score Type
-export type CoreWebVitalsScore = "poor" | "needs-improvement" | "good";
+export type CoreWebVitalsScore =
+  | "poor"
+  | "almost-there"
+  | "needs-improvement"
+  | "good";
 
 export type NavigationDirection =
   | "next" // Move to next item
@@ -277,12 +281,23 @@ export interface BlurBrushCanvasProps {
   onBlurRadiusChange?: (radius: number) => void;
 }
 
+export interface BlurBrushCanvasProps {
+  imageUrl: string;
+  blurAmount: number;
+  blurRadius: number;
+  zoom?: number;
+  onApply: (blurredImageUrl: string) => void;
+  onCancel: () => void;
+  onBlurAmountChange?: (amount: number) => void;
+  onBlurRadiusChange?: (radius: number) => void;
+}
+
 // Paint tool props
 export interface PaintToolProps {
   imageUrl: string;
   onApplyPaint: (paintedImageUrl: string) => void;
   onCancel: () => void;
-  onToggleEraser: () => void;
+  onToggleEraser?: () => void;
   isEraser: boolean;
   brushSize?: number;
   brushColor?: string;
@@ -293,7 +308,10 @@ export interface PaintToolProps {
 // Image zoom view props
 export interface ImageZoomViewProps {
   imageUrl: string;
-  className?: string;
+}
+interface MousePosition {
+  x: number;
+  y: number;
 }
 
 // Main Toolbar Props

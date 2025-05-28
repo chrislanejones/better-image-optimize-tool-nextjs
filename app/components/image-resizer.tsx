@@ -59,7 +59,7 @@ export default function ImageResizer({
     useState<boolean>(false);
   const [compressionProgress, setCompressionProgress] = useState<number>(0);
   const [coreWebVitalsScore, setCoreWebVitalsScore] = useState<
-    "poor" | "needs-improvement" | "good"
+    "poor" | "needs-improvement" | "almost-there" | "good"
   >("good");
 
   // Update local dimensions when props change
@@ -120,38 +120,34 @@ export default function ImageResizer({
     newHeight: number,
     fromSlider = false
   ) => {
-    // Validate input
     if (isNaN(newWidth) || isNaN(newHeight) || newWidth <= 0 || newHeight <= 0)
       return;
 
+    let adjustedWidth = newWidth;
+    let adjustedHeight = newHeight;
+
     if (aspectRatio) {
+      const baseRatio = initialWidth / initialHeight;
       if (fromSlider) {
-        // For sliders, enforce aspect ratio based on which value was changed
-        if (newWidth !== widthValue) {
-          // Width was changed, calculate new height
-          const ratio = initialHeight / initialWidth;
-          newHeight = Math.round(newWidth * ratio);
+        // Determine which dimension is changing
+        const changingWidth = newWidth !== widthValue;
+        if (changingWidth) {
+          adjustedHeight = Math.round(newWidth / baseRatio);
         } else {
-          // Height was changed, calculate new width
-          const ratio = initialWidth / initialHeight;
-          newWidth = Math.round(newHeight * ratio);
+          adjustedWidth = Math.round(newHeight * baseRatio);
         }
+      } else {
+        adjustedHeight = Math.round(newWidth / baseRatio);
       }
     }
 
-    // Update state
-    setWidthValue(newWidth);
-    setHeightValue(newHeight);
+    setWidthValue(adjustedWidth);
+    setHeightValue(adjustedHeight);
+    onResize(adjustedWidth, adjustedHeight);
 
-    // Notify parent
-    onResize(newWidth, newHeight);
-
-    // Update Core Web Vitals score
-    updateCoreWebVitalsScore(newWidth, newHeight);
-
-    // Check if dimensions have changed from original
+    updateCoreWebVitalsScore(adjustedWidth, adjustedHeight);
     const dimensionsChanged =
-      newWidth !== initialWidth || newHeight !== initialHeight;
+      adjustedWidth !== initialWidth || adjustedHeight !== initialHeight;
     setHasChangedDimensions(dimensionsChanged);
   };
 
@@ -229,11 +225,15 @@ export default function ImageResizer({
     const imageSize = width * height;
 
     // Start with score based on dimensions
-    let newScore: "poor" | "needs-improvement" | "good";
+    let newScore: "poor" | "needs-improvement" | "almost-there" | "good";
 
-    if (imageSize <= LCP_THRESHOLD_GOOD) {
+    const buffer = 20000; // ~20k pixels
+
+    if (imageSize <= LCP_THRESHOLD_GOOD - buffer) {
       newScore = "good";
-    } else if (imageSize <= LCP_THRESHOLD_POOR) {
+    } else if (imageSize <= LCP_THRESHOLD_GOOD + buffer) {
+      newScore = "almost-there";
+    } else if (imageSize <= LCP_THRESHOLD_POOR - buffer) {
       newScore = "needs-improvement";
     } else {
       newScore = "poor";
@@ -292,43 +292,6 @@ export default function ImageResizer({
     setCoreWebVitalsScore(newScore);
   };
 
-  // Calculate estimated file size - with improved format factors
-  const calculateEstimatedSize = (): string => {
-    if (!width || !height || !widthValue || !heightValue) return "Unknown";
-
-    // Base size calculation based on dimensions
-    const dimensionRatio = (widthValue * heightValue) / (width * height);
-
-    // Adjusted format compression factors - more accurate for each format
-    const formatFactor =
-      format === "webp" ? 0.65 : format === "jpeg" ? 0.85 : 1.1;
-
-    // Quality impact (quality level has exponential impact on file size)
-    const qualityFactor = Math.pow((quality || 85) / 100, 1.5);
-
-    // Adjust for compression level
-    let compressionFactor = 1.0;
-    if (compressionLevel === "extreme") compressionFactor = 0.7;
-    else if (compressionLevel === "high") compressionFactor = 0.85;
-    else if (compressionLevel === "medium") compressionFactor = 1.0;
-    else if (compressionLevel === "low") compressionFactor = 1.2;
-
-    // Estimate size in KB - starting from typical JPEG size
-    let baseSize = Math.max((width * height) / 10, 20); // at least 20KB for small images
-    const estimatedKB =
-      baseSize *
-      dimensionRatio *
-      formatFactor *
-      qualityFactor *
-      compressionFactor;
-
-    if (estimatedKB < 1024) {
-      return `~${Math.round(estimatedKB)} KB`;
-    } else {
-      return `~${(estimatedKB / 1024).toFixed(2)} MB`;
-    }
-  };
-
   // Handle navigation between images
   const handleNavigate = (direction: NavigationDirection) => {
     if (onNavigateImage) {
@@ -369,8 +332,8 @@ export default function ImageResizer({
 
   return (
     <Card className="bg-gray-800 text-white border-gray-700">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex justify-between items-center">
+      <CardHeader className="p-3 pb-0">
+        <CardTitle className="flex items-center justify-between text-base">
           <div className="flex items-center">
             <Image className="h-4 w-4 mr-2" />
             <span>Resize & Optimize</span>
@@ -387,7 +350,7 @@ export default function ImageResizer({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Width slider */}
-        <div className="space-y-2">
+        <div className="space-y-2 mt-3">
           <div className="flex justify-between">
             <label htmlFor="width" className="text-sm font-medium">
               Width: {widthValue}px
@@ -403,7 +366,6 @@ export default function ImageResizer({
             onValueChange={handleWidthChange}
           />
         </div>
-
         {/* Height slider */}
         <div className="space-y-2">
           <div className="flex justify-between">
@@ -421,7 +383,6 @@ export default function ImageResizer({
             onValueChange={handleHeightChange}
           />
         </div>
-
         {/* Aspect ratio toggle */}
         <div className="flex items-center">
           <label className="text-sm flex-1">Maintain aspect ratio</label>
@@ -436,7 +397,6 @@ export default function ImageResizer({
             <span className="w-4 h-4 rounded-full bg-white" />
           </button>
         </div>
-
         {/* Quality slider - if onQualityChange is provided */}
         {onQualityChange && (
           <div className="space-y-2">
@@ -456,7 +416,6 @@ export default function ImageResizer({
             />
           </div>
         )}
-
         {/* Compression Level */}
         <div className="flex flex-col space-y-2">
           <label htmlFor="compression-level" className="text-sm font-medium">
@@ -484,86 +443,64 @@ export default function ImageResizer({
             </SelectContent>
           </Select>
         </div>
-
-        {/* Core Web Vitals visualization */}
-        <div className="flex justify-between items-center mt-4 mb-2">
-          <span className="text-xs text-gray-300">Core Web Vitals:</span>
-          <div className="flex-1 mx-4 h-2 bg-gray-700 rounded-full overflow-hidden">
+        {/* Core Web Vitals meter */}
+        <div className="mt-4 mb-2">
+          <span className="text-xs text-gray-300 mb-1 block">
+            Core Web Vitals:
+          </span>
+          <div className="relative w-full h-4 rounded-full overflow-hidden bg-gradient-to-r from-green-500 via-teal-400 via-yellow-400 to-red-500">
             <div
-              className={`h-full ${
-                coreWebVitalsScore === "good"
-                  ? "bg-green-500"
-                  : coreWebVitalsScore === "needs-improvement"
-                  ? "bg-yellow-500"
-                  : "bg-red-500"
-              }`}
+              className="absolute top-1/2 -translate-y-1/2 transition-all duration-300 ease-in-out"
               style={{
-                width:
+                left:
                   coreWebVitalsScore === "good"
-                    ? "100%"
+                    ? "3%"
+                    : coreWebVitalsScore === "almost-there"
+                    ? "31%"
                     : coreWebVitalsScore === "needs-improvement"
-                    ? "66%"
-                    : "33%",
+                    ? "56%"
+                    : "95%",
               }}
-            />
+            >
+              <div className="w-2 h-2 rounded-full bg-white shadow-md" />
+            </div>
           </div>
-          <span
-            className="text-xs font-semibold"
-            style={{
-              color:
-                coreWebVitalsScore === "good"
-                  ? "#10b981"
-                  : coreWebVitalsScore === "needs-improvement"
-                  ? "#f59e0b"
-                  : "#ef4444",
-            }}
-          >
-            {getScoreLabel()}
-          </span>
+          <div className="flex justify-between text-[10px] text-gray-400 mt-1 px-1">
+            <span>Good</span>
+            <span>Almost There</span>
+            <span>Needs Work</span>
+            <span>Poor</span>
+          </div>
         </div>
-
-        {/* Size info */}
-        <div className="flex justify-between items-center mt-2 text-xs text-gray-300">
+        {/* Format name and info tooltip */}
+        <div className="flex items-center text-xs text-gray-300 gap-2 mt-2">
           <span>
-            Current: {widthValue}×{heightValue}
+            Format: <span className="uppercase font-semibold">{format}</span>
           </span>
-          <span>Est. size: {calculateEstimatedSize()}</span>
+          <div className="relative group">
+            <InfoIcon className="w-3.5 h-3.5 text-gray-400 cursor-pointer" />
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-xs text-xs text-white bg-gray-700 p-2 rounded shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-10">
+              {format === "webp" && (
+                <span>
+                  WebP: Modern format, great for web. 25–35% smaller than JPEG
+                  with similar quality.
+                </span>
+              )}
+              {format === "jpeg" && (
+                <span>
+                  JPEG: Best for photos. Universal support, great balance of
+                  size and quality.
+                </span>
+              )}
+              {format === "png" && (
+                <span>
+                  PNG: Great for transparency/text. Lossless, but larger file
+                  sizes.
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-
-        {/* Format-specific information */}
-        {format === "webp" && (
-          <div className="bg-blue-900/20 p-2 rounded text-xs">
-            <p className="font-medium mb-1">Google WebP Format</p>
-            <p>
-              WebP offers 25-35% smaller file sizes than JPEG with similar
-              quality.
-            </p>
-            <p className="mt-1">
-              Excellent for web use, supported by all modern browsers.
-            </p>
-          </div>
-        )}
-
-        {format === "jpeg" && (
-          <div className="bg-blue-900/20 p-2 rounded text-xs">
-            <p className="font-medium mb-1">JPEG Format</p>
-            <p>JPEG works well for photographs and realistic images.</p>
-            <p className="mt-1">
-              Good balance of quality and file size with universal support.
-            </p>
-          </div>
-        )}
-
-        {format === "png" && (
-          <div className="bg-blue-900/20 p-2 rounded text-xs">
-            <p className="font-medium mb-1">PNG Format</p>
-            <p>PNG is best for images with transparency or text.</p>
-            <p className="mt-1">
-              Lossless format preserves details but creates larger files.
-            </p>
-          </div>
-        )}
-
         {/* Format selector and Apply button */}
         <div className="grid grid-cols-2 gap-2">
           <Select value={format} onValueChange={handleFormatChange}>
@@ -586,7 +523,6 @@ export default function ImageResizer({
             {isCompressing ? "Processing..." : "Apply Resize"}
           </Button>
         </div>
-
         {/* Download button */}
         {onDownload && (
           <Button onClick={onDownload} variant="outline" className="w-full">
@@ -594,7 +530,6 @@ export default function ImageResizer({
             Download
           </Button>
         )}
-
         {/* Pagination controls */}
         {onNavigateImage && currentPage && totalPages && totalPages > 1 && (
           <div className="flex justify-between items-center pt-2 mt-2 border-t border-gray-700">
