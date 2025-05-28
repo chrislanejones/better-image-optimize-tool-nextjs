@@ -13,6 +13,7 @@ import { NavigationDirection } from "@/types/types";
 interface SimplePaginationProps {
   currentPage: number;
   totalPages: number;
+  totalImages?: number; // New prop for total images count
   onBackTen?: () => void;
   onPrevious?: () => void;
   onNext?: () => void;
@@ -25,6 +26,7 @@ interface SimplePaginationProps {
 function SimplePagination({
   currentPage,
   totalPages,
+  totalImages,
   onBackTen,
   onPrevious,
   onNext,
@@ -33,8 +35,6 @@ function SimplePagination({
   isDisabled = false,
   className = "",
 }: SimplePaginationProps) {
-  // NOTE: We're removing the totalPages check to ensure the pagination control always renders
-
   // Create handlers that use either the direct handlers or onNavigate
   const handleBackTen = () => {
     if (onBackTen) {
@@ -68,6 +68,15 @@ function SimplePagination({
     }
   };
 
+  // Calculate current image number when totalImages is provided
+  const getCurrentImageText = () => {
+    if (totalImages) {
+      return `${currentPage} out of ${totalImages} images`;
+    }
+    // Fallback to page-based display
+    return `${currentPage} / ${Math.max(totalPages, 1)}`;
+  };
+
   // Always render the pagination controls
   return (
     <div className={`flex items-center gap-1 ${className}`}>
@@ -93,9 +102,9 @@ function SimplePagination({
         <ChevronLeft className="h-4 w-4" />
       </Button>
 
-      {/* Page indicator */}
-      <span className="text-sm px-2 text-white">
-        {currentPage} / {Math.max(totalPages, 1)}
+      {/* Page/Image indicator */}
+      <span className="text-sm px-2 text-white whitespace-nowrap">
+        {getCurrentImageText()}
       </span>
 
       {/* Next image */}

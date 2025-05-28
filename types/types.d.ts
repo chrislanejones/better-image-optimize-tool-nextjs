@@ -157,6 +157,42 @@ export interface ImageEditorProps {
   onEditModeChange?: (isEditMode: boolean) => void;
 }
 
+export interface ImageEditorToolbarProps {
+  editorState: EditorState;
+  isCompressing: boolean;
+  zoom: number;
+  historyIndex: number;
+  historyLength: number;
+  currentPage?: number;
+  totalPages?: number;
+  padlockAnimation: boolean;
+  multiCropData: any;
+  blurAmount: number;
+  blurRadius: number;
+  allImages?: any[];
+
+  // Actions
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  onRotateLeft: () => void;
+  onRotateRight: () => void;
+  onReset: () => void;
+  onClose?: () => void;
+  onRemoveAll?: () => void;
+  onUploadNew?: () => void;
+  onNavigateImage?: (direction: NavigationDirection) => void;
+  onStateChange: (state: EditorState) => void;
+  onApplyCrop: () => void;
+  onApplyBlur: () => void;
+  onApplyPaint: () => void;
+  onApplyText: () => void;
+  onBlurAmountChange: (amount: number) => void;
+  onBlurRadiusChange: (radius: number) => void;
+  onMultiCropApply: () => void;
+}
+
 // Extended Image Editor Props with additional functions
 export interface ExtendedImageEditorProps extends ImageEditorProps {
   onEditModeChange?: (isEditMode: boolean) => void;
@@ -199,9 +235,8 @@ export interface ImageResizerProps {
 }
 
 // Extended ImageResizerProps
-export interface ExtendedImageResizerProps extends ImageResizerProps {
-  quality?: number;
-  onQualityChange?: (quality: number) => void;
+export interface ExtendedImageEditorProps extends ImageEditorProps {
+  onEditModeChange?: (isEditMode: boolean) => void;
 }
 
 export interface ImageStatsProps {
@@ -359,4 +394,45 @@ export interface ToolbarProps {
 
   isStandalone?: boolean;
   className?: string;
+}
+export interface UseImageEditorProps {
+  imageUrl: string;
+  fileSize: number;
+  fileType: string;
+  format: string;
+  onImageChange?: (url: string) => void;
+  onEditModeChange?: (isEditMode: boolean) => void;
+}
+
+interface ImageEditorCanvasProps {
+  editorState: EditorState;
+  imageUrl: string;
+  zoom: number;
+  width: number;
+  height: number;
+  allImages?: any[];
+  currentImageId?: string;
+  multiCropData: any;
+  blurAmount: number;
+  blurRadius: number;
+  isEraser: boolean;
+
+  // Actions
+  onSelectImage?: (image: any) => void;
+  onStateChange: (state: EditorState) => void;
+  onCropResult: (url: string) => void;
+  onBlurResult: (url: string) => void;
+  onPaintResult: (url: string) => void;
+  onTextResult: (url: string) => void;
+  setMultiCropData: (data: any) => void;
+  setBold: (bold: boolean) => void;
+  setItalic: (italic: boolean) => void;
+  setIsEraser: (eraser: boolean) => void;
+
+  // Refs
+  cropToolRef: React.RefObject<any>;
+  blurCanvasRef: React.RefObject<any>;
+  paintToolRef: React.RefObject<any>;
+  textToolRef: React.RefObject<any>;
+  imgRef: React.RefObject<HTMLImageElement | null>;
 }

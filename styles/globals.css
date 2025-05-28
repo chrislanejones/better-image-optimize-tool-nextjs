@@ -541,3 +541,16 @@ body {
   border-radius: 6px;
   border: 2px solid #1a202c;
 }
+
+/* AI Button */
+@keyframes rainbow-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
