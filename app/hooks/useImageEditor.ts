@@ -112,7 +112,6 @@ export const useImageEditor = ({
 
   // Reset editor state when image changes via pagination
   useEffect(() => {
-    setEditorState("resizeAndOptimize");
     setZoom(1);
     setIsEraser(false);
     setHistory([imageUrl]);

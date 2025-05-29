@@ -191,6 +191,23 @@ export interface ImageEditorToolbarProps {
   onBlurAmountChange: (amount: number) => void;
   onBlurRadiusChange: (radius: number) => void;
   onMultiCropApply: () => void;
+  onExitEditMode: () => void;
+  onRotateLeft?: () => void;
+  onRotateRight?: () => void;
+  onFlipHorizontal?: () => void;
+  onFlipVertical?: () => void;
+  onReset?: () => void;
+}
+
+interface EditImageToolbarProps {
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onRotateLeft: () => void;
+  onRotateRight: () => void;
+  onFlipHorizontal: () => void;
+  onFlipVertical: () => void;
+  onReset: () => void;
+  onExitEditMode: () => void;
 }
 
 // Extended Image Editor Props with additional functions

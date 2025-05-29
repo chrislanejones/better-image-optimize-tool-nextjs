@@ -21,6 +21,8 @@ interface SimplePaginationProps {
   onNavigate?: (direction: NavigationDirection) => void; // Added for compatibility
   isDisabled?: boolean;
   className?: string;
+  currentImageId?: string;
+  allImages?: { id: string }[];
 }
 
 function SimplePagination({
@@ -103,9 +105,9 @@ function SimplePagination({
       </Button>
 
       {/* Page/Image indicator */}
-      <span className="text-sm px-2 text-white whitespace-nowrap">
+      {/* <span className="text-sm px-2 text-white whitespace-nowrap">
         {getCurrentImageText()}
-      </span>
+      </span> */}
 
       {/* Next image */}
       <Button

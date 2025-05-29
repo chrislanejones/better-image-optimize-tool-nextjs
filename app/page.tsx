@@ -3,23 +3,14 @@
 import {
   useState,
   useRef,
+  useEffect,
   type ChangeEvent,
   type DragEvent,
-  useEffect,
   type ClipboardEvent,
   useCallback,
 } from "react";
 import Image from "next/image";
-import {
-  X,
-  Maximize2,
-  Upload,
-  ImageIcon,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-} from "lucide-react";
+import { X, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -33,11 +24,9 @@ import { ImageFile, NavigationDirection } from "@/types/types";
 import ImageEditor from "@/app/image-editor";
 import SimplePagination from "./components/pagination-controls";
 
-// Constants for pagination
 const IMAGES_PER_PAGE = 10;
 
 export default function ImageUploader() {
-  // Main state
   const [images, setImages] = useState<ImageFile[]>([]);
   const [uploadComplete, setUploadComplete] = useState(false);
   const [selectedImage, setSelectedImage] = useState<ImageFile | null>(null);
@@ -46,21 +35,17 @@ export default function ImageUploader() {
   const [isEditMode, setIsEditMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(images.length / IMAGES_PER_PAGE);
 
-  // Get current page images
   const getCurrentPageImages = useCallback(() => {
     const startIndex = (currentPage - 1) * IMAGES_PER_PAGE;
     const endIndex = startIndex + IMAGES_PER_PAGE;
     return images.slice(startIndex, endIndex);
   }, [images, currentPage]);
 
-  // Current images to display
   const currentImages = getCurrentPageImages();
 
-  // Reset the new image added flag after animation completes
   useEffect(() => {
     if (newImageAdded) {
       const timer = setTimeout(() => {
@@ -70,7 +55,6 @@ export default function ImageUploader() {
     }
   }, [newImageAdded]);
 
-  // File handling
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -80,7 +64,6 @@ export default function ImageUploader() {
   const addFiles = (files: FileList) => {
     const newImages: ImageFile[] = [];
 
-    // Process all files
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (file.type.startsWith("image/")) {
@@ -96,9 +79,7 @@ export default function ImageUploader() {
     if (newImages.length > 0) {
       setUploadComplete(true);
       setNewImageAdded(true);
-
-      // Auto-select first image if none is selected
-      if (!selectedImage && newImages.length > 0) {
+      if (!selectedImage) {
         setSelectedImage(newImages[0]);
         setCurrentPage(1);
       }
@@ -110,25 +91,18 @@ export default function ImageUploader() {
   };
 
   const removeImage = (id: string) => {
-    // Check if images array is empty first
     if (images.length === 0) return;
 
-    // Find image index before removing
     const imageIndex = images.findIndex((img) => img.id === id);
-    if (imageIndex === -1) return; // Image not found
+    if (imageIndex === -1) return;
 
-    // Filter out the image
     const updatedImages = images.filter((image) => image.id !== id);
     setImages(updatedImages);
 
-    // Handle selected image changes
     if (selectedImage?.id === id) {
       if (updatedImages.length > 0) {
-        // Try to select the next image, or previous if it was the last one
         const nextIndex = Math.min(imageIndex, updatedImages.length - 1);
         setSelectedImage(updatedImages[nextIndex]);
-
-        // Update page if needed
         const newPage = Math.floor(nextIndex / IMAGES_PER_PAGE) + 1;
         setCurrentPage(newPage);
       } else {
@@ -143,8 +117,6 @@ export default function ImageUploader() {
 
   const selectImage = (image: ImageFile) => {
     setSelectedImage(image);
-
-    // Update page to show the selected image
     const imageIndex = images.findIndex((img) => img.id === image.id);
     if (imageIndex !== -1) {
       const newPage = Math.floor(imageIndex / IMAGES_PER_PAGE) + 1;
@@ -153,11 +125,9 @@ export default function ImageUploader() {
   };
 
   const resetUpload = () => {
-    // Revoke all object URLs to prevent memory leaks
     images.forEach((image) => {
       URL.revokeObjectURL(image.url);
     });
-
     setImages([]);
     setUploadComplete(false);
     setSelectedImage(null);
@@ -167,23 +137,17 @@ export default function ImageUploader() {
     }
   };
 
-  // Handle image change from editor
   const handleImageChange = (newImageUrl: string) => {
     if (!selectedImage) return;
 
-    // In a full implementation, we would save this to indexedDB or similar
-    // For now, just update the URL
     setImages(
       images.map((img) =>
         img.id === selectedImage.id ? { ...img, url: newImageUrl } : img
       )
     );
-
-    // Update selected image with new URL
     setSelectedImage({ ...selectedImage, url: newImageUrl });
   };
 
-  // Handle edit mode change from the editor
   const handleEditModeChange = useCallback((isInEditMode: boolean) => {
     setIsEditMode(isInEditMode);
   }, []);
@@ -198,32 +162,24 @@ export default function ImageUploader() {
       if (currentIndex === -1) return;
 
       let newIndex;
-
       switch (direction) {
         case "next":
-          // Move to next image, with wrapping
           newIndex = (currentIndex + 1) % images.length;
           break;
         case "prev":
-          // Move to previous image, with wrapping
           newIndex = (currentIndex - 1 + images.length) % images.length;
           break;
         case "next10":
-          // Jump forward 10 images, but don't exceed the array bounds
           newIndex = Math.min(currentIndex + 10, images.length - 1);
           break;
         case "prev10":
-          // Jump backward 10 images, but don't go below 0
           newIndex = Math.max(currentIndex - 10, 0);
           break;
         default:
-          return; // Unknown direction
+          return;
       }
 
-      // Update selected image
       setSelectedImage(images[newIndex]);
-
-      // Update page if necessary
       const newPage = Math.floor(newIndex / IMAGES_PER_PAGE) + 1;
       if (newPage !== currentPage) {
         setCurrentPage(newPage);
@@ -240,7 +196,6 @@ export default function ImageUploader() {
     [totalPages]
   );
 
-  // Drag and drop handlers
   const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -269,16 +224,14 @@ export default function ImageUploader() {
     }
   };
 
-  // Paste event handler
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
-      if (e.clipboardData && e.clipboardData.files.length > 0) {
+      if (e.clipboardData?.files.length) {
         e.preventDefault();
         addFiles(e.clipboardData.files);
-      } else if (e.clipboardData && e.clipboardData.items) {
+      } else if (e.clipboardData?.items) {
         const items = e.clipboardData.items;
         const imageItems: File[] = [];
-
         for (let i = 0; i < items.length; i++) {
           if (items[i].type.indexOf("image") !== -1) {
             const blob = items[i].getAsFile();
@@ -287,7 +240,6 @@ export default function ImageUploader() {
             }
           }
         }
-
         if (imageItems.length > 0) {
           e.preventDefault();
           const fileList = new DataTransfer();
@@ -306,7 +258,6 @@ export default function ImageUploader() {
     };
   }, []);
 
-  // Upload View (first state)
   if (!uploadComplete) {
     return (
       <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col items-center justify-center">
@@ -355,32 +306,18 @@ export default function ImageUploader() {
             />
           </CardContent>
           <CardFooter>
-            <div className="flex flex-col items-center justify-center w-full">
-              <Button onClick={handleUploadClick} className="w-full" size="lg">
-                Select Images
-              </Button>
-
-              {images.length > 0 && (
-                <Button
-                  onClick={() => setUploadComplete(true)}
-                  className="w-full mt-2"
-                  variant="default"
-                >
-                  Return to Images ({images.length})
-                </Button>
-              )}
-            </div>
+            <Button onClick={handleUploadClick} className="w-full" size="lg">
+              Select Images
+            </Button>
           </CardFooter>
         </Card>
       </div>
     );
   }
 
-  // Image Editor View (when an image is selected)
   if (selectedImage) {
     return (
       <div className="container mx-auto px-4 py-8 min-h-screen flex flex-col">
-        {/* Thumbnail strip - Only shown when NOT in edit mode */}
         {!isEditMode && (
           <div className="grid grid-cols-5 md:grid-cols-10 gap-2 p-2 bg-gray-800 rounded-lg mb-6">
             {currentImages.map((image, index) => (
@@ -398,7 +335,6 @@ export default function ImageUploader() {
                   fill
                   className="object-cover rounded-md"
                 />
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100"></div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -414,14 +350,10 @@ export default function ImageUploader() {
           </div>
         )}
 
-        {/* Image Editor */}
         <ImageEditor
           imageUrl={selectedImage.url}
           onImageChange={handleImageChange}
-          onReset={() => {
-            // In a real app, we might reload the original image from a database
-            // For now, let's do nothing as we don't have the original stored
-          }}
+          onReset={() => {}}
           onDownload={() => {
             const a = document.createElement("a");
             a.href = selectedImage.url;
@@ -441,20 +373,10 @@ export default function ImageUploader() {
           onUploadNew={handleUploadClick}
           onEditModeChange={handleEditModeChange}
         />
-
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          multiple
-          accept="image/*"
-          className="hidden"
-        />
       </div>
     );
   }
 
-  // Gallery View (when images are uploaded but none is selected)
   return (
     <div className="container mx-auto px-4 py-8 min-h-screen">
       <div className="flex justify-between items-center mb-6">

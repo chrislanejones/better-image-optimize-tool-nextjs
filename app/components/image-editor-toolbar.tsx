@@ -23,13 +23,19 @@ import {
   Pencil,
   Lock,
   Download,
+  ZoomIn,
+  ZoomOut,
+  Brush,
+  FlipHorizontal,
+  FlipVertical,
+  RefreshCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import SimplePagination from "./pagination-controls";
 import { EditorState, NavigationDirection } from "@/types/types";
 import { useTheme } from "next-themes";
-import { ImageEditorToolbarProps } from "@/types/types";
+import { ImageEditorToolbarProps, EditImageToolbarProps } from "@/types/types";
 
 export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
   editorState,
@@ -48,9 +54,6 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
   onZoomOut,
   onUndo,
   onRedo,
-  onRotateLeft,
-  onRotateRight,
-  onReset,
   onClose,
   onRemoveAll,
   onUploadNew,
@@ -63,18 +66,17 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
   onBlurAmountChange,
   onBlurRadiusChange,
   onMultiCropApply,
+  onRotateLeft,
+  onRotateRight,
+  onFlipHorizontal,
+  onFlipVertical,
+  onReset,
 }) => {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const toggleTheme = () => {
-    if (!mounted) return;
-    setTheme(theme === "dark" ? "light" : "dark");
-  };
+  React.useEffect(() => setMounted(true), []);
+  const toggleTheme = () =>
+    mounted && setTheme(theme === "dark" ? "light" : "dark");
 
   // Render padlock for edit modes
   const renderPadlock = () => {
@@ -269,7 +271,6 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
                 onClick={onZoomOut}
                 variant="outline"
                 className="h-9 w-9 p-0"
-                title="Zoom Out"
               >
                 <Minus className="h-4 w-4" />
               </Button>
@@ -277,33 +278,13 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
                 onClick={onZoomIn}
                 variant="outline"
                 className="h-9 w-9 p-0"
-                title="Zoom In"
               >
                 <Plus className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={onUndo}
-                variant="outline"
-                className="h-9 w-9 p-0"
-                disabled={historyIndex <= 0}
-                title="Undo"
-              >
-                <Undo className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={onRedo}
-                variant="outline"
-                className="h-9 w-9 p-0"
-                disabled={historyIndex >= historyLength - 1}
-                title="Redo"
-              >
-                <Redo className="h-4 w-4" />
               </Button>
               <Button
                 onClick={onRotateLeft}
                 variant="outline"
                 className="h-9 w-9 p-0"
-                title="Rotate Left"
               >
                 <RotateCcw className="h-4 w-4" />
               </Button>
@@ -311,9 +292,29 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
                 onClick={onRotateRight}
                 variant="outline"
                 className="h-9 w-9 p-0"
-                title="Rotate Right"
               >
                 <RotateCw className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={onFlipHorizontal}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <FlipHorizontal className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={onFlipVertical}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <FlipVertical className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={onReset}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <RefreshCcw className="h-4 w-4" />
               </Button>
             </div>
 

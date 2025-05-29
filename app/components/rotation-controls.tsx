@@ -53,53 +53,6 @@ export const RotationControls: React.FC<RotationControlsProps> = ({
     <div className="bg-gray-700 p-4 rounded-lg space-y-4">
       <h3 className="text-sm font-medium text-white mb-2">Rotation & Flip</h3>
 
-      {/* Quick rotation buttons */}
-      <div className="flex gap-2 justify-center">
-        <Button
-          onClick={() => handleQuickRotate(-90)}
-          variant="outline"
-          size="sm"
-          title="Rotate 90° Left"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </Button>
-        <Button
-          onClick={() => handleQuickRotate(90)}
-          variant="outline"
-          size="sm"
-          title="Rotate 90° Right"
-        >
-          <RotateCw className="h-4 w-4" />
-        </Button>
-        <Button
-          onClick={onFlipHorizontal}
-          variant="outline"
-          size="sm"
-          title="Flip Horizontal"
-        >
-          <FlipHorizontal className="h-4 w-4" />
-        </Button>
-        <Button
-          onClick={onFlipVertical}
-          variant="outline"
-          size="sm"
-          title="Flip Vertical"
-        >
-          <FlipVertical className="h-4 w-4" />
-        </Button>
-        <Button
-          onClick={() => {
-            setRotation(0);
-            onReset();
-          }}
-          variant="outline"
-          size="sm"
-          title="Reset"
-        >
-          <Reset className="h-4 w-4" />
-        </Button>
-      </div>
-
       {/* Fine rotation control */}
       <div className="space-y-2">
         <div className="flex justify-between items-center">

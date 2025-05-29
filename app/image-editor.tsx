@@ -9,6 +9,7 @@ import ImageResizer from "./components/image-resizer";
 import ImageStats from "./components/image-stats";
 import ImageZoomView from "./components/image-zoom-view";
 import { rotateImage } from "./utils/image-processing";
+import SimplePagination from "./components/pagination-controls";
 import type {
   CroppingToolRef,
   ImageEditorProps,
@@ -279,6 +280,7 @@ export default function ImageEditor({
               format: editor.format,
             });
           }
+          editor.setEditorState("editImage");
         };
         img.src = rotatedUrl;
       } catch (error) {
@@ -368,7 +370,9 @@ export default function ImageEditor({
           title: `Crop applied to all ${allImages.length} images!`,
           variant: "default",
         });
-        editor.setEditorState("resizeAndOptimize");
+        const handleExitEditMode = () => {
+          editor.setEditorState("resizeAndOptimize");
+        };
       }, 1000);
     } else if (!editor.multiCropData) {
       toast({
@@ -472,6 +476,8 @@ export default function ImageEditor({
         onRedo={editor.handleRedo}
         onRotateLeft={handleRotateCounterClockwise}
         onRotateRight={handleRotateClockwise}
+        onFlipHorizontal={handleFlipHorizontal}
+        onFlipVertical={handleFlipVertical}
         onReset={() => {
           editor.handleReset();
           if (onReset) onReset();
@@ -488,6 +494,10 @@ export default function ImageEditor({
         onBlurAmountChange={editor.setBlurAmount}
         onBlurRadiusChange={editor.setBlurRadius}
         onMultiCropApply={handleMultiCropApply}
+        onExitEditMode={() => {
+          editor.setEditorState("resizeAndOptimize");
+          if (onEditModeChange) onEditModeChange(false);
+        }}
       />
 
       <div className="flex flex-col gap-6">
@@ -549,26 +559,27 @@ export default function ImageEditor({
                 onQualityChange={editor.handleQualityChange}
               />
 
-              {/* Add Rotation Controls */}
-              <RotationControls
-                onRotate={handleRotate}
-                onFlipHorizontal={handleFlipHorizontal}
-                onFlipVertical={handleFlipVertical}
-                onReset={() => {
-                  editor.setRotation(0);
-                  editor.setFlipHorizontal(false);
-                  editor.setFlipVertical(false);
-                  editor.handleReset();
-                  if (onReset) onReset();
-                }}
-                currentRotation={editor.rotation}
-              />
-
               {editor.hasEdited && <ImageZoomView imageUrl={imageUrl} />}
             </aside>
           )}
         </div>
 
+        {/* Add Rotation Controls */}
+        {editor.editorState === "editImage" && (
+          <RotationControls
+            onRotate={handleRotate}
+            onFlipHorizontal={handleFlipHorizontal}
+            onFlipVertical={handleFlipVertical}
+            onReset={() => {
+              editor.setRotation(0);
+              editor.setFlipHorizontal(false);
+              editor.setFlipVertical(false);
+              editor.handleReset();
+              if (onReset) onReset();
+            }}
+            currentRotation={editor.rotation}
+          />
+        )}
         {editor.editorState === "resizeAndOptimize" && editor.originalStats && (
           <ImageStats
             originalStats={editor.originalStats}
