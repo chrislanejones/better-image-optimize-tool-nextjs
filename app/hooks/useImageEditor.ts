@@ -24,6 +24,7 @@ export const useImageEditor = ({
   // Editor state
   const [editorState, setEditorState] =
     useState<EditorState>("resizeAndOptimize");
+
   const [isCompressing, setIsCompressing] = useState<boolean>(false);
   const [zoom, setZoom] = useState<number>(1);
   const [padlockAnimation, setPadlockAnimation] = useState<boolean>(false);
@@ -41,6 +42,7 @@ export const useImageEditor = ({
   const [rotation, setRotation] = useState<number>(0);
   const [flipHorizontal, setFlipHorizontal] = useState<boolean>(false);
   const [flipVertical, setFlipVertical] = useState<boolean>(false);
+  const [crop, setCrop] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Image stats
   const [width, setWidth] = useState<number>(0);

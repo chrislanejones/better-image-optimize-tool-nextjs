@@ -1,6 +1,12 @@
 "use client";
 
 import type { PixelCrop } from "react-image-crop";
+interface CropArea {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 /**
  * Image format type definition
@@ -561,3 +567,48 @@ export async function compressImageAggressively(
     height,
   };
 }
+export const getCroppedImg = async (
+  imageSrc: string,
+  crop: CropArea,
+  rotation = 0,
+  zoom = 1,
+  aspect = 1
+): Promise<string> => {
+  const createImage = (url: string): Promise<HTMLImageElement> =>
+    new Promise((resolve, reject) => {
+      const image = new Image();
+      image.setAttribute("crossOrigin", "anonymous"); // Handle CORS
+      image.onload = () => resolve(image);
+      image.onerror = (error) => reject(error);
+      image.src = url;
+    });
+
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) throw new Error("Could not get canvas context");
+
+  const safeArea = Math.max(image.width, image.height) * 2;
+  canvas.width = safeArea;
+  canvas.height = safeArea;
+
+  ctx.translate(safeArea / 2, safeArea / 2);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.translate(-safeArea / 2, -safeArea / 2);
+
+  ctx.drawImage(
+    image,
+    (safeArea - image.width) / 2,
+    (safeArea - image.height) / 2
+  );
+
+  const data = ctx.getImageData(0, 0, safeArea, safeArea);
+
+  canvas.width = crop.width;
+  canvas.height = crop.height;
+
+  ctx.putImageData(data, Math.round(-crop.x), Math.round(-crop.y));
+
+  return canvas.toDataURL("image/jpeg");
+};

@@ -39,7 +39,7 @@ export default function ImageEditor({
   const { toast } = useToast();
 
   // Refs
-  const imgRef = useRef<HTMLImageElement>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cropToolRef = useRef<CroppingToolRef>(null);
   const blurCanvasRef = useRef<any>(null);
@@ -511,6 +511,7 @@ export default function ImageEditor({
           >
             <ImageEditorCanvas
               editorState={editor.editorState}
+              isBulkMode={editor.isBulkMode}
               imageUrl={imageUrl}
               zoom={editor.zoom}
               width={editor.width}

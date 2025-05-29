@@ -237,28 +237,6 @@ const BlurBrushCanvas = forwardRef<BlurBrushCanvasRef, BlurBrushCanvasProps>(
             }}
           />
         </div>
-
-        {/* Action buttons */}
-        <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 bg-gray-600 text-white rounded-md"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => {
-              const dataUrl = canvasRef.current?.toDataURL("image/jpeg", 0.9);
-              if (dataUrl && onApply) {
-                onApply(dataUrl);
-              }
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md"
-            disabled={!isImageLoaded || !!error}
-          >
-            Apply Blur
-          </button>
-        </div>
       </div>
     );
   }

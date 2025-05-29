@@ -35,7 +35,7 @@ import { Slider } from "@/components/ui/slider";
 import SimplePagination from "./pagination-controls";
 import { EditorState, NavigationDirection } from "@/types/types";
 import { useTheme } from "next-themes";
-import { ImageEditorToolbarProps, EditImageToolbarProps } from "@/types/types";
+import { ImageEditorToolbarProps } from "@/types/types";
 
 export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
   editorState,
@@ -368,34 +368,49 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
 
       case "bulkImageEdit":
         return (
-          <div className="w-full flex justify-between items-center">
+          <>
             <div className="flex items-center gap-2">
+              <Button
+                onClick={onZoomOut}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={onZoomIn}
+                variant="outline"
+                className="h-9 w-9 p-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+
               <Button
                 onClick={onBulkCropApply}
                 variant="default"
                 className="h-9"
                 disabled={!bulkCropData}
               >
-                <Crop className="mr-2 h-4 w-4" />
-                Bulk Crop
+                <Check className="mr-2 h-4 w-4" />
+                Apply Crop
               </Button>
-              {bulkCropData && (
-                <span className="text-sm text-gray-400">
-                  Crop area set - ready to apply
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
+
               <Button
                 onClick={() => onStateChange("resizeAndOptimize")}
                 variant="outline"
                 className="h-9"
               >
                 <X className="mr-2 h-4 w-4" />
-                Exit Bulk Edit Mode
+                Cancel
               </Button>
+
+              {bulkCropData && (
+                <span className="text-sm text-gray-400 ml-2">
+                  Crop area set - ready to apply
+                </span>
+              )}
             </div>
-          </div>
+          </>
         );
 
       case "crop":

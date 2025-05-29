@@ -8,15 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-
-interface RotationControlsProps {
-  onRotate: (degrees: number) => void;
-  onFlipHorizontal: () => void;
-  onFlipVertical: () => void;
-  onReset: () => void;
-  currentRotation?: number;
-}
-
+import { RotationControlsProps } from "@/types/types";
 export const RotationControls: React.FC<RotationControlsProps> = ({
   onRotate,
   onFlipHorizontal,
