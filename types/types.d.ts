@@ -5,7 +5,7 @@ export type EditorMode = "view" | "edit" | "crop" | "blur" | "paint" | "text";
 export type EditorState =
   | "resizeAndOptimize" // Simple resize & optimize state (view) - Has aside
   | "editImage" // Basic Edit Tools (edit)
-  | "multiImageEdit" // Coming soon
+  | "bulkImageEdit" // Coming soon
   | "crop" // Cropping mode
   | "blur" // Blur tool mode
   | "paint" // Paint tool mode
@@ -166,7 +166,7 @@ export interface ImageEditorToolbarProps {
   currentPage?: number;
   totalPages?: number;
   padlockAnimation: boolean;
-  multiCropData: any;
+  bulkCropData: any;
   blurAmount: number;
   blurRadius: number;
   allImages?: any[];
@@ -190,7 +190,7 @@ export interface ImageEditorToolbarProps {
   onApplyText: () => void;
   onBlurAmountChange: (amount: number) => void;
   onBlurRadiusChange: (radius: number) => void;
-  onMultiCropApply: () => void;
+  onBulkCropApply: () => void;
   onExitEditMode: () => void;
   onRotateLeft?: () => void;
   onRotateRight?: () => void;
@@ -441,7 +441,7 @@ interface ImageEditorCanvasProps {
   onBlurResult: (url: string) => void;
   onPaintResult: (url: string) => void;
   onTextResult: (url: string) => void;
-  setMultiCropData: (data: any) => void;
+  setBulkCropData: (data: any) => void;
   setBold: (bold: boolean) => void;
   setItalic: (italic: boolean) => void;
   setIsEraser: (eraser: boolean) => void;

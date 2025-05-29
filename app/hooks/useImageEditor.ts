@@ -56,7 +56,7 @@ export const useImageEditor = ({
   const [historyIndex, setHistoryIndex] = useState<number>(0);
 
   // Multi-crop state
-  const [multiCropData, setMultiCropData] = useState<any>(null);
+  const [bulkCropData, setBulkCropData] = useState<any>(null);
 
   // Progress state
   const [compressionProgress, setCompressionProgress] = useState<number>(0);
@@ -68,7 +68,7 @@ export const useImageEditor = ({
     if (onEditModeChange) {
       const isInEditMode =
         editorState === "editImage" ||
-        editorState === "multiImageEdit" ||
+        editorState === "bulkImageEdit" ||
         editorState === "crop" ||
         editorState === "blur" ||
         editorState === "paint" ||
@@ -80,7 +80,7 @@ export const useImageEditor = ({
 
   // Play padlock animation when entering edit mode
   useEffect(() => {
-    if (editorState === "editImage" || editorState === "multiImageEdit") {
+    if (editorState === "editImage" || editorState === "bulkImageEdit") {
       setPadlockAnimation(true);
       const timer = setTimeout(() => {
         setPadlockAnimation(false);
@@ -381,7 +381,7 @@ export const useImageEditor = ({
     showStats, // Expose the applied flag
     history,
     historyIndex,
-    multiCropData,
+    bulkCropData,
     compressionProgress,
 
     // Setters
@@ -410,7 +410,7 @@ export const useImageEditor = ({
     setShowStats, // Expose setter for applied flag
     setHistory,
     setHistoryIndex,
-    setMultiCropData,
+    setBulkCropData,
     setCompressionProgress,
 
     // Actions

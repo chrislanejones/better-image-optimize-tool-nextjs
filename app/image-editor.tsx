@@ -357,9 +357,9 @@ export default function ImageEditor({
     handleRotate(newRotation);
   }, [editor.rotation, handleRotate]);
 
-  // Multi-crop handler
-  const handleMultiCropApply = useCallback(() => {
-    if (editor.multiCropData && allImages && allImages.length > 1) {
+  // bulk-crop handler
+  const handleBulkCropApply = useCallback(() => {
+    if (editor.bulkCropData && allImages && allImages.length > 1) {
       toast({
         title: `Applying crop to ${allImages.length} images...`,
         variant: "default",
@@ -374,7 +374,7 @@ export default function ImageEditor({
           editor.setEditorState("resizeAndOptimize");
         };
       }, 1000);
-    } else if (!editor.multiCropData) {
+    } else if (!editor.bulkCropData) {
       toast({
         title: "Please set a crop area first",
         variant: "destructive",
@@ -466,7 +466,7 @@ export default function ImageEditor({
         currentPage={currentPage}
         totalPages={totalPages}
         padlockAnimation={editor.padlockAnimation}
-        multiCropData={editor.multiCropData}
+        bulkCropData={editor.bulkCropData}
         blurAmount={editor.blurAmount}
         blurRadius={editor.blurRadius}
         allImages={allImages}
@@ -493,7 +493,7 @@ export default function ImageEditor({
         onApplyText={handleApplyText}
         onBlurAmountChange={editor.setBlurAmount}
         onBlurRadiusChange={editor.setBlurRadius}
-        onMultiCropApply={handleMultiCropApply}
+        onBulkCropApply={handleBulkCropApply}
         onExitEditMode={() => {
           editor.setEditorState("resizeAndOptimize");
           if (onEditModeChange) onEditModeChange(false);
@@ -517,14 +517,14 @@ export default function ImageEditor({
               height={editor.height}
               allImages={allImages}
               currentImageId={currentImageId}
-              multiCropData={editor.multiCropData}
+              bulkCropData={editor.bulkCropData}
               onSelectImage={onSelectImage}
               onStateChange={editor.setEditorState}
               onCropResult={handleCropResult}
               onBlurResult={handleBlurResult}
               onPaintResult={handlePaintResult}
               onTextResult={handleTextResult}
-              setMultiCropData={editor.setMultiCropData}
+              setMultiCropData={editor.setBulkCropData}
               setBold={editor.setIsBold}
               setItalic={editor.setIsItalic}
               blurAmount={editor.blurAmount}

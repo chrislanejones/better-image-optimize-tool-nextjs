@@ -46,7 +46,7 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
   currentPage,
   totalPages,
   padlockAnimation,
-  multiCropData,
+  bulkCropData,
   blurAmount,
   blurRadius,
   allImages,
@@ -65,7 +65,7 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
   onApplyText,
   onBlurAmountChange,
   onBlurRadiusChange,
-  onMultiCropApply,
+  onBulkCropApply,
   onRotateLeft,
   onRotateRight,
   onFlipHorizontal,
@@ -80,7 +80,7 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
 
   // Render padlock for edit modes
   const renderPadlock = () => {
-    if (editorState === "editImage" || editorState === "multiImageEdit") {
+    if (editorState === "editImage" || editorState === "bulkImageEdit") {
       return (
         <div
           className={`w-full flex justify-center items-center mb-4 ${
@@ -88,14 +88,14 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
           }`}
         >
           <div className="inline-flex items-center gap-2 justify-center px-4 py-2 rounded-full bg-gray-600 border border-gray-500">
-            {editorState === "multiImageEdit" ? (
+            {editorState === "bulkImageEdit" ? (
               <>
                 <Images
                   className={`h-4 w-4 ${
                     padlockAnimation ? "text-yellow-300" : "text-white"
                   }`}
                 />
-                <span className="font-medium">Multi Edit Mode</span>
+                <span className="font-medium">Bulk Edit Mode</span>
               </>
             ) : (
               <>
@@ -145,12 +145,12 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
                 Edit Image Mode
               </Button>
               <Button
-                onClick={() => onStateChange("multiImageEdit")}
+                onClick={() => onStateChange("bulkImageEdit")}
                 variant="outline"
                 className="h-9"
               >
                 <Images className="mr-2 h-4 w-4" />
-                Multi Edit
+                Bulk Image Edit
               </Button>
               {/* AI Editor Button with Animated Ring */}
               <div className="relative ">
@@ -366,20 +366,20 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
           </div>
         );
 
-      case "multiImageEdit":
+      case "bulkImageEdit":
         return (
           <div className="w-full flex justify-between items-center">
             <div className="flex items-center gap-2">
               <Button
-                onClick={onMultiCropApply}
+                onClick={onBulkCropApply}
                 variant="default"
                 className="h-9"
-                disabled={!multiCropData}
+                disabled={!bulkCropData}
               >
                 <Crop className="mr-2 h-4 w-4" />
-                Multi Crop
+                Bulk Crop
               </Button>
-              {multiCropData && (
+              {bulkCropData && (
                 <span className="text-sm text-gray-400">
                   Crop area set - ready to apply
                 </span>
@@ -392,7 +392,7 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
                 className="h-9"
               >
                 <X className="mr-2 h-4 w-4" />
-                Exit Multi Edit Mode
+                Exit Bulk Edit Mode
               </Button>
             </div>
           </div>

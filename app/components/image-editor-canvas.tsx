@@ -16,7 +16,7 @@ interface ImageEditorCanvasProps {
   height: number;
   allImages?: any[];
   currentImageId?: string;
-  multiCropData: any;
+  bulkCropData: any;
   blurAmount: number;
   blurRadius: number;
   isEraser: boolean;
@@ -49,7 +49,7 @@ export const ImageEditorCanvas: React.FC<ImageEditorCanvasProps> = ({
   height,
   allImages,
   currentImageId,
-  multiCropData,
+  bulkCropData,
   blurAmount,
   blurRadius,
   isEraser,
@@ -70,14 +70,14 @@ export const ImageEditorCanvas: React.FC<ImageEditorCanvasProps> = ({
   imgRef,
 }) => {
   // Multi-edit mode layout
-  if (editorState === "multiImageEdit") {
+  if (editorState === "bulkImageEdit") {
     if (!allImages || allImages.length <= 1) {
       return (
         <div className="h-[70vh] bg-gray-900 flex items-center justify-center">
           <div className="text-center">
             <Images className="h-16 w-16 text-gray-600 mx-auto mb-4" />
             <p className="text-gray-400">
-              Multi Edit mode requires multiple images
+              Bulk Edit Mode Edits many images at once.
             </p>
             <Button
               onClick={() => onStateChange("resizeAndOptimize")}
