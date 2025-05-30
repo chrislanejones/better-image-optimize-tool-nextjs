@@ -353,7 +353,6 @@ export default function ImageUploader() {
         <ImageEditor
           imageUrl={selectedImage.url}
           onImageChange={handleImageChange}
-          onReset={() => {}}
           onDownload={() => {
             const a = document.createElement("a");
             a.href = selectedImage.url;

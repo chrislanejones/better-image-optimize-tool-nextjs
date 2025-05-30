@@ -32,22 +32,33 @@ export const IMAGE_FORMATS = [
 export const COMPRESSION_LEVELS = [
   {
     value: "low",
-    label: "Low",
+    label: "Low (Larger file, better quality)",
     quality: 95,
     description: "Larger file, better quality",
   },
-  { value: "medium", label: "Medium", quality: 85, description: "Balanced" },
+  {
+    value: "medium",
+    label: "Medium (Balanced)",
+    quality: 85,
+    description: "Balanced",
+  },
   {
     value: "high",
-    label: "High",
+    label: "High (Smaller file, good quality)",
     quality: 75,
     description: "Smaller file, good quality",
   },
   {
     value: "extreme",
-    label: "Extreme",
+    label: "Extreme (Smallest file)",
     quality: 60,
     description: "Smallest file",
+  },
+  {
+    value: "extremeBW",
+    label: "Extreme B&W (Lowest quality)",
+    quality: 30,
+    description: "Black & white, lowest quality",
   },
 ] as const;
 

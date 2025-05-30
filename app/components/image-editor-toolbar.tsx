@@ -217,10 +217,6 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-              <Button onClick={onReset} variant="outline" className="h-9">
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Reset
-              </Button>
               {onClose && (
                 <Button onClick={onClose} variant="outline" className="h-9">
                   <ArrowLeft className="mr-2 h-4 w-4" />

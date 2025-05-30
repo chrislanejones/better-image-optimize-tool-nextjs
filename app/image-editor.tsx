@@ -9,7 +9,6 @@ import ImageResizer from "./components/image-resizer";
 import ImageStats from "./components/image-stats";
 import ImageZoomView from "./components/image-zoom-view";
 import { rotateImage } from "./utils/image-processing";
-import SimplePagination from "./components/pagination-controls";
 import type {
   CroppingToolRef,
   ImageEditorProps,
@@ -19,7 +18,6 @@ import type {
 export default function ImageEditor({
   imageUrl,
   onImageChange,
-  onReset,
   onDownload,
   onClose,
   className,
@@ -478,10 +476,7 @@ export default function ImageEditor({
         onRotateRight={handleRotateClockwise}
         onFlipHorizontal={handleFlipHorizontal}
         onFlipVertical={handleFlipVertical}
-        onReset={() => {
-          editor.handleReset();
-          if (onReset) onReset();
-        }}
+        onReset={editor.handleReset} // Add this line
         onClose={onClose}
         onRemoveAll={onRemoveAll}
         onUploadNew={onUploadNew}
@@ -547,7 +542,8 @@ export default function ImageEditor({
                 height={editor.height}
                 maxWidth={editor.originalStats?.width || 1000}
                 maxHeight={editor.originalStats?.height || 1000}
-                onResize={editor.handleResize}
+                onResize={editor.handleResize} // Add this line
+                onReset={editor.handleReset}
                 onApplyResize={editor.handleApplyResize}
                 format={editor.format}
                 onFormatChange={editor.handleFormatChange}
@@ -575,8 +571,6 @@ export default function ImageEditor({
               editor.setRotation(0);
               editor.setFlipHorizontal(false);
               editor.setFlipVertical(false);
-              editor.handleReset();
-              if (onReset) onReset();
             }}
             currentRotation={editor.rotation}
           />

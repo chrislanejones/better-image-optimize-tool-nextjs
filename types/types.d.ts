@@ -15,8 +15,8 @@ export type ImageFormat = "jpeg" | "png" | "webp";
 
 export type CoreWebVitalsScore =
   | "poor"
-  | "almost-there"
   | "needs-improvement"
+  | "almost-there"
   | "good";
 
 export type NavigationDirection = "next" | "prev" | "next10" | "prev10";
@@ -146,7 +146,6 @@ export interface ImageCropperProps {
 export interface ImageEditorProps {
   imageUrl: string;
   onImageChange?: (url: string) => void;
-  onReset?: () => void;
   onDownload?: () => void;
   onClose?: () => void;
   className?: string;
@@ -227,8 +226,9 @@ export interface ImageResizerProps {
   onResize: (width: number, height: number) => void;
   onApplyResize: () => void;
   format: string;
+  onReset: () => void;
   onFormatChange: (format: string) => void;
-  onDownload: () => void;
+  onDownload?: () => void;
   isCompressing?: boolean;
   currentPage?: number;
   totalPages?: number;

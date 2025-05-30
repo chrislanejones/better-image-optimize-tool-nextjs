@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Maximize2, Download, Image, InfoIcon } from "lucide-react";
+import { Maximize2, Download, Image, InfoIcon, RefreshCw } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -12,25 +12,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { NavigationDirection } from "@/types/types";
-
-interface ImageResizerProps {
-  width: number;
-  height: number;
-  maxWidth: number;
-  maxHeight: number;
-  onResize: (width: number, height: number) => void;
-  onApplyResize: () => void;
-  format: string;
-  onFormatChange: (format: string) => void;
-  onDownload?: () => void;
-  isCompressing?: boolean;
-  currentPage?: number;
-  totalPages?: number;
-  onNavigateImage?: (direction: NavigationDirection) => void;
-  quality?: number;
-  onQualityChange?: (quality: number) => void;
-}
+import {
+  NavigationDirection,
+  CoreWebVitalsScore,
+  ImageResizerProps,
+} from "@/types/types";
+import {
+  COMPRESSION_LEVELS,
+  CORE_WEB_VITALS,
+} from "@/app/constants/editorConstants";
+import { cn } from "@/lib/utils";
 
 export default function ImageResizer({
   width,
@@ -40,6 +31,7 @@ export default function ImageResizer({
   onResize,
   onApplyResize,
   format,
+  onReset,
   onFormatChange,
   onDownload,
   isCompressing = false,
@@ -54,13 +46,13 @@ export default function ImageResizer({
   const [initialWidth, setInitialWidth] = useState<number>(width);
   const [initialHeight, setInitialHeight] = useState<number>(height);
   const [aspectRatio, setAspectRatio] = useState<boolean>(true);
-  const [compressionLevel, setCompressionLevel] = useState<string>("medium"); // low, medium, high, extreme
+  const [compressionLevel, setCompressionLevel] = useState<string>("medium");
   const [hasChangedDimensions, setHasChangedDimensions] =
     useState<boolean>(false);
   const [compressionProgress, setCompressionProgress] = useState<number>(0);
-  const [coreWebVitalsScore, setCoreWebVitalsScore] = useState<
-    "poor" | "needs-improvement" | "almost-there" | "good"
-  >("good");
+  const [coreWebVitalsScore, setCoreWebVitalsScore] =
+    useState<CoreWebVitalsScore>("good");
+  const [hasAnyChanges, setHasAnyChanges] = useState<boolean>(false); // Add this here
 
   // Update local dimensions when props change
   useEffect(() => {
@@ -163,41 +155,17 @@ export default function ImageResizer({
     updateDimensions(widthValue, newHeight, true);
   };
 
-  // Handle quality change
-  const handleQualityChange = (values: number[]) => {
-    if (onQualityChange) {
-      const newQuality = values[0];
-      onQualityChange(newQuality);
-
-      // Update compression level based on quality
-      if (newQuality >= 90) setCompressionLevel("low");
-      else if (newQuality >= 80) setCompressionLevel("medium");
-      else if (newQuality >= 60) setCompressionLevel("high");
-      else setCompressionLevel("extreme");
-
-      updateCoreWebVitalsScore(widthValue, heightValue);
-    }
-  };
-
   // Handle compression level change
   const handleCompressionLevelChange = (value: string) => {
     setCompressionLevel(value);
 
-    // Automatically adjust quality based on compression level
+    // Automatically adjust quality based on compression level using constants
     if (onQualityChange) {
-      switch (value) {
-        case "low":
-          onQualityChange(95);
-          break;
-        case "medium":
-          onQualityChange(85);
-          break;
-        case "high":
-          onQualityChange(75);
-          break;
-        case "extreme":
-          onQualityChange(60);
-          break;
+      const levelConfig = COMPRESSION_LEVELS.find(
+        (level) => level.value === value
+      );
+      if (levelConfig) {
+        onQualityChange(levelConfig.quality);
       }
     }
 
@@ -217,23 +185,19 @@ export default function ImageResizer({
   };
 
   // Function to calculate Core Web Vitals score - IMPROVED FOR JPEG & PNG
+  // Function to calculate Core Web Vitals score - IMPROVED FOR JPEG & PNG
+  // Function to calculate Core Web Vitals score - IMPROVED FOR JPEG & PNG
   const updateCoreWebVitalsScore = (width: number, height: number) => {
-    // More generous thresholds (less harsh on all formats)
-    const LCP_THRESHOLD_GOOD = 1200 * 900; // ~1MP is now good for Largest Contentful Paint
-    const LCP_THRESHOLD_POOR = 1800 * 1200; // ~2.2MP is now poor for LCP
-
     const imageSize = width * height;
+    let newScore: CoreWebVitalsScore;
 
-    // Start with score based on dimensions
-    let newScore: "poor" | "needs-improvement" | "almost-there" | "good";
+    const buffer = CORE_WEB_VITALS.BUFFER;
 
-    const buffer = 20000; // ~20k pixels
-
-    if (imageSize <= LCP_THRESHOLD_GOOD - buffer) {
+    if (imageSize <= CORE_WEB_VITALS.LCP_THRESHOLD_GOOD - buffer) {
       newScore = "good";
-    } else if (imageSize <= LCP_THRESHOLD_GOOD + buffer) {
+    } else if (imageSize <= CORE_WEB_VITALS.LCP_THRESHOLD_GOOD + buffer) {
       newScore = "almost-there";
-    } else if (imageSize <= LCP_THRESHOLD_POOR - buffer) {
+    } else if (imageSize <= CORE_WEB_VITALS.LCP_THRESHOLD_POOR - buffer) {
       newScore = "needs-improvement";
     } else {
       newScore = "poor";
@@ -248,7 +212,11 @@ export default function ImageResizer({
     } else if (format === "jpeg") {
       // JPEG is now neutral - no boost or penalty
       // High compression JPEGs can still be efficient
-      if (compressionLevel === "high" || compressionLevel === "extreme") {
+      if (
+        compressionLevel === "high" ||
+        compressionLevel === "extreme" ||
+        compressionLevel === "extremeBW"
+      ) {
         if (newScore === "needs-improvement") {
           newScore = "good";
         }
@@ -258,7 +226,7 @@ export default function ImageResizer({
       if (
         newScore === "good" &&
         compressionLevel === "low" &&
-        imageSize > LCP_THRESHOLD_GOOD * 0.8
+        imageSize > CORE_WEB_VITALS.LCP_THRESHOLD_GOOD * 0.8
       ) {
         newScore = "needs-improvement";
       }
@@ -270,7 +238,7 @@ export default function ImageResizer({
     if (
       qualityValue > 90 &&
       newScore === "good" &&
-      imageSize > LCP_THRESHOLD_GOOD * 0.7
+      imageSize > CORE_WEB_VITALS.LCP_THRESHOLD_GOOD * 0.7
     ) {
       newScore = "needs-improvement";
     } else if (qualityValue < 70 && newScore === "needs-improvement") {
@@ -280,11 +248,13 @@ export default function ImageResizer({
 
     // Compression level can improve score
     if (
-      (compressionLevel === "high" || compressionLevel === "extreme") &&
+      (compressionLevel === "high" ||
+        compressionLevel === "extreme" ||
+        compressionLevel === "extremeBW") &&
       newScore === "needs-improvement"
     ) {
       // High compression improves performance
-      if (imageSize <= LCP_THRESHOLD_POOR * 0.7) {
+      if (imageSize <= CORE_WEB_VITALS.LCP_THRESHOLD_POOR * 0.7) {
         newScore = "good";
       }
     }
@@ -330,6 +300,130 @@ export default function ImageResizer({
     }
   };
 
+  const handleReset = () => {
+    console.log("Reset button clicked"); // Debug log
+
+    // Reset all local states first
+    setWidthValue(initialWidth);
+    setHeightValue(initialHeight);
+    setAspectRatio(true);
+    setCompressionLevel("medium");
+    setHasChangedDimensions(false);
+
+    // Reset quality
+    if (onQualityChange) {
+      onQualityChange(85);
+    }
+
+    // Call parent's onResize to sync dimensions
+    onResize(initialWidth, initialHeight);
+
+    // Update Core Web Vitals score
+    updateCoreWebVitalsScore(initialWidth, initialHeight);
+
+    // Call external reset logic last (optional)
+    if (onReset) {
+      console.log("Calling external onReset"); // Debug log
+      onReset();
+    }
+
+    // Add a new state to track if any changes have been made
+    const [hasAnyChanges, setHasAnyChanges] = useState<boolean>(false);
+
+    // Update the updateDimensions function to track changes
+    const updateDimensions = (
+      newWidth: number,
+      newHeight: number,
+      fromSlider = false
+    ) => {
+      if (
+        isNaN(newWidth) ||
+        isNaN(newHeight) ||
+        newWidth <= 0 ||
+        newHeight <= 0
+      )
+        return;
+
+      let adjustedWidth = newWidth;
+      let adjustedHeight = newHeight;
+
+      if (aspectRatio) {
+        const baseRatio = initialWidth / initialHeight;
+        if (fromSlider) {
+          const changingWidth = newWidth !== widthValue;
+          if (changingWidth) {
+            adjustedHeight = Math.round(newWidth / baseRatio);
+          } else {
+            adjustedWidth = Math.round(newHeight * baseRatio);
+          }
+        } else {
+          adjustedHeight = Math.round(newWidth / baseRatio);
+        }
+      }
+
+      setWidthValue(adjustedWidth);
+      setHeightValue(adjustedHeight);
+      onResize(adjustedWidth, adjustedHeight);
+
+      updateCoreWebVitalsScore(adjustedWidth, adjustedHeight);
+      const dimensionsChanged =
+        adjustedWidth !== initialWidth || adjustedHeight !== initialHeight;
+      setHasChangedDimensions(dimensionsChanged);
+
+      // Track if any changes have been made
+      setHasAnyChanges(dimensionsChanged);
+    };
+
+    // Update handleCompressionLevelChange to track changes
+    const handleCompressionLevelChange = (value: string) => {
+      setCompressionLevel(value);
+
+      // Automatically adjust quality based on compression level using constants
+      if (onQualityChange) {
+        const levelConfig = COMPRESSION_LEVELS.find(
+          (level) => level.value === value
+        );
+        if (levelConfig) {
+          onQualityChange(levelConfig.quality);
+        }
+      }
+
+      // Track that compression has changed
+      setHasAnyChanges(true);
+
+      // Update Core Web Vitals score
+      updateCoreWebVitalsScore(widthValue, heightValue);
+    };
+
+    // Update handleReset to reset the changes tracking
+    const handleReset = () => {
+      // External reset logic (optional)
+      if (onReset) {
+        onReset();
+      }
+
+      // Reset all local states
+      setWidthValue(initialWidth);
+      setHeightValue(initialHeight);
+      setAspectRatio(true);
+      setCompressionLevel("medium");
+      setHasChangedDimensions(false);
+      setHasAnyChanges(false); // Reset changes tracking
+
+      if (onQualityChange) {
+        onQualityChange(85);
+      }
+
+      // Reset dimensions in parent component
+      onResize(initialWidth, initialHeight);
+
+      // Update Core Web Vitals score
+      updateCoreWebVitalsScore(initialWidth, initialHeight);
+    };
+
+    console.log("Reset complete", { initialWidth, initialHeight }); // Debug log
+  };
+
   return (
     <Card className="bg-gray-800 text-white border-gray-700">
       <CardHeader className="p-3 pb-0">
@@ -338,14 +432,6 @@ export default function ImageResizer({
             <Image className="h-4 w-4 mr-2" />
             <span>Resize & Optimize</span>
           </div>
-          {isCompressing && (
-            <div className="flex items-center gap-2">
-              <div className="animate-pulse h-2 w-2 rounded-full bg-blue-500"></div>
-              <span className="text-xs text-gray-300 bg-blue-600 px-2 py-1 rounded-full">
-                {compressionProgress}%
-              </span>
-            </div>
-          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -397,25 +483,6 @@ export default function ImageResizer({
             <span className="w-4 h-4 rounded-full bg-white" />
           </button>
         </div>
-        {/* Quality slider - if onQualityChange is provided */}
-        {onQualityChange && (
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <label htmlFor="quality" className="text-sm font-medium">
-                Quality: {quality}%
-              </label>
-            </div>
-            <Slider
-              id="quality"
-              min={30}
-              max={100}
-              step={5}
-              value={[quality]}
-              className="[&>.slider-track]:bg-gray-400"
-              onValueChange={handleQualityChange}
-            />
-          </div>
-        )}
         {/* Compression Level */}
         <div className="flex flex-col space-y-2">
           <label htmlFor="compression-level" className="text-sm font-medium">
@@ -432,14 +499,11 @@ export default function ImageResizer({
               <SelectValue placeholder="Select level" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="low">
-                Low (Larger file, better quality)
-              </SelectItem>
-              <SelectItem value="medium">Medium (Balanced)</SelectItem>
-              <SelectItem value="high">
-                High (Smaller file, good quality)
-              </SelectItem>
-              <SelectItem value="extreme">Extreme (Smallest file)</SelectItem>
+              {COMPRESSION_LEVELS.map((level) => (
+                <SelectItem key={level.value} value={level.value}>
+                  {level.label} [{level.quality}%]
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -501,62 +565,48 @@ export default function ImageResizer({
             </div>
           </div>
         </div>
-        {/* Format selector and Apply button */}
-        <div className="grid grid-cols-2 gap-2">
-          <Select value={format} onValueChange={handleFormatChange}>
-            <SelectTrigger className="bg-gray-700 border-gray-600 h-10">
-              <SelectValue placeholder="Format" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="jpeg">JPEG</SelectItem>
-              <SelectItem value="png">PNG</SelectItem>
-              <SelectItem value="webp">WebP</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Format selector, Reset, and Apply button */}
 
-          {/* Fixed Apply button - Only disable when compressing AND dimensions haven't changed */}
+        <Select value={format} onValueChange={handleFormatChange}>
+          <SelectTrigger className="w-full bg-gray-700 border-gray-600 h-10">
+            <SelectValue placeholder="Format" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="jpeg">JPEG</SelectItem>
+            <SelectItem value="png">PNG</SelectItem>
+            <SelectItem value="webp">WebP</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="grid grid-cols-2 gap-2">
           <Button
             onClick={onApplyResize}
             disabled={isCompressing && !hasChangedDimensions}
+            className="w-full h-10"
           >
-            <Maximize2 className="h-4 w-4 mr-2" />
-            {isCompressing ? "Processing..." : "Apply Resize"}
+            <Maximize2 className="mr-2 h-4 w-4" />
+            {isCompressing ? "Processing..." : "Resize"}
+          </Button>
+          <Button
+            onClick={handleReset}
+            variant="outline"
+            className="w-full h-10"
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Reset
           </Button>
         </div>
+        {/* Fixed Apply button - Only disable when compressing AND dimensions haven't changed */}
+
         {/* Download button */}
         {onDownload && (
-          <Button onClick={onDownload} variant="outline" className="w-full">
+          <Button
+            onClick={onDownload}
+            variant="outline"
+            className="w-full h-10"
+          >
             <Download className="mr-2 h-4 w-4" />
             Download
           </Button>
-        )}
-        {/* Pagination controls */}
-        {onNavigateImage && currentPage && totalPages && totalPages > 1 && (
-          <div className="flex justify-between items-center pt-2 mt-2 border-t border-gray-700">
-            <span className="text-xs text-gray-400">
-              Image {currentPage} of {totalPages}
-            </span>
-            <div className="flex space-x-1">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleNavigate("prev")}
-                className="h-7 w-7 p-0"
-                disabled={currentPage === 1}
-              >
-                ◀
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleNavigate("next")}
-                className="h-7 w-7 p-0"
-                disabled={currentPage === totalPages}
-              >
-                ▶
-              </Button>
-            </div>
-          </div>
         )}
       </CardContent>
     </Card>

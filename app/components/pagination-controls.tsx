@@ -106,8 +106,11 @@ function SimplePagination({
 
       {/* Page/Image indicator */}
       {/* <span className="text-sm px-2 text-white whitespace-nowrap">
-        {getCurrentImageText()}
+        {getCurrentImageText()} 
       </span> */}
+      <span className="text-sm px-2 text-white whitespace-nowrap">
+        Switch Photos
+      </span>
 
       {/* Next image */}
       <Button
