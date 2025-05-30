@@ -20,7 +20,14 @@ export type CoreWebVitalsScore =
   | "good";
 
 export type NavigationDirection = "next" | "prev" | "next10" | "prev10";
+export interface ImageZoomViewProps {
+  imageUrl: string;
+}
 
+export interface MousePosition {
+  x: number;
+  y: number;
+}
 export interface ImageFile {
   id: string;
   file: File;
