@@ -1,3 +1,4 @@
+// app/components/image-editor-toolbar.tsx (updated for bulk editing)
 import React from "react";
 import {
   X,
@@ -148,9 +149,22 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
                 onClick={() => onStateChange("bulkImageEdit")}
                 variant="outline"
                 className="h-9"
+                disabled={!allImages || allImages.length < 2}
+                title={
+                  !allImages
+                    ? "No images available"
+                    : allImages.length < 2
+                    ? `Bulk edit requires multiple images (currently ${allImages.length})`
+                    : `Edit ${allImages.length} images at once`
+                }
               >
                 <Images className="mr-2 h-4 w-4" />
                 Bulk Image Edit
+                {allImages && allImages.length > 0 && (
+                  <span className="ml-1 text-xs opacity-75">
+                    ({allImages.length})
+                  </span>
+                )}
               </Button>
               {/* AI Editor Button with Animated Ring */}
               <div className="relative ">
@@ -363,51 +377,13 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
         );
 
       case "bulkImageEdit":
-        return (
-          <>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={onZoomOut}
-                variant="outline"
-                className="h-9 w-9 p-0"
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={onZoomIn}
-                variant="outline"
-                className="h-9 w-9 p-0"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
+        // This state is now handled by the separate BulkImageEditor component
+        // The toolbar here should not be rendered for this state
+        return null;
 
-              <Button
-                onClick={onBulkCropApply}
-                variant="default"
-                className="h-9"
-                disabled={!bulkCropData}
-              >
-                <Check className="mr-2 h-4 w-4" />
-                Apply Crop
-              </Button>
-
-              <Button
-                onClick={() => onStateChange("resizeAndOptimize")}
-                variant="outline"
-                className="h-9"
-              >
-                <X className="mr-2 h-4 w-4" />
-                Cancel
-              </Button>
-
-              {bulkCropData && (
-                <span className="text-sm text-gray-400 ml-2">
-                  Crop area set - ready to apply
-                </span>
-              )}
-            </div>
-          </>
-        );
+      case "bulkCrop":
+        // This state is now handled by the separate BulkImageEditor component
+        return null;
 
       case "crop":
       case "blur":

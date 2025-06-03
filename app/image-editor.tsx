@@ -1,10 +1,11 @@
-// image-editor.tsx (refactored to ~300 lines)
+// app/image-editor.tsx (updated to integrate bulk editor)
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { useImageEditor } from "./hooks/useImageEditor";
 import { ImageEditorToolbar } from "./components/image-editor-toolbar";
 import { ImageEditorCanvas } from "./components/image-editor-canvas";
 import { RotationControls } from "./components/rotation-controls";
+import BulkImageEditor from "./bulk-image-editor";
 import ImageResizer from "./components/image-resizer";
 import ImageStats from "./components/image-stats";
 import ImageZoomView from "./components/image-zoom-view";
@@ -13,6 +14,7 @@ import type {
   CroppingToolRef,
   ImageEditorProps,
   ExtendedImageEditorProps,
+  EditorState,
 } from "@/types/types";
 
 export default function ImageEditor({
@@ -54,7 +56,18 @@ export default function ImageEditor({
     onEditModeChange,
   });
 
-  // Tool callbacks
+  // Handle bulk image editor selection
+  const handleBulkImageSelect = useCallback(
+    (imageId: string) => {
+      const selectedImage = allImages.find((img) => img.id === imageId);
+      if (selectedImage && onSelectImage) {
+        onSelectImage(selectedImage);
+      }
+    },
+    [allImages, onSelectImage]
+  );
+
+  // Tool callbacks (keeping existing implementations)
   const handleApplyCrop = useCallback(() => {
     if (cropToolRef.current) {
       cropToolRef.current.applyCrop();
@@ -245,7 +258,7 @@ export default function ImageEditor({
     [editor, onImageChange]
   );
 
-  // Rotation handlers - now support full rotation
+  // Rotation handlers (keeping existing implementations)
   const handleRotate = useCallback(
     async (degrees: number) => {
       try {
@@ -256,7 +269,6 @@ export default function ImageEditor({
           editor.quality
         );
 
-        // Get new dimensions
         const img = new Image();
         img.onload = () => {
           editor.setWidth(img.naturalWidth);
@@ -344,7 +356,6 @@ export default function ImageEditor({
     }
   }, [imageUrl, editor, onImageChange, toast]);
 
-  // Quick 90-degree rotations for toolbar buttons
   const handleRotateClockwise = useCallback(() => {
     const newRotation = (editor.rotation + 90) % 360;
     handleRotate(newRotation);
@@ -355,7 +366,6 @@ export default function ImageEditor({
     handleRotate(newRotation);
   }, [editor.rotation, handleRotate]);
 
-  // bulk-crop handler
   const handleBulkCropApply = useCallback(() => {
     if (editor.bulkCropData && allImages && allImages.length > 1) {
       toast({
@@ -368,9 +378,7 @@ export default function ImageEditor({
           title: `Crop applied to all ${allImages.length} images!`,
           variant: "default",
         });
-        const handleExitEditMode = () => {
-          editor.setEditorState("resizeAndOptimize");
-        };
+        editor.setEditorState("bulkImageEdit");
       }, 1000);
     } else if (!editor.bulkCropData) {
       toast({
@@ -380,7 +388,6 @@ export default function ImageEditor({
     }
   }, [editor, allImages, toast]);
 
-  // Download handler
   const handleDownload = useCallback(() => {
     if (!imgRef.current || !canvasRef.current) return;
 
@@ -453,6 +460,26 @@ export default function ImageEditor({
     }
   }, [editor, fileName, onDownload, toast]);
 
+  // Render different components based on editor state
+  if (editor.editorState === "bulkImageEdit") {
+    return (
+      <div className={`flex flex-col gap-6 ${className}`}>
+        <BulkImageEditor
+          images={allImages}
+          selectedImageId={currentImageId}
+          onSelectImage={handleBulkImageSelect}
+          onStateChange={editor.setEditorState}
+          onNavigateImage={onNavigateImage}
+          onClose={onClose}
+          onRemoveAll={onRemoveAll}
+          onUploadNew={onUploadNew}
+          currentPage={currentPage}
+          totalPages={totalPages}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`flex flex-col gap-6 ${className}`}>
       <ImageEditorToolbar
@@ -467,7 +494,7 @@ export default function ImageEditor({
         bulkCropData={editor.bulkCropData}
         blurAmount={editor.blurAmount}
         blurRadius={editor.blurRadius}
-        allImages={allImages}
+        allImages={allImages} // Make sure this is being passed
         onZoomIn={editor.handleZoomIn}
         onZoomOut={editor.handleZoomOut}
         onUndo={editor.handleUndo}
@@ -476,7 +503,7 @@ export default function ImageEditor({
         onRotateRight={handleRotateClockwise}
         onFlipHorizontal={handleFlipHorizontal}
         onFlipVertical={handleFlipVertical}
-        onReset={editor.handleReset} // Add this line
+        onReset={editor.handleReset}
         onClose={onClose}
         onRemoveAll={onRemoveAll}
         onUploadNew={onUploadNew}
@@ -506,7 +533,7 @@ export default function ImageEditor({
           >
             <ImageEditorCanvas
               editorState={editor.editorState}
-              isBulkMode={editor.isBulkMode}
+              isBulkMode={false}
               imageUrl={imageUrl}
               zoom={editor.zoom}
               width={editor.width}
@@ -542,7 +569,7 @@ export default function ImageEditor({
                 height={editor.height}
                 maxWidth={editor.originalStats?.width || 1000}
                 maxHeight={editor.originalStats?.height || 1000}
-                onResize={editor.handleResize} // Add this line
+                onResize={editor.handleResize}
                 onReset={editor.handleReset}
                 onApplyResize={editor.handleApplyResize}
                 format={editor.format}
@@ -561,7 +588,6 @@ export default function ImageEditor({
           )}
         </div>
 
-        {/* Add Rotation Controls */}
         {editor.editorState === "editImage" && (
           <RotationControls
             onRotate={handleRotate}
@@ -575,6 +601,7 @@ export default function ImageEditor({
             currentRotation={editor.rotation}
           />
         )}
+
         {editor.editorState === "resizeAndOptimize" && editor.originalStats && (
           <ImageStats
             originalStats={editor.originalStats}
