@@ -1,4 +1,3 @@
-// app/hooks/useImageEditor.ts
 import { useState, useCallback, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { compressImageAggressively } from "@/app/utils/image-processing";
@@ -57,6 +56,24 @@ export const useImageEditor = ({
   const [history, setHistory] = useState<string[]>([imageUrl]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
+  // Animation and UI state
+  const [padlockAnimation, setPadlockAnimation] = useState(false);
+
+  // Tool-specific state
+  const [blurAmount, setBlurAmount] = useState(5); // DEFAULT_VALUES.blurAmount
+  const [blurRadius, setBlurRadius] = useState(10); // DEFAULT_VALUES.blurRadius
+  const [isEraser, setIsEraser] = useState(false);
+  const [isBold, setIsBold] = useState(false);
+  const [isItalic, setIsItalic] = useState(false);
+
+  // Rotation and transformation state
+  const [rotation, setRotation] = useState(0);
+  const [flipHorizontal, setFlipHorizontal] = useState(false);
+  const [flipVertical, setFlipVertical] = useState(false);
+
+  // Bulk editing state
+  const [bulkCropData, setBulkCropData] = useState<any>(null);
+
   // Notify parent of edit mode
   useEffect(() => {
     onEditModeChange?.(
@@ -83,6 +100,17 @@ export const useImageEditor = ({
     };
     img.src = imageUrl;
   }, [imageUrl, fileSize, fileType]);
+
+  // Trigger padlock animation when entering edit modes
+  useEffect(() => {
+    if (["editImage", "bulkImageEdit"].includes(editorState)) {
+      setPadlockAnimation(true);
+      const timer = setTimeout(() => {
+        setPadlockAnimation(false);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [editorState]);
 
   // Preview Core Web Vitals
   const updateCoreWebVitalsScore = useCallback((w: number, h: number) => {
@@ -124,6 +152,30 @@ export const useImageEditor = ({
     },
     [historyIndex]
   );
+
+  // Zoom handlers
+  const handleZoomIn = useCallback(() => {
+    setZoom((prev) => Math.min(prev + 0.1, 3));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoom((prev) => Math.max(prev - 0.1, 0.5));
+  }, []);
+
+  // Format change handler
+  const handleFormatChange = useCallback((newFormat: string) => {
+    setFormat(newFormat);
+  }, []);
+
+  // Quality change handler
+  const handleQualityChange = useCallback((newQuality: number) => {
+    setQuality(newQuality);
+    // Update compression level based on quality
+    if (newQuality >= 90) setCompressionLevel("low");
+    else if (newQuality >= 80) setCompressionLevel("medium");
+    else if (newQuality >= 60) setCompressionLevel("high");
+    else setCompressionLevel("extremeSmall");
+  }, []);
 
   // Apply resize/compress
   const handleApplyResize = useCallback(async () => {
@@ -213,6 +265,9 @@ export const useImageEditor = ({
     setShowStats(false);
     setNewStats(null);
     setDataSavings(0);
+    setRotation(0);
+    setFlipHorizontal(false);
+    setFlipVertical(false);
     onImageChange?.(imageUrl);
     setHistory([imageUrl]);
     setHistoryIndex(0);
@@ -237,6 +292,16 @@ export const useImageEditor = ({
     coreWebVitalsScore,
     history,
     historyIndex,
+    padlockAnimation,
+    blurAmount,
+    blurRadius,
+    isEraser,
+    isBold,
+    isItalic,
+    rotation,
+    flipHorizontal,
+    flipVertical,
+    bulkCropData,
 
     // setters
     setEditorState,
@@ -250,6 +315,18 @@ export const useImageEditor = ({
     setDataSavings,
     setHasEdited,
     setShowStats,
+    setIsCompressing,
+    setCompressionProgress,
+    setPadlockAnimation,
+    setBlurAmount,
+    setBlurRadius,
+    setIsEraser,
+    setIsBold,
+    setIsItalic,
+    setRotation,
+    setFlipHorizontal,
+    setFlipVertical,
+    setBulkCropData,
 
     // actions
     handleResize,
@@ -257,6 +334,10 @@ export const useImageEditor = ({
     handleUndo,
     handleRedo,
     handleReset,
+    handleZoomIn,
+    handleZoomOut,
+    handleFormatChange,
+    handleQualityChange,
     updateCoreWebVitalsScore,
     addToHistory,
   };

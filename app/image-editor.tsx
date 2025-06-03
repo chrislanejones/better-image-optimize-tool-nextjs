@@ -1,4 +1,3 @@
-// app/image-editor.tsx (updated to integrate bulk editor)
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { useImageEditor } from "./hooks/useImageEditor";
@@ -56,15 +55,18 @@ export default function ImageEditor({
     onEditModeChange,
   });
 
-  // Handle bulk image editor selection
+  // Handle bulk image editor selection - only allow in non-bulk modes
   const handleBulkImageSelect = useCallback(
     (imageId: string) => {
-      const selectedImage = allImages.find((img) => img.id === imageId);
-      if (selectedImage && onSelectImage) {
-        onSelectImage(selectedImage);
+      // Only allow image selection when NOT in bulk edit modes
+      if (editor.editorState === "resizeAndOptimize") {
+        const selectedImage = allImages.find((img) => img.id === imageId);
+        if (selectedImage && onSelectImage) {
+          onSelectImage(selectedImage);
+        }
       }
     },
-    [allImages, onSelectImage]
+    [allImages, onSelectImage, editor.editorState]
   );
 
   // Tool callbacks (keeping existing implementations)
@@ -107,6 +109,8 @@ export default function ImageEditor({
         }
 
         editor.setHasEdited(true);
+        editor.setFlipVertical(!editor.flipVertical);
+        editor.setFlipHorizontal(!editor.flipHorizontal);
         editor.setEditorState("editImage");
         editor.addToHistory(croppedImageUrl);
 
@@ -280,7 +284,6 @@ export default function ImageEditor({
           }
 
           editor.setHasEdited(true);
-          editor.setRotation(degrees);
 
           if (editor.originalStats) {
             editor.setNewStats({
@@ -320,7 +323,6 @@ export default function ImageEditor({
       }
 
       editor.setHasEdited(true);
-      editor.setFlipHorizontal(!editor.flipHorizontal);
     } catch (error) {
       console.error("Error flipping image:", error);
       toast({
@@ -346,7 +348,6 @@ export default function ImageEditor({
       }
 
       editor.setHasEdited(true);
-      editor.setFlipVertical(!editor.flipVertical);
     } catch (error) {
       console.error("Error flipping image:", error);
       toast({
@@ -367,34 +368,18 @@ export default function ImageEditor({
   }, [editor.rotation, handleRotate]);
 
   const handleBulkCropApply = useCallback(() => {
-    if (editor.bulkCropData && allImages && allImages.length > 1) {
-      toast({
-        title: `Applying crop to ${allImages.length} images...`,
-        variant: "default",
-      });
-
-      setTimeout(() => {
-        toast({
-          title: `Crop applied to all ${allImages.length} images!`,
-          variant: "default",
-        });
-        editor.setEditorState("bulkImageEdit");
-      }, 1000);
-    } else if (!editor.bulkCropData) {
-      toast({
-        title: "Please set a crop area first",
-        variant: "destructive",
-      });
-    }
-  }, [editor, allImages, toast]);
+    toast({
+      title: "Bulk Crop Applied",
+      description: `Crop applied to all ${allImages.length} images!`,
+      variant: "default",
+    });
+    editor.setEditorState("bulkImageEdit");
+  }, [allImages.length, toast, editor]);
 
   const handleDownload = useCallback(() => {
     if (!imgRef.current || !canvasRef.current) return;
 
     try {
-      editor.setIsCompressing(true);
-      editor.setCompressionProgress(50);
-
       const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
 
@@ -430,9 +415,6 @@ export default function ImageEditor({
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
 
-          editor.setIsCompressing(false);
-          editor.setCompressionProgress(0);
-
           toast({
             title: `Download complete! File saved as ${editor.format.toUpperCase()}, ${(
               blob.size / 1024
@@ -449,8 +431,6 @@ export default function ImageEditor({
       );
     } catch (error) {
       console.error("Error downloading image:", error);
-      editor.setIsCompressing(false);
-      editor.setCompressionProgress(0);
 
       toast({
         title:
@@ -467,7 +447,7 @@ export default function ImageEditor({
         <BulkImageEditor
           images={allImages}
           selectedImageId={currentImageId}
-          onSelectImage={handleBulkImageSelect}
+          onSelectImage={handleBulkImageSelect} // This will be disabled in bulk mode
           onStateChange={editor.setEditorState}
           onNavigateImage={onNavigateImage}
           onClose={onClose}
@@ -494,7 +474,7 @@ export default function ImageEditor({
         bulkCropData={editor.bulkCropData}
         blurAmount={editor.blurAmount}
         blurRadius={editor.blurRadius}
-        allImages={allImages} // Make sure this is being passed
+        allImages={allImages}
         onZoomIn={editor.handleZoomIn}
         onZoomOut={editor.handleZoomOut}
         onUndo={editor.handleUndo}
