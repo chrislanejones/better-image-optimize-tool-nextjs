@@ -149,12 +149,14 @@ export const ImageEditorToolbar: React.FC<ImageEditorToolbarProps> = ({
                 onClick={() => onStateChange("bulkImageEdit")}
                 variant="outline"
                 className="h-9"
-                disabled={!allImages || allImages.length < 2}
+                disabled={!allImages || allImages.length <= 1}
                 title={
                   !allImages
                     ? "No images available"
-                    : allImages.length < 2
-                    ? `Bulk edit requires multiple images (currently ${allImages.length})`
+                    : allImages.length <= 1
+                    ? `Bulk edit requires multiple images (currently ${
+                        allImages.length
+                      } image${allImages.length === 1 ? "" : "s"})`
                     : `Edit ${allImages.length} images at once`
                 }
               >

@@ -371,6 +371,9 @@ export default function ImageUploader() {
           onRemoveAll={resetUpload}
           onUploadNew={handleUploadClick}
           onEditModeChange={handleEditModeChange}
+          allImages={images} // ← ADD THIS
+          currentImageId={selectedImage.id} // ← ADD THIS
+          onSelectImage={selectImage} // ← ADD THIS
         />
       </div>
     );

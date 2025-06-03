@@ -1,4 +1,5 @@
-// Enhanced ImageResizer with improved Core Web Vitals for JPEGs and PNGs
+// app/components/image-resizer.tsx
+"use client";
 
 import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
@@ -12,16 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  NavigationDirection,
-  CoreWebVitalsScore,
-  ImageResizerProps,
-} from "@/types/types";
+import { CoreWebVitalsScore, ImageResizerProps } from "@/types/types";
 import {
   COMPRESSION_LEVELS,
   CORE_WEB_VITALS,
 } from "@/app/constants/editorConstants";
-import { cn } from "@/lib/utils";
 
 export default function ImageResizer({
   width,
@@ -35,22 +31,17 @@ export default function ImageResizer({
   onFormatChange,
   onDownload,
   isCompressing = false,
-  currentPage,
-  totalPages,
-  onNavigateImage,
   quality = 85,
   onQualityChange,
 }: ImageResizerProps) {
-  const [hasAnyChanges, setHasAnyChanges] = useState<boolean>(false);
-  const [widthValue, setWidthValue] = useState<number>(width);
-  const [heightValue, setHeightValue] = useState<number>(height);
-  const [initialWidth, setInitialWidth] = useState<number>(width);
-  const [initialHeight, setInitialHeight] = useState<number>(height);
-  const [aspectRatio, setAspectRatio] = useState<boolean>(true);
-  const [compressionLevel, setCompressionLevel] = useState<string>("medium");
-  const [hasChangedDimensions, setHasChangedDimensions] =
-    useState<boolean>(false);
-  const [compressionProgress, setCompressionProgress] = useState<number>(0);
+  const [widthValue, setWidthValue] = useState(width);
+  const [heightValue, setHeightValue] = useState(height);
+  const [initialWidth, setInitialWidth] = useState(width);
+  const [initialHeight, setInitialHeight] = useState(height);
+  const [aspectRatio, setAspectRatio] = useState(true);
+  const [compressionLevel, setCompressionLevel] = useState("medium");
+  const [hasAnyChanges, setHasAnyChanges] = useState(false);
+  const [hasChangedDimensions, setHasChangedDimensions] = useState(false);
   const [coreWebVitalsScore, setCoreWebVitalsScore] =
     useState<CoreWebVitalsScore>("good");
 
@@ -65,142 +56,72 @@ export default function ImageResizer({
   }, [width, height, initialWidth, initialHeight]);
 
   useEffect(() => {
-    if (width > 0 && height > 0) {
-      updateCoreWebVitalsScore(width, height);
-    }
+    // initialize compressionLevel based on quality
     if (quality >= 90) setCompressionLevel("low");
     else if (quality >= 80) setCompressionLevel("medium");
     else if (quality >= 60) setCompressionLevel("high");
-    else setCompressionLevel("extreme");
+    else setCompressionLevel("extremeSmall");
+    updateCoreWebVitalsScore(width, height);
   }, []);
 
-  useEffect(() => {
-    if (isCompressing) {
-      const interval = setInterval(() => {
-        setCompressionProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            return 100;
-          }
-          return prev + 5;
-        });
-      }, 100);
-      return () => {
-        clearInterval(interval);
-        setCompressionProgress(0);
-      };
-    }
-  }, [isCompressing]);
-
-  const updateDimensions = (
-    newWidth: number,
-    newHeight: number,
-    fromSlider = false
-  ) => {
-    if (isNaN(newWidth) || isNaN(newHeight) || newWidth <= 0 || newHeight <= 0)
-      return;
-    let adjustedWidth = newWidth;
-    let adjustedHeight = newHeight;
+  const updateDimensions = (newW: number, newH: number, fromSlider = false) => {
+    if (newW <= 0 || newH <= 0) return;
+    let w = newW,
+      h = newH;
     if (aspectRatio) {
-      const baseRatio = initialWidth / initialHeight;
+      const ratio = initialWidth / initialHeight;
       if (fromSlider) {
-        const changingWidth = newWidth !== widthValue;
-        if (changingWidth) {
-          adjustedHeight = Math.round(newWidth / baseRatio);
-        } else {
-          adjustedWidth = Math.round(newHeight * baseRatio);
-        }
+        if (newW !== widthValue) h = Math.round(newW / ratio);
+        else w = Math.round(newH * ratio);
       } else {
-        adjustedHeight = Math.round(newWidth / baseRatio);
+        h = Math.round(newW / ratio);
       }
     }
-    setWidthValue(adjustedWidth);
-    setHeightValue(adjustedHeight);
-    onResize(adjustedWidth, adjustedHeight);
-    updateCoreWebVitalsScore(adjustedWidth, adjustedHeight);
-    const dimensionsChanged =
-      adjustedWidth !== initialWidth || adjustedHeight !== initialHeight;
-    setHasChangedDimensions(dimensionsChanged);
+    setWidthValue(w);
+    setHeightValue(h);
+    onResize(w, h);
+    const dimsChanged = w !== initialWidth || h !== initialHeight;
+    setHasChangedDimensions(dimsChanged);
     setHasAnyChanges(true);
+    updateCoreWebVitalsScore(w, h);
   };
 
-  const handleWidthChange = (values: number[]) => {
-    const newWidth = values[0];
-    updateDimensions(newWidth, heightValue, true);
-  };
+  const handleWidthChange = (vals: number[]) =>
+    updateDimensions(vals[0], heightValue, true);
+  const handleHeightChange = (vals: number[]) =>
+    updateDimensions(widthValue, vals[0], true);
 
-  const handleHeightChange = (values: number[]) => {
-    const newHeight = values[0];
-    updateDimensions(widthValue, newHeight, true);
+  const toggleAspectRatio = () => setAspectRatio((p) => !p);
+
+  const handleFormatChange = (fmt: string) => {
+    onFormatChange(fmt);
+    updateCoreWebVitalsScore(widthValue, heightValue);
   };
 
   const handleCompressionLevelChange = (value: string) => {
     setCompressionLevel(value);
-    if (onQualityChange) {
-      const levelConfig = COMPRESSION_LEVELS.find(
-        (level) => level.value === value
-      );
-      if (levelConfig) {
-        onQualityChange(levelConfig.quality);
-      }
+    const levelConfig = COMPRESSION_LEVELS.find((l) => l.value === value);
+    if (levelConfig && onQualityChange) {
+      onQualityChange(levelConfig.quality);
     }
-    updateCoreWebVitalsScore(widthValue, heightValue);
     setHasAnyChanges(true);
-  };
-
-  const toggleAspectRatio = () => {
-    setAspectRatio(!aspectRatio);
-  };
-
-  const handleFormatChange = (newFormat: string) => {
-    onFormatChange(newFormat);
     updateCoreWebVitalsScore(widthValue, heightValue);
   };
 
-  const updateCoreWebVitalsScore = (width: number, height: number) => {
-    const imageSize = width * height;
-    let newScore: CoreWebVitalsScore;
-    const buffer = CORE_WEB_VITALS.BUFFER;
-    if (imageSize <= CORE_WEB_VITALS.LCP_THRESHOLD_GOOD - buffer) {
-      newScore = "good";
-    } else if (imageSize <= CORE_WEB_VITALS.LCP_THRESHOLD_GOOD + buffer) {
-      newScore = "almost-there";
-    } else if (imageSize <= CORE_WEB_VITALS.LCP_THRESHOLD_POOR - buffer) {
-      newScore = "needs-improvement";
+  const updateCoreWebVitalsScore = (w: number, h: number) => {
+    const imageSize = w * h;
+    const buf = CORE_WEB_VITALS.BUFFER;
+    let score: CoreWebVitalsScore;
+    if (imageSize <= CORE_WEB_VITALS.LCP_THRESHOLD_GOOD - buf) {
+      score = "good";
+    } else if (imageSize <= CORE_WEB_VITALS.LCP_THRESHOLD_GOOD + buf) {
+      score = "almost-there";
+    } else if (imageSize <= CORE_WEB_VITALS.LCP_THRESHOLD_POOR - buf) {
+      score = "needs-improvement";
     } else {
-      newScore = "poor";
+      score = "poor";
     }
-    if (format === "webp" && newScore === "needs-improvement")
-      newScore = "good";
-    if (
-      format === "jpeg" &&
-      ["high", "extreme", "extremeBW"].includes(compressionLevel) &&
-      newScore === "needs-improvement"
-    )
-      newScore = "good";
-    if (
-      format === "png" &&
-      newScore === "good" &&
-      compressionLevel === "low" &&
-      imageSize > CORE_WEB_VITALS.LCP_THRESHOLD_GOOD * 0.8
-    )
-      newScore = "needs-improvement";
-    const qualityValue = quality || 85;
-    if (
-      qualityValue > 90 &&
-      newScore === "good" &&
-      imageSize > CORE_WEB_VITALS.LCP_THRESHOLD_GOOD * 0.7
-    )
-      newScore = "needs-improvement";
-    else if (qualityValue < 70 && newScore === "needs-improvement")
-      newScore = "good";
-    if (
-      ["high", "extreme", "extremeBW"].includes(compressionLevel) &&
-      newScore === "needs-improvement" &&
-      imageSize <= CORE_WEB_VITALS.LCP_THRESHOLD_POOR * 0.7
-    )
-      newScore = "good";
-    setCoreWebVitalsScore(newScore);
+    setCoreWebVitalsScore(score);
   };
 
   const handleReset = () => {
@@ -208,8 +129,8 @@ export default function ImageResizer({
     setHeightValue(initialHeight);
     setAspectRatio(true);
     setCompressionLevel("medium");
-    setHasChangedDimensions(false);
     setHasAnyChanges(false);
+    setHasChangedDimensions(false);
     if (onQualityChange) onQualityChange(85);
     onResize(initialWidth, initialHeight);
     updateCoreWebVitalsScore(initialWidth, initialHeight);
@@ -222,11 +143,8 @@ export default function ImageResizer({
   return (
     <Card className="bg-gray-800 text-white border-gray-700">
       <CardHeader className="p-3 pb-0">
-        <CardTitle className="flex items-center justify-between text-base">
-          <div className="flex items-center">
-            <Image className="h-4 w-4 mr-2" />
-            <span>Resize & Optimize</span>
-          </div>
+        <CardTitle className="flex items-center text-base">
+          <Image className="h-4 w-4 mr-2" /> Resize & Optimize
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -236,7 +154,6 @@ export default function ImageResizer({
           <Slider
             min={minWidth}
             max={maxWidth}
-            step={1}
             value={[widthValue]}
             onValueChange={handleWidthChange}
           />
@@ -247,7 +164,6 @@ export default function ImageResizer({
           <Slider
             min={minHeight}
             max={maxHeight}
-            step={1}
             value={[heightValue]}
             onValueChange={handleHeightChange}
           />
@@ -266,7 +182,7 @@ export default function ImageResizer({
             <span className="w-4 h-4 rounded-full bg-white" />
           </button>
         </div>
-        {/* Compression */}
+        {/* Compression Level */}
         <div className="flex flex-col space-y-2">
           <label className="text-sm font-medium">Compression Level</label>
           <Select
@@ -277,9 +193,9 @@ export default function ImageResizer({
               <SelectValue placeholder="Select level" />
             </SelectTrigger>
             <SelectContent>
-              {COMPRESSION_LEVELS.map((level) => (
-                <SelectItem key={level.value} value={level.value}>
-                  {level.label} [{level.quality}%]
+              {COMPRESSION_LEVELS.map((lvl) => (
+                <SelectItem key={lvl.value} value={lvl.value}>
+                  {lvl.label} ({lvl.quality}%)
                 </SelectItem>
               ))}
             </SelectContent>
@@ -316,27 +232,7 @@ export default function ImageResizer({
             <span>Poor</span>
           </div>
         </div>
-        {/* Format Info */}
-        <div className="flex items-center text-xs text-gray-300 gap-2 mt-2">
-          <span>
-            Format: <span className="uppercase font-semibold">{format}</span>
-          </span>
-          <div className="relative group">
-            <InfoIcon className="w-3.5 h-3.5 text-gray-400 cursor-pointer" />
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-xs text-xs text-white bg-gray-700 p-2 rounded shadow-md opacity-0 group-hover:opacity-100">
-              {format === "webp" && (
-                <span>WebP: Modern format, 25–35% smaller than JPEG.</span>
-              )}
-              {format === "jpeg" && (
-                <span>JPEG: Great for photos, universal support.</span>
-              )}
-              {format === "png" && (
-                <span>PNG: Lossless, good for transparency.</span>
-              )}
-            </div>
-          </div>
-        </div>
-        {/* Format Select */}
+        {/* Format */}
         <Select value={format} onValueChange={handleFormatChange}>
           <SelectTrigger className="w-full bg-gray-700 border-gray-600 h-10">
             <SelectValue placeholder="Format" />
@@ -347,24 +243,24 @@ export default function ImageResizer({
             <SelectItem value="webp">WebP</SelectItem>
           </SelectContent>
         </Select>
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            onClick={onApplyResize}
-            disabled={isCompressing && !hasChangedDimensions}
-            className="w-full h-10"
-          >
-            <Maximize2 className="mr-2 h-4 w-4" />
-            {isCompressing ? "Processing..." : "Resize"}
-          </Button>
-          <Button
-            onClick={handleReset}
-            variant="outline"
-            className="w-full h-10"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Reset
-          </Button>
-        </div>
+        {/* Actions */}
+
+        <Button
+          onClick={onApplyResize}
+          className="w-full h-10 flex items-center justify-center gap-2"
+          disabled={isCompressing && !hasChangedDimensions}
+        >
+          <Maximize2 className="mr-2 h-4 w-4" />{" "}
+          {isCompressing ? "Processing…" : "Convert"}
+        </Button>
+        <Button
+          onClick={handleReset}
+          variant="outline"
+          className="w-full h-10 flex items-center justify-center gap-2"
+        >
+          <RefreshCw className="mr-2 h-4 w-4" /> Reset
+        </Button>
+
         {onDownload && (
           <Button
             onClick={onDownload}

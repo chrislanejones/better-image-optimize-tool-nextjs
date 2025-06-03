@@ -29,6 +29,7 @@ export const IMAGE_FORMATS = [
 ] as const;
 
 // Compression levels
+// constants/editorConstants.ts
 export const COMPRESSION_LEVELS = [
   {
     value: "low",
@@ -49,14 +50,14 @@ export const COMPRESSION_LEVELS = [
     description: "Smaller file, good quality",
   },
   {
-    value: "extreme",
+    value: "extremeSmall",
     label: "Extreme (Smallest file)",
     quality: 60,
     description: "Smallest file",
   },
   {
     value: "extremeBW",
-    label: "Extreme B&W (Lowest quality)",
+    label: "Extreme B&W (Black & White)",
     quality: 30,
     description: "Black & white, lowest quality",
   },

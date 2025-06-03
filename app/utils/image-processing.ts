@@ -1,5 +1,11 @@
-// utils/image-processing.ts
-import { getMimeType, rotateImage as rotateImageUtil } from "./image-utils";
+// app/utils/image-processing.ts
+import {
+  getMimeType,
+  rotateImage as rotateImageUtil,
+  loadImage,
+  canvasToBlob,
+  type ImageFormat,
+} from "./image-utils";
 
 // Re-export the rotation function from image-utils
 export const rotateImage = rotateImageUtil;
@@ -113,181 +119,93 @@ export async function flipImage(
   });
 }
 
-export async function processImageForStats(
-  imageUrl: string,
-  format: string,
-  quality: number,
-  targetWidth?: number,
-  targetHeight?: number
+// ... other functions like processImageForStats, calculateImageStats, estimateFileSize, downloadProcessedImage ...
+
+/**
+ * Aggressive compression for when file size is critical
+ */
+export async function compressImageAggressively(
+  url: string,
+  maxWidth = 1200,
+  format: ImageFormat | string = "webp",
+  targetSizeKB = 500,
+  compressionLevel: string = "medium"
 ): Promise<{
   url: string;
   blob: Blob;
+  size: number;
   width: number;
   height: number;
-  size: number;
 }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
+  const img = await loadImage(url);
+  let width = img.naturalWidth;
+  let height = img.naturalHeight;
+  let quality =
+    compressionLevel === "extremeBW"
+      ? 30
+      : compressionLevel === "extremeSmall"
+      ? 60
+      : format === "webp"
+      ? 80
+      : 85;
 
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-
-      if (!ctx) {
-        reject(new Error("Failed to get canvas context"));
-        return;
-      }
-
-      // Use target dimensions or original
-      const width = targetWidth || img.naturalWidth;
-      const height = targetHeight || img.naturalHeight;
-
-      canvas.width = width;
-      canvas.height = height;
-
-      // Enable high-quality scaling
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-
-      // Draw the image
-      ctx.drawImage(img, 0, 0, width, height);
-
-      // Convert to blob
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            reject(new Error("Failed to create blob"));
-            return;
-          }
-
-          const url = URL.createObjectURL(blob);
-          resolve({
-            url,
-            blob,
-            width,
-            height,
-            size: blob.size,
-          });
-        },
-        getMimeType(format),
-        quality / 100
-      );
-    };
-
-    img.onerror = () => {
-      reject(new Error("Failed to load image"));
-    };
-
-    img.src = imageUrl;
-  });
-}
-
-export function calculateImageStats(
-  originalSize: number,
-  newSize: number,
-  originalDimensions: { width: number; height: number },
-  newDimensions: { width: number; height: number }
-): {
-  sizeReduction: number;
-  dimensionChange: {
-    widthPercent: number;
-    heightPercent: number;
-  };
-  compressionRatio: number;
-} {
-  const sizeReduction =
-    originalSize > 0 ? 100 - (newSize / originalSize) * 100 : 0;
-
-  const widthPercent =
-    originalDimensions.width > 0
-      ? (newDimensions.width / originalDimensions.width) * 100
-      : 100;
-
-  const heightPercent =
-    originalDimensions.height > 0
-      ? (newDimensions.height / originalDimensions.height) * 100
-      : 100;
-
-  const compressionRatio = originalSize > 0 ? originalSize / newSize : 1;
-
-  return {
-    sizeReduction,
-    dimensionChange: {
-      widthPercent,
-      heightPercent,
-    },
-    compressionRatio,
-  };
-}
-
-export function estimateFileSize(
-  originalSize: number,
-  originalDimensions: { width: number; height: number },
-  newDimensions: { width: number; height: number },
-  format: string,
-  quality: number
-): number {
-  // Calculate pixel ratio
-  const originalPixels = originalDimensions.width * originalDimensions.height;
-  const newPixels = newDimensions.width * newDimensions.height;
-  const pixelRatio = newPixels / originalPixels;
-
-  // Format-specific compression factors
-  let formatFactor = 1;
-  switch (format) {
-    case "webp":
-      formatFactor = 0.65; // WebP is typically 65% of JPEG size
-      break;
-    case "jpeg":
-      formatFactor = 1.0;
-      break;
-    case "png":
-      formatFactor = 1.5; // PNG is typically larger
-      break;
+  if (width > maxWidth) {
+    const ratio = maxWidth / width;
+    width = maxWidth;
+    height = Math.round(height * ratio);
   }
 
-  // Quality factor (assuming base quality of 85)
-  const qualityFactor = quality / 85;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Failed to get canvas context");
 
-  // Estimate new size
-  const estimatedSize =
-    originalSize * pixelRatio * formatFactor * qualityFactor;
+  let resultBlob: Blob;
+  let attempts = 0;
+  const maxAttempts = 5;
 
-  return Math.round(estimatedSize);
-}
+  do {
+    canvas.width = width;
+    canvas.height = height;
 
-export async function downloadProcessedImage(
-  canvas: HTMLCanvasElement,
-  fileName: string,
-  format: string,
-  quality: number
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(new Error("Failed to create blob"));
-          return;
-        }
+    // APPLY FILTER BEFORE DRAW
+    if (compressionLevel === "extremeBW") {
+      ctx.filter = "grayscale(100%)";
+    } else {
+      ctx.filter = "none";
+    }
 
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
+    ctx.drawImage(img, 0, 0, width, height);
 
-        const extension = format === "jpeg" ? "jpg" : format;
-        const baseFileName = fileName.split(".")[0] || "image";
-        a.download = `${baseFileName}-edited.${extension}`;
+    // RESET filter so other operations (like toBlob) aren’t affected
+    ctx.filter = "none";
 
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+    resultBlob = await canvasToBlob(canvas, format, quality);
+    const currentSizeKB = resultBlob.size / 1024;
 
-        URL.revokeObjectURL(url);
-        resolve();
-      },
-      getMimeType(format),
-      quality / 100
-    );
-  });
+    if (
+      currentSizeKB <= targetSizeKB ||
+      quality <= 30 ||
+      attempts >= maxAttempts
+    ) {
+      break;
+    }
+
+    quality = Math.max(30, quality - 15);
+
+    if (attempts >= 2 && currentSizeKB > targetSizeKB * 1.5) {
+      width = Math.round(width * 0.8);
+      height = Math.round(height * 0.8);
+    }
+
+    attempts++;
+  } while (true);
+
+  const resultUrl = URL.createObjectURL(resultBlob);
+  return {
+    url: resultUrl,
+    blob: resultBlob,
+    size: resultBlob.size,
+    width,
+    height,
+  };
 }
