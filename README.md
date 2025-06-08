@@ -1,158 +1,300 @@
-# ImageHorse - Advanced Image Editor
+# ImageHorse 🐎
 
-ImageHorse is a modern, feature-rich image editing application built with React and Next.js. It provides intuitive tools for image manipulation, optimization, and editing with a responsive user interface.
+A powerful, modern image editor and compression tool built with Next.js, React, and TypeScript. Upload multiple images, edit them individually or in bulk, and optimize them for web use with advanced compression algorithms.
 
-![ImageHorse Logo](/public/Image-Horse-Logo.svg)
+![ImageHorse Logo](public/Image-Horse-Logo.svg)
 
-## Live Demo
+## 🚀 Features
 
-**Try it now:** [https://better-image-optimize-tool-nextjs.vercel.app/](https://better-image-optimize-tool-nextjs.vercel.app/)
+### Core Image Editing
 
-## 🌟 Features
+- **Multiple Upload**: Drag & drop, click to browse, or paste from clipboard
+- **Individual Editing**: Comprehensive editing tools for single images
+- **Bulk Editing**: Apply the same edits to multiple images simultaneously
+- **Real-time Preview**: See changes as you make them
 
-- **Multiple Image Upload**: Drag-and-drop, file select, or paste from clipboard
-- **Image Gallery**: Browse and manage multiple uploaded images
-- **Advanced Editing Tools**:
-  - Crop with aspect ratio control
-  - Selective blur tool with adjustable radius and intensity
-  - Paint and drawing tools with customizable brushes
-  - Text overlay with font selection and styling
-  - Rotation tools (clockwise and counter-clockwise)
-- **Image Optimization**:
-  - Resize with maintained aspect ratio
-  - Format conversion (JPEG, PNG, WebP)
-  - Quality adjustment with Core Web Vitals scoring
-  - File size reduction with statistics
-- **Real-time Statistics**: View detailed metrics about your edits
-- **Image Comparison**: Before/after visualization
-- **Zoom Controls**: Precision editing with zoom in/out functionality
-- **Pagination**: Efficiently handle large numbers of images
-- **Responsive Design**: Works on desktop and mobile devices
-- **Dark Mode Support**: Toggle between light and dark themes
+### Editing Tools
 
-## 🧩 Architecture
+- **🔧 Resize & Optimize**: Smart compression with Core Web Vitals scoring
+- **✂️ Cropping**: Precise crop tool with aspect ratio controls
+- **🌫️ Blur Tool**: Selective blur with adjustable intensity and brush size
+- **🎨 Paint Tool**: Full painting suite with brushes, erasers, arrows, and emojis
+- **📝 Text Tool**: Add text with multiple fonts, sizes, colors, and styling options
+- **🔄 Transform**: Rotate, flip horizontal/vertical, and reset transformations
 
-The application is built with a modular component architecture:
+### Advanced Features
 
-```
-📦 app
- ┣ 📂 components
- ┃ ┣ 📜 blur-tool.tsx         # Selective blur brush tool
- ┃ ┣ 📜 cropping-tool.tsx     # Image cropping with aspect ratio control
- ┃ ┣ 📜 image-resizer.tsx     # Size and format adjustment
- ┃ ┣ 📜 image-stats.tsx       # Image metrics visualization
- ┃ ┣ 📜 image-zoom-view.tsx   # Zoomed image preview
- ┃ ┣ 📜 paint-tool.tsx        # Drawing and painting functionality
- ┃ ┣ 📜 pagination-controls.tsx # Image navigation controls
- ┃ ┣ 📜 text-tool.tsx         # Text overlay with styling
- ┃ ┗ 📜 toolbar.tsx           # Editor toolbar with action buttons
- ┣ 📂 utils
- ┃ ┣ 📜 image-transformations.js # Image processing utilities
- ┃ ┣ 📜 image-utils.js        # Helper functions
- ┃ ┗ 📜 indexedDB.js          # Local storage for images
- ┣ 📜 image-cropper.tsx       # Main cropper component
- ┣ 📜 image-editor.tsx        # Main editor component
- ┣ 📜 layout.tsx              # Application layout
- ┗ 📜 page.tsx                # Main entry point and image upload
-```
+- **Bulk Operations**: Crop multiple images with the same dimensions
+- **Format Conversion**: JPEG, PNG, WebP support with quality controls
+- **Compression Levels**: From lossless to extreme compression
+- **Core Web Vitals**: Real-time performance impact visualization
+- **Zoom Controls**: Detailed editing with up to 3x zoom
+- **History**: Undo/redo functionality with complete edit history
+- **Dark/Light Mode**: Automatic theme switching
 
-## 🚀 Getting Started
+### File Management
 
-### Prerequisites
+- **Pagination**: Navigate through large image collections
+- **Grid View**: Thumbnail overview of all uploaded images
+- **Individual Downloads**: Save edited images in your preferred format
+- **Bulk Downloads**: Download all processed images at once
 
-- Node.js 16.x or higher
-- npm or yarn
+## 🛠️ Tech Stack
 
-### Installation
+- **Framework**: Next.js 14 with App Router
+- **Frontend**: React 18 with TypeScript
+- **Styling**: Tailwind CSS with custom components
+- **UI Components**: shadcn/ui component library
+- **Image Processing**: HTML Canvas API with optimized algorithms
+- **State Management**: React hooks with custom state management
+- **Icons**: Lucide React
+- **Charts**: Recharts for statistics visualization
 
-1. Clone the repository:
+## 📦 Installation
+
+1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/yourusername/image-horse.git
-   cd image-horse
+   git clone https://github.com/yourusername/imagehorse.git
+   cd imagehorse
    ```
 
-2. Install dependencies:
+2. **Install dependencies**
 
    ```bash
    npm install
    # or
    yarn install
+   # or
+   pnpm install
    ```
 
-3. Start the development server:
+3. **Run the development server**
 
    ```bash
    npm run dev
    # or
    yarn dev
+   # or
+   pnpm dev
    ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser
+4. **Open your browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
 
-## 💻 Usage
+## 🎯 Usage Guide
 
-### Upload Images
+### Getting Started
 
-- **Drag & Drop**: Drag images into the upload area
-- **File Select**: Click the upload area to browse files
-- **Clipboard**: Paste images directly (Ctrl+V / Cmd+V)
+1. **Upload Images**: Drag & drop images, click "Select Images", or paste from clipboard
+2. **Choose Mode**:
+   - Single image editing for detailed work
+   - Bulk editing for applying same changes to multiple images
+3. **Edit**: Use the toolbar to access different editing tools
+4. **Export**: Download your edited images in your preferred format
 
-### Edit Images
+### Individual Editing Mode
 
-1. Select an image from the gallery
-2. Use the toolbar to choose editing mode:
-   - **Resize & Optimize**: Adjust dimensions, quality, and format
-   - **Edit Image**: Access advanced editing tools
-3. Apply changes with the respective "Apply" button
-4. Download your edited image or continue editing
+- Click "Edit Image Mode" to enter detailed editing
+- Use the sidebar tools for resizing and compression
+- Access advanced tools via the main toolbar
+- View real-time statistics and Core Web Vitals impact
 
-### Navigation
+### Bulk Editing Mode
 
-- Use pagination controls to navigate between multiple images
-- In edit mode, the toolbar provides access to different tools
-- Return to the gallery view from edit mode using the "Back to Gallery" button
+- Click "Bulk Image Edit" when multiple images are loaded
+- Select the main image to use as a template
+- Apply bulk crops that will be applied to all images
+- Preview how changes will affect each image
 
-## 🔧 Advanced Features
+### Compression & Optimization
 
-### Core Web Vitals Optimization
+- **Smart Compression**: Automatically optimizes images for web use
+- **Format Selection**: Choose between JPEG, PNG, and WebP
+- **Quality Controls**: Fine-tune compression levels
+- **Size Prediction**: See file size changes before applying
+- **Core Web Vitals**: Understand performance impact
 
-The image resizer provides feedback on how your image optimization will impact Core Web Vitals performance metrics, helping you make informed decisions about size, format, and quality settings.
+## 🏗️ Project Structure
 
-### Format Selection
+```
+imagehorse/
+├── app/                          # Next.js app directory
+│   ├── components/              # React components
+│   │   ├── blur-tool.tsx       # Selective blur tool
+│   │   ├── cropping-tool.tsx   # Image cropping utility
+│   │   ├── image-editor-*.tsx  # Main editor components
+│   │   ├── paint-tool.tsx      # Painting and drawing tools
+│   │   ├── text-tool.tsx       # Text overlay tool
+│   │   └── ui/                 # shadcn/ui components
+│   ├── constants/              # Application constants
+│   ├── hooks/                  # Custom React hooks
+│   ├── utils/                  # Utility functions
+│   │   ├── image-processing.ts # Core image processing
+│   │   └── image-utils.ts      # Image manipulation utilities
+│   ├── bulk-image-editor.tsx   # Bulk editing interface
+│   ├── image-editor.tsx        # Main editor component
+│   ├── layout.tsx              # Root layout
+│   └── page.tsx                # Main page component
+├── components/                  # Global components
+├── hooks/                      # Global hooks
+├── lib/                        # Library utilities
+├── styles/                     # CSS and styling
+└── types/                      # TypeScript definitions
+```
 
-- **WebP**: Best overall compression and quality (recommended)
-- **JPEG**: Good for photographs with wide browser support
-- **PNG**: Best for images with transparency
+## 🔧 Key Components
 
-### IndexedDB Storage
+### ImageEditor
 
-Images are stored locally in your browser using IndexedDB, allowing for persistent editing across sessions without uploading to a server.
+The main editing interface that handles:
 
-## 🛠️ Recent Fixes and Improvements
+- Tool switching and state management
+- Image transformations and filters
+- Export and download functionality
+- History management for undo/redo
 
-- **Accurate Cropping**: Fixed scaling issues in the crop tool to ensure precise cropping across the entire image
-- **Edit Mode Preservation**: Improved state management to maintain edit mode after operations like rotation
-- **Enhanced Compression**: Optimized image compression algorithm for better quality-to-size ratio
-- **Core Web Vitals Scoring**: Added real-time performance impact visualization
+### BulkImageEditor
 
-## 🔗 Dependencies
+Specialized interface for bulk operations:
 
-- React/Next.js for UI framework
-- Tailwind CSS for styling
-- Lucide React for icons
-- React Image Crop for cropping functionality
-- Recharts for statistics visualization
-- IndexedDB for local storage
+- Multi-image crop preview
+- Synchronized editing across images
+- Batch processing capabilities
+- Progress tracking and feedback
 
-## 📄 License
+### Individual Tools
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Each editing tool is a self-contained component:
+
+- **CroppingTool**: Drag-to-crop with aspect ratio controls
+- **BlurTool**: Brush-based selective blur with size/intensity controls
+- **PaintTool**: Complete painting suite with multiple brush types
+- **TextTool**: Rich text editing with font, size, and styling options
+
+## 🎨 Styling & Theming
+
+- **Design System**: Consistent design tokens via Tailwind CSS
+- **Dark/Light Mode**: Automatic theme detection and switching
+- **Responsive**: Mobile-first design that works on all devices
+- **Animations**: Smooth transitions and micro-interactions
+- **Accessibility**: WCAG compliant with proper contrast and focus management
+
+## 📊 Performance Features
+
+### Core Web Vitals Integration
+
+- **LCP Optimization**: Image size impact on Largest Contentful Paint
+- **Performance Scoring**: Real-time feedback on optimization choices
+- **Smart Compression**: Automatic optimization based on content type
+- **Format Recommendations**: Suggests best format for each use case
+
+### Compression Algorithms
+
+- **Multi-pass Compression**: Iterative optimization for best results
+- **Content-aware**: Different strategies for photos vs graphics
+- **Quality Preservation**: Maintains visual quality while reducing file size
+- **Format Conversion**: Seamless conversion between image formats
+
+## 🔄 State Management
+
+The application uses a combination of:
+
+- **React Hooks**: useState, useCallback, useEffect for local state
+- **Custom Hooks**: Shared logic in reusable hooks (useImageEditor)
+- **Context**: Theme and toast notifications
+- **Refs**: Direct DOM manipulation for canvas operations
+
+## 🧪 Testing
+
+```bash
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Generate coverage report
+npm run test:coverage
+```
+
+## 🚀 Building for Production
+
+```bash
+# Build the application
+npm run build
+
+# Start production server
+npm start
+
+# Build and analyze bundle
+npm run analyze
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Create a `.env.local` file:
+
+```bash
+# Optional: Analytics
+NEXT_PUBLIC_GA_ID=your_google_analytics_id
+
+# Optional: Error tracking
+SENTRY_DSN=your_sentry_dsn
+```
+
+### Customization
+
+- **Themes**: Modify `tailwind.config.js` for custom colors
+- **Compression**: Adjust settings in `constants/editorConstants.ts`
+- **Tools**: Add new editing tools in the `components/` directory
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development Guidelines
+
+- **TypeScript**: Strict typing for all components and utilities
+- **Component Structure**: Follow the established component patterns
+- **Testing**: Add tests for new features and bug fixes
+- **Documentation**: Update README and code comments
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Documentation**: Check this README and inline code comments
+- **Issues**: Report bugs via GitHub Issues
+- **Discussions**: Use GitHub Discussions for questions and ideas
+- **Contributing**: See the Contributing section above
+
+## 🏆 Acknowledgments
+
+- **shadcn/ui**: For the excellent component library
+- **Lucide**: For the beautiful icon set
+- **Recharts**: For data visualization components
+- **Next.js Team**: For the amazing framework
+- **Vercel**: For hosting and deployment tools
+
+## 🚦 Status
+
+- ✅ Core image editing functionality
+- ✅ Bulk editing capabilities
+- ✅ Advanced compression algorithms
+- ✅ Responsive design and accessibility
+- 🚧 AI-powered editing features (coming soon)
+- 🚧 Cloud storage integration (planned)
+- 🚧 Advanced batch processing (in development)
 
 ---
 
-Built with ❤️ by Your Team
+Made with ❤️ for the web development community. Happy editing! 🎨

@@ -214,6 +214,30 @@ export default function BulkImageEditor({
     // Image loaded, ready for cropping
   }, []);
 
+  // Calculate grid positions more efficiently
+  const getGridPosition = (index: number) => {
+    const imagesPerRow = 3;
+    const maxVisibleRows = 3;
+
+    if (index < imagesPerRow * maxVisibleRows) {
+      const row = Math.floor(index / imagesPerRow);
+      const col = index % imagesPerRow;
+      return {
+        gridColumn: col + 4, // Start from column 4 (after the 3x3 main image)
+        gridRow: row + 1,
+      };
+    } else {
+      // For images beyond the visible area, place them in subsequent rows
+      const extraIndex = index - imagesPerRow * maxVisibleRows;
+      const extraRow = Math.floor(extraIndex / 6) + maxVisibleRows + 1;
+      const extraCol = (extraIndex % 6) + 1;
+      return {
+        gridColumn: extraCol,
+        gridRow: extraRow,
+      };
+    }
+  };
+
   return (
     <div className={`flex flex-col gap-6 w-full h-full ${className}`}>
       {/* Padlock Indicator */}
@@ -333,10 +357,10 @@ export default function BulkImageEditor({
 
       {/* Main Content Area */}
       <div className="flex-1 h-full min-h-[600px]">
-        {/* Grid Layout: Selected image (3x3) + Other images */}
-        <div className="grid grid-cols-6 gap-2 h-full">
-          {/* Selected Image - Takes up 3x3 grid (positions 0,0 to 2,2) */}
-          <div className="col-span-3 row-span-3 relative border-2 border-blue-500 rounded-lg overflow-hidden bg-gray-900 flex items-center justify-center">
+        {/* Improved Grid Layout */}
+        <div className="grid grid-cols-6 gap-4 h-full auto-rows-max">
+          {/* Selected Image - Takes up 3x3 grid */}
+          <div className="col-span-3 row-span-3 relative border-2 border-blue-500 rounded-lg overflow-hidden bg-gray-900 flex items-center justify-center min-h-[400px]">
             {selectedImage ? (
               <div className="relative w-full h-full flex items-center justify-center">
                 {isBulkCropping ? (
@@ -384,117 +408,100 @@ export default function BulkImageEditor({
             )}
           </div>
 
-          {/* Other Images - Fill remaining grid positions (showing crop preview if in crop mode) */}
-          {images
-            .filter((img) => img.id !== selectedImageId)
-            .map((image, index) => {
-              // Calculate grid position
-              let colStart, rowStart;
+          {/* Other Images - Improved layout with larger previews */}
+          {otherImages.map((image, index) => {
+            const position = getGridPosition(index);
 
-              if (index < 3) {
-                // Top row: positions (3,0), (4,0), (5,0)
-                colStart = index + 4;
-                rowStart = 1;
-              } else if (index < 6) {
-                // Second row: positions (3,1), (4,1), (5,1)
-                colStart = index - 3 + 4;
-                rowStart = 2;
-              } else if (index < 9) {
-                // Third row: positions (3,2), (4,2), (5,2)
-                colStart = index - 6 + 4;
-                rowStart = 3;
-              } else {
-                // Fourth row and beyond: full width
-                const fourthRowIndex = index - 9;
-                colStart = (fourthRowIndex % 6) + 1;
-                rowStart = 4 + Math.floor(fourthRowIndex / 6);
-              }
-
-              return (
-                <div
-                  key={image.id}
-                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all duration-200 ${
-                    isBulkCropping
-                      ? "border-orange-500 bg-orange-100/10"
-                      : "border-gray-600"
-                  }`}
-                  style={{
-                    gridColumn: colStart,
-                    gridRow: rowStart,
-                  }}
-                  title={
-                    isBulkCropping
-                      ? `Crop preview for image ${
-                          images.findIndex((img) => img.id === image.id) + 1
-                        }`
-                      : `Image ${
-                          images.findIndex((img) => img.id === image.id) + 1
-                        }`
-                  }
-                >
-                  <div className="relative w-full h-full overflow-hidden">
-                    {isBulkCropping && completedCrop ? (
-                      // Show what the cropped result will look like
-                      <div className="w-full h-full relative bg-gray-800">
-                        <div
-                          className="absolute"
+            return (
+              <div
+                key={image.id}
+                className={`relative rounded-lg overflow-hidden border-2 transition-all duration-200 ${
+                  isBulkCropping
+                    ? "border-orange-500 bg-orange-100/10"
+                    : "border-gray-600"
+                } aspect-square min-h-[120px]`}
+                style={{
+                  gridColumn: position.gridColumn,
+                  gridRow: position.gridRow,
+                }}
+                title={
+                  isBulkCropping
+                    ? `Crop preview for image ${index + 1}`
+                    : `Image ${index + 1}`
+                }
+              >
+                <div className="relative w-full h-full overflow-hidden">
+                  {isBulkCropping && completedCrop ? (
+                    // Enhanced crop preview that better shows the result
+                    <div className="w-full h-full relative bg-gray-800 flex items-center justify-center">
+                      <div
+                        className="relative overflow-hidden rounded"
+                        style={{
+                          // Make the preview larger and more visible
+                          width: "90%",
+                          height: "90%",
+                          aspectRatio: `${completedCrop.width} / ${completedCrop.height}`,
+                        }}
+                      >
+                        <img
+                          src={image.url}
+                          alt={`Image ${index + 1} crop preview`}
+                          className="w-full h-full object-cover"
                           style={{
-                            // Calculate the scale factor to fill the container with the crop area
-                            width: `${(100 / completedCrop.width) * 100}%`,
-                            height: `${(100 / completedCrop.height) * 100}%`,
-                            // Position the image so the crop area is centered in the container
-                            left: `${
-                              (-completedCrop.x / completedCrop.width) * 100
-                            }%`,
-                            top: `${
-                              (-completedCrop.y / completedCrop.height) * 100
-                            }%`,
+                            // Position the image to show the cropped area
+                            objectPosition: `${-completedCrop.x}% ${-completedCrop.y}%`,
+                            transform: `scale(${
+                              100 /
+                              Math.min(
+                                completedCrop.width,
+                                completedCrop.height
+                              )
+                            })`,
+                            transformOrigin: `${
+                              completedCrop.x + completedCrop.width / 2
+                            }% ${completedCrop.y + completedCrop.height / 2}%`,
                           }}
-                        >
-                          <img
-                            src={image.url}
-                            alt={`Image ${index + 1} crop preview`}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        {/* Crop preview label */}
-                        <div className="absolute bottom-1 right-1 bg-orange-500 text-white rounded px-1 py-0.5 text-xs">
-                          CROP PREVIEW
-                        </div>
+                        />
                       </div>
-                    ) : (
-                      <img
-                        src={image.url}
-                        alt={`Image ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                  </div>
 
-                  {/* Image Number */}
-                  <div className="absolute bottom-1 left-1 bg-black/70 text-white rounded px-1 py-0.5 text-xs">
-                    {images.findIndex((img) => img.id === image.id) + 1}
-                  </div>
-
-                  {/* Crop indicator */}
-                  {isBulkCropping && (
-                    <div className="absolute top-1 right-1 bg-orange-500 text-white rounded px-1 py-0.5 text-xs">
-                      CROP
+                      {/* Crop preview label */}
+                      <div className="absolute bottom-1 right-1 bg-orange-500 text-white rounded px-1 py-0.5 text-xs">
+                        CROP
+                      </div>
                     </div>
-                  )}
-
-                  {/* Overlay for crop mode */}
-                  {isBulkCropping && (
-                    <div className="absolute inset-0 bg-orange-500/10 border border-orange-500/30" />
+                  ) : (
+                    <img
+                      src={image.url}
+                      alt={`Image ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
                   )}
                 </div>
-              );
-            })}
+
+                {/* Image Number */}
+                <div className="absolute bottom-1 left-1 bg-black/70 text-white rounded px-1 py-0.5 text-xs">
+                  {otherImages.findIndex((img) => img.id === image.id) + 2}
+                </div>
+
+                {/* Crop indicator */}
+                {isBulkCropping && (
+                  <div className="absolute top-1 right-1 bg-orange-500 text-white rounded px-1 py-0.5 text-xs">
+                    WILL CROP
+                  </div>
+                )}
+
+                {/* Overlay for crop mode */}
+                {isBulkCropping && (
+                  <div className="absolute inset-0 bg-orange-500/10 border border-orange-500/30 rounded" />
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Information Panel - Below the grid */}
         <div
-          className={`mt-4 p-4 rounded-lg border ${
+          className={`mt-6 p-4 rounded-lg border ${
             isBulkCropping
               ? "bg-orange-900/30 border-orange-500/50"
               : "bg-blue-900/30 border-blue-500/50"
@@ -519,8 +526,7 @@ export default function BulkImageEditor({
                   images.length
                 }{" "}
                 images
-                <br />
-                • Preview shows how each image will be cropped
+                <br />• Preview shows how each image will be cropped
                 <br />• Click "Apply Bulk Crop" when ready
               </p>
             </>
@@ -531,8 +537,8 @@ export default function BulkImageEditor({
               </p>
               <p className="text-blue-200 text-sm">
                 • Use "Bulk Crop" to apply the same crop area to all images
-                <br />
-                • Use "Bulk Text Editor" to add text to all images (coming soon)
+                <br />• Use "Bulk Text Editor" to add text to all images (coming
+                soon)
                 <br />• All changes will be applied to every image
                 simultaneously
               </p>
