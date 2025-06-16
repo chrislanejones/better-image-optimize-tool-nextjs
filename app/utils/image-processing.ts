@@ -1,14 +1,19 @@
-// app/utils/image-processing.ts
 import {
   getMimeType,
   rotateImage as rotateImageUtil,
   loadImage,
   canvasToBlob,
-  type ImageFormat,
+  downloadBulkCroppedImages,
+  bulkCropImages,
+  downloadImagesAsZip,
 } from "./image-utils";
+import { ImageFormat } from "../../types/types";
 
 // Re-export the rotation function from image-utils
 export const rotateImage = rotateImageUtil;
+
+// Re-export bulk processing functions
+export { downloadBulkCroppedImages, bulkCropImages, downloadImagesAsZip };
 
 // Additional rotation utilities
 export async function rotateImageWithCrop(
@@ -119,7 +124,181 @@ export async function flipImage(
   });
 }
 
-// ... other functions like processImageForStats, calculateImageStats, estimateFileSize, downloadProcessedImage ...
+/**
+ * Enhanced bulk processing with better error handling and progress
+ */
+export async function processBulkImages(
+  imageUrls: string[],
+  operation: "crop" | "resize" | "rotate",
+  options: {
+    crop?: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      unit: string;
+    };
+    resize?: { width: number; height: number };
+    rotate?: { degrees: number };
+    format?: ImageFormat | string;
+    quality?: number;
+  },
+  onProgress?: (
+    progress: number,
+    current: number,
+    total: number,
+    stage: string
+  ) => void
+): Promise<Array<{ blob: Blob; fileName: string }>> {
+  const results: Array<{ blob: Blob; fileName: string }> = [];
+  const { format = "jpeg", quality = 0.9 } = options;
+
+  for (let i = 0; i < imageUrls.length; i++) {
+    const imageUrl = imageUrls[i];
+
+    // Update progress
+    if (onProgress) {
+      onProgress(
+        Math.round((i / imageUrls.length) * 100),
+        i + 1,
+        imageUrls.length,
+        `Processing ${operation}...`
+      );
+    }
+
+    try {
+      let processedUrl: string;
+
+      switch (operation) {
+        case "crop":
+          if (!options.crop) throw new Error("Crop options required");
+          // Convert percentage crop to actual crop for processing
+          processedUrl = await cropImageUrl(
+            imageUrl,
+            options.crop,
+            format,
+            quality
+          );
+          break;
+
+        case "resize":
+          if (!options.resize) throw new Error("Resize options required");
+          processedUrl = await resizeImageUrl(
+            imageUrl,
+            options.resize.width,
+            options.resize.height,
+            format,
+            quality
+          );
+          break;
+
+        case "rotate":
+          if (!options.rotate) throw new Error("Rotate options required");
+          processedUrl = await rotateImage(
+            imageUrl,
+            options.rotate.degrees,
+            format,
+            quality
+          );
+          break;
+
+        default:
+          throw new Error(`Unknown operation: ${operation}`);
+      }
+
+      // Convert processed URL to blob
+      const response = await fetch(processedUrl);
+      const blob = await response.blob();
+
+      results.push({
+        blob,
+        fileName: `${operation}-image-${i + 1}.${
+          format === "jpeg" ? "jpg" : format
+        }`,
+      });
+
+      // Clean up the temporary URL
+      URL.revokeObjectURL(processedUrl);
+    } catch (error) {
+      console.error(`Error processing image ${i + 1}:`, error);
+      // Continue with other images even if one fails
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Helper function to crop an image from URL
+ */
+async function cropImageUrl(
+  imageUrl: string,
+  crop: { x: number; y: number; width: number; height: number; unit: string },
+  format: string,
+  quality: number
+): Promise<string> {
+  const img = await loadImage(imageUrl);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) {
+    throw new Error("Failed to get canvas context");
+  }
+
+  // Calculate crop dimensions in pixels
+  const cropX = (crop.x / 100) * img.naturalWidth;
+  const cropY = (crop.y / 100) * img.naturalHeight;
+  const cropWidth = (crop.width / 100) * img.naturalWidth;
+  const cropHeight = (crop.height / 100) * img.naturalHeight;
+
+  canvas.width = cropWidth;
+  canvas.height = cropHeight;
+
+  // Draw the cropped portion
+  ctx.drawImage(
+    img,
+    cropX,
+    cropY,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    cropWidth,
+    cropHeight
+  );
+
+  const blob = await canvasToBlob(canvas, format, quality);
+  return URL.createObjectURL(blob);
+}
+
+/**
+ * Helper function to resize an image from URL
+ */
+async function resizeImageUrl(
+  imageUrl: string,
+  width: number,
+  height: number,
+  format: string,
+  quality: number
+): Promise<string> {
+  const img = await loadImage(imageUrl);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) {
+    throw new Error("Failed to get canvas context");
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, width, height);
+
+  const blob = await canvasToBlob(canvas, format, quality);
+  return URL.createObjectURL(blob);
+}
 
 /**
  * Aggressive compression for when file size is critical
@@ -176,7 +355,7 @@ export async function compressImageAggressively(
 
     ctx.drawImage(img, 0, 0, width, height);
 
-    // RESET filter so other operations (like toBlob) aren’t affected
+    // RESET filter so other operations (like toBlob) aren't affected
     ctx.filter = "none";
 
     resultBlob = await canvasToBlob(canvas, format, quality);

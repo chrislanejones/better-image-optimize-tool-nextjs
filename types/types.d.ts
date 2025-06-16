@@ -8,15 +8,16 @@ export type CoreWebVitalsScore =
   | "good";
 
 export type EditorState =
-  | "resizeAndOptimize"
-  | "editImage"
-  | "bulkImageEdit"
-  | "crop"
-  | "blur"
-  | "paint"
-  | "text"
-  | "bulkCrop"
-  | "bulkTextEditor";
+  | "resizeAndOptimize" // gallery view
+  | "editImage" // single-edit toolbar
+  | "bulkImageEdit" // bulk-edit toolbar
+  | "aiEditor" // (coming soon)
+  | "crop" // single-image crop
+  | "blur" // single-image blur
+  | "paint" // single-image paint
+  | "text" // single-image text
+  | "bulkCrop" // bulk crop detail
+  | "bulkTextEditor"; // bulk text-edit detail
 
 export type ImageFormat = "jpeg" | "png" | "webp";
 
@@ -41,15 +42,25 @@ export interface BlurBrushCanvasRef {
 export interface BulkImageEditorProps {
   className?: string;
   currentPage?: number;
+  editorState: EditorState;
   images: ImageFile[];
   onClose?: () => void;
+  onNavigateImage?: (dir: NavigationDirection) => void;
   onNavigateImage?: (direction: NavigationDirection) => void;
   onRemoveAll?: () => void;
+  onSelectImage: (id: string) => void;
   onSelectImage: (imageId: string) => void;
   onStateChange: (state: EditorState) => void;
   onUploadNew?: () => void;
   selectedImageId: string;
   totalPages?: number;
+}
+
+interface CropArea {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface CroppingToolProps {

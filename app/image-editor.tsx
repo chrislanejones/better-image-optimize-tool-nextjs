@@ -441,10 +441,14 @@ export default function ImageEditor({
   }, [editor, fileName, onDownload, toast]);
 
   // Render different components based on editor state
-  if (editor.editorState === "bulkImageEdit") {
+  if (
+    editor.editorState === "bulkImageEdit" ||
+    editor.editorState === "bulkCrop"
+  ) {
     return (
       <div className={`flex flex-col gap-6 ${className}`}>
         <BulkImageEditor
+          editorState={editor.editorState}
           images={allImages}
           selectedImageId={currentImageId}
           onSelectImage={handleBulkImageSelect} // This will be disabled in bulk mode
@@ -598,11 +602,13 @@ export default function ImageEditor({
       </div>
     </div>
   );
-}
+} // ← closes export default function ImageEditor
+
+// Now, outside the component, define your helper:
 
 function getMimeType(format: string): string {
   if (format === "webp") return "image/webp";
   if (format === "jpeg") return "image/jpeg";
   if (format === "png") return "image/png";
-  return "image/jpeg";
+  return "application/octet-stream";
 }

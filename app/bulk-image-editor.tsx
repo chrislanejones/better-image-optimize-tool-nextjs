@@ -1,45 +1,34 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
-import { BulkImageEditorProps } from "../types/types";
 import {
+  Lock,
   Minus,
   Plus,
-  Images,
   Crop as CropIcon,
   Type,
   X,
   Check,
   Download,
 } from "lucide-react";
-import Image from "next/image";
 import ReactCrop, { type Crop, type PixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
-import type {
-  ImageFile,
-  EditorState,
-  NavigationDirection,
-} from "@/types/types";
+import { downloadBulkCroppedImages } from "@/app/utils/image-utils";
+import type { BulkImageEditorProps } from "@/types/types";
 
 export default function BulkImageEditor({
+  editorState,
   images,
   selectedImageId,
-  onSelectImage,
   onStateChange,
-  onNavigateImage,
-  onClose,
-  onRemoveAll,
-  onUploadNew,
-  currentPage = 1,
-  totalPages = 1,
   className = "",
 }: BulkImageEditorProps) {
   const { toast } = useToast();
-  const [zoom, setZoom] = useState<number>(1);
-  const [padlockAnimation, setPadlockAnimation] = useState<boolean>(false);
-  const [isBulkCropping, setIsBulkCropping] = useState<boolean>(false);
+  const isBulkCropping = editorState === "bulkCrop";
+  const [padlockAnim, setPadlockAnim] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const [crop, setCrop] = useState<Crop>({
     unit: "%",
     width: 50,
@@ -48,224 +37,97 @@ export default function BulkImageEditor({
     y: 25,
   });
   const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
-  const selectedImageRef = useRef<HTMLImageElement>(null);
-  const mainImageRef = useRef<HTMLImageElement>(null);
+  const [hasApplied, setHasApplied] = useState(false);
+  const [processingStage, setProcessingStage] = useState<string>("");
+  const [processingProgress, setProcessingProgress] = useState<number | null>(
+    null
+  );
 
-  // Find selected image
-  const selectedImage = images.find((img) => img.id === selectedImageId);
-  const otherImages = images.filter((img) => img.id !== selectedImageId);
-
-  // Play padlock animation when component mounts
-  useEffect(() => {
-    setPadlockAnimation(true);
-    const timer = setTimeout(() => {
-      setPadlockAnimation(false);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Zoom handlers
-  const handleZoomIn = useCallback(() => {
-    setZoom((prev) => Math.min(prev + 0.1, 3));
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    setZoom((prev) => Math.max(prev - 0.1, 0.5));
-  }, []);
-
-  // Bulk crop handlers
-  const handleBulkCrop = useCallback(() => {
-    setIsBulkCropping(true);
-    toast({
-      title: "Bulk Crop Mode",
-      description:
-        "Adjust the crop area on the main image. It will be applied to all images.",
-      variant: "default",
-    });
-  }, [toast]);
-
-  const handleBulkTextEditor = useCallback(() => {
-    toast({
-      title: "Bulk Text Editor",
-      description: "This feature is coming soon!",
-      variant: "default",
-    });
-  }, [toast]);
-
-  // Create a cropped canvas from image and crop data
-  const createCroppedCanvas = (
-    image: HTMLImageElement,
-    pixelCrop: PixelCrop
-  ): HTMLCanvasElement | null => {
-    if (!pixelCrop || !image) return null;
-
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-
-    // Calculate scaling factors between displayed image and natural image size
-    const scaleX = image.naturalWidth / image.width;
-    const scaleY = image.naturalHeight / image.height;
-
-    // Scale the crop coordinates and dimensions based on the actual image size
-    const scaledX = pixelCrop.x * scaleX;
-    const scaledY = pixelCrop.y * scaleY;
-    const scaledWidth = pixelCrop.width * scaleX;
-    const scaledHeight = pixelCrop.height * scaleY;
-
-    // Set the canvas dimensions to the scaled cropped area size
-    canvas.width = scaledWidth;
-    canvas.height = scaledHeight;
-
-    // Draw the cropped portion of the image onto the canvas
-    ctx.drawImage(
-      image,
-      scaledX,
-      scaledY,
-      scaledWidth,
-      scaledHeight,
-      0,
-      0,
-      scaledWidth,
-      scaledHeight
+  const selected = images.find((i) => i.id === selectedImageId);
+  if (!selected) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-white">
+        No image selected
+      </div>
     );
+  }
+  const others = images.filter((i) => i.id !== selectedImageId);
 
-    return canvas;
+  useEffect(() => {
+    setPadlockAnim(true);
+    const t = setTimeout(() => setPadlockAnim(false), 600);
+    return () => clearTimeout(t);
+  }, [editorState]);
+
+  const handleZoomOut = useCallback(
+    () => setZoom((z) => Math.max(z - 0.1, 0.5)),
+    []
+  );
+  const handleZoomIn = useCallback(
+    () => setZoom((z) => Math.min(z + 0.1, 3)),
+    []
+  );
+
+  const enterCrop = () => {
+    setHasApplied(false);
+    onStateChange("bulkCrop");
+    toast({ title: "Bulk Crop Mode", variant: "default" });
   };
+  const cancelCrop = () => onStateChange("bulkImageEdit");
 
-  const handleApplyBulkCrop = useCallback(async () => {
+  const applyCrop = async () => {
     if (!completedCrop) {
-      toast({
-        title: "No Crop Area",
-        description: "Please select an area to crop first",
-        variant: "destructive",
-      });
+      toast({ title: "No crop area", variant: "destructive" });
       return;
     }
 
-    try {
-      toast({
-        title: "Processing...",
-        description: `Applying crop to ${images.length} images...`,
-        variant: "default",
-      });
+    setProcessingStage("Cropping images…");
+    setProcessingProgress(0);
 
-      // For demo purposes - in a real app you'd process each image
-      setTimeout(() => {
-        toast({
-          title: "Success!",
-          description: `Crop applied to all ${images.length} images!`,
-          variant: "default",
-        });
-        setIsBulkCropping(false);
-      }, 2000);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to apply bulk crop",
-        variant: "destructive",
-      });
-    }
-  }, [completedCrop, images.length, toast]);
+    await downloadBulkCroppedImages(
+      images.map((i) => i.url),
+      crop,
+      "jpeg",
+      0.9,
+      `bulk-${Date.now()}.zip`,
+      (pct, cur, tot, stage) => {
+        setProcessingStage(stage);
+        setProcessingProgress(pct);
+      }
+    );
 
-  const handleCancelBulkCrop = useCallback(() => {
-    setIsBulkCropping(false);
-    setCrop({
-      unit: "%",
-      width: 50,
-      height: 50,
-      x: 25,
-      y: 25,
-    });
-    setCompletedCrop(null);
-  }, []);
-
-  const handleDownloadAll = useCallback(() => {
-    toast({
-      title: "Download Started",
-      description: `Downloading ${images.length} cropped images...`,
-      variant: "default",
-    });
-    // In a real implementation, you'd generate and download all cropped images
-  }, [images.length, toast]);
-
-  const handleExitBulkMode = useCallback(() => {
-    onStateChange("resizeAndOptimize");
-  }, [onStateChange]);
-
-  // Handle image load for crop calculations
-  const onImageLoad = useCallback(() => {
-    // Image loaded, ready for cropping
-  }, []);
-
-  // Calculate grid positions more efficiently
-  const getGridPosition = (index: number) => {
-    const imagesPerRow = 3;
-    const maxVisibleRows = 3;
-
-    if (index < imagesPerRow * maxVisibleRows) {
-      const row = Math.floor(index / imagesPerRow);
-      const col = index % imagesPerRow;
-      return {
-        gridColumn: col + 4, // Start from column 4 (after the 3x3 main image)
-        gridRow: row + 1,
-      };
-    } else {
-      // For images beyond the visible area, place them in subsequent rows
-      const extraIndex = index - imagesPerRow * maxVisibleRows;
-      const extraRow = Math.floor(extraIndex / 6) + maxVisibleRows + 1;
-      const extraCol = (extraIndex % 6) + 1;
-      return {
-        gridColumn: extraCol,
-        gridRow: extraRow,
-      };
-    }
+    setHasApplied(true);
+    setProcessingStage("");
+    setProcessingProgress(null);
+    onStateChange("bulkImageEdit");
+    toast({ title: "Download ready", variant: "default" });
   };
+  const downloadAll = () => applyCrop();
 
-  // Helper function to calculate crop preview for other images
-  const getCropPreviewStyle = (imageElement: HTMLImageElement | null) => {
-    if (!completedCrop || !imageElement) return {};
-
-    // Convert percentage crop to pixel values for the preview
-    const cropX = (completedCrop.x / 100) * imageElement.naturalWidth;
-    const cropY = (completedCrop.y / 100) * imageElement.naturalHeight;
-    const cropWidth = (completedCrop.width / 100) * imageElement.naturalWidth;
-    const cropHeight =
-      (completedCrop.height / 100) * imageElement.naturalHeight;
-
-    // Calculate the scale factor for the preview
-    const scaleX = 1 / (completedCrop.width / 100);
-    const scaleY = 1 / (completedCrop.height / 100);
-
-    // Calculate the offset to center the cropped area
-    const offsetX = (-cropX / cropWidth) * 100;
-    const offsetY = (-cropY / cropHeight) * 100;
-
-    return {
-      transform: `scale(${scaleX}, ${scaleY})`,
-      transformOrigin: "top left",
-      left: `${offsetX}%`,
-      top: `${offsetY}%`,
-      position: "absolute" as const,
-      width: "100%",
-      height: "100%",
-    };
+  const getGridPos = (idx: number) => {
+    const perRow = 3,
+      rows = 3;
+    if (idx < perRow * rows) {
+      const r = Math.floor(idx / perRow),
+        c = idx % perRow;
+      return { gridRow: r + 1, gridColumn: c + 4 };
+    }
+    const ex = idx - perRow * rows,
+      r2 = Math.floor(ex / 6) + rows + 1,
+      c2 = (ex % 6) + 1;
+    return { gridRow: r2, gridColumn: c2 };
   };
 
   return (
-    <div className={`flex flex-col gap-6 w-full h-full ${className}`}>
-      {/* Padlock Indicator */}
+    <div className={`flex flex-col gap-4 ${className}`}>
+      {/* Bulk Mode Header */}
       <div
-        className={`w-full flex justify-center items-center mb-4 ${
-          padlockAnimation ? "animate-pulse" : ""
+        className={`w-full flex justify-center items-center mb-4 p-2 ${
+          padlockAnim ? "animate-pulse" : ""
         }`}
       >
-        <div className="inline-flex items-center gap-2 justify-center px-4 py-2 rounded-full bg-gray-600 border border-gray-500">
-          <Images
-            className={`h-4 w-4 ${
-              padlockAnimation ? "text-yellow-300" : "text-white"
-            }`}
-          />
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gray-600 border border-gray-500">
+          <Lock className="h-4 w-4 text-white" />
           <span className="font-medium text-white">
             {isBulkCropping ? "Bulk Crop Mode" : "Bulk Edit Mode"}
           </span>
@@ -273,283 +135,156 @@ export default function BulkImageEditor({
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4 bg-gray-700 p-2 rounded-lg z-10 relative">
-        <div className="w-full grid grid-cols-3 items-center">
-          {/* Left: Zoom Controls */}
-          <div className="flex items-center gap-2 justify-self-start">
-            <Button
-              onClick={handleZoomOut}
-              variant="outline"
-              className="h-9 w-9 p-0"
-              title="Zoom Out"
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
-            <Button
-              onClick={handleZoomIn}
-              variant="outline"
-              className="h-9 w-9 p-0"
-              title="Zoom In"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {/* Center: Bulk Operations */}
-          <div className="flex items-center gap-2 justify-self-center">
-            {!isBulkCropping ? (
-              <>
-                <Button
-                  onClick={handleBulkCrop}
-                  variant="outline"
-                  className="h-9"
-                  title="Bulk Crop"
-                >
-                  <CropIcon className="mr-2 h-4 w-4" />
-                  Bulk Crop
-                </Button>
-
-                <Button
-                  onClick={handleBulkTextEditor}
-                  variant="outline"
-                  className="h-9"
-                  disabled
-                  title="Bulk Text Editor (Coming Soon)"
-                >
-                  <Type className="mr-2 h-4 w-4" />
-                  Bulk Text Editor
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  onClick={handleApplyBulkCrop}
-                  variant="default"
-                  className="h-9"
-                  title="Apply Bulk Crop"
-                >
-                  <Check className="mr-2 h-4 w-4" />
-                  Apply Bulk Crop
-                </Button>
-                <Button
-                  onClick={handleCancelBulkCrop}
-                  variant="outline"
-                  className="h-9"
-                  title="Cancel Crop"
-                >
-                  <X className="mr-2 h-4 w-4" />
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleDownloadAll}
-                  variant="outline"
-                  className="h-9"
-                  title="Download All Images"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Download All
-                </Button>
-              </>
-            )}
-          </div>
-
-          {/* Right: Exit */}
-          <div className="flex items-center gap-2 justify-self-end">
-            {!isBulkCropping && (
-              <Button
-                onClick={handleExitBulkMode}
-                variant="outline"
-                className="h-9"
-              >
-                <X className="mr-2 h-4 w-4" />
-                Exit Bulk Edit Mode
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex-1 h-full min-h-[600px]">
-        {/* Improved Grid Layout */}
-        <div className="grid grid-cols-6 gap-4 h-full auto-rows-max">
-          {/* Selected Image - Takes up 3x3 grid */}
-          <div className="col-span-3 row-span-3 relative border-2 border-blue-500 rounded-lg overflow-hidden bg-gray-900 flex items-center justify-center min-h-[400px]">
-            {selectedImage ? (
-              <div className="relative w-full h-full flex items-center justify-center">
-                {isBulkCropping ? (
-                  <ReactCrop
-                    crop={crop}
-                    onChange={(c) => setCrop(c)}
-                    onComplete={(c) => setCompletedCrop(c)}
-                    className="max-w-full max-h-full flex items-center justify-center"
-                  >
-                    <img
-                      ref={mainImageRef}
-                      src={selectedImage.url}
-                      alt="Main image for bulk cropping"
-                      className="max-w-full max-h-full object-contain"
-                      style={{ transform: `scale(${zoom})` }}
-                      crossOrigin="anonymous"
-                      onLoad={onImageLoad}
-                    />
-                  </ReactCrop>
-                ) : (
-                  <img
-                    ref={selectedImageRef}
-                    src={selectedImage.url}
-                    alt="Selected image for bulk editing"
-                    className="max-w-full max-h-full object-contain"
-                    style={{ transform: `scale(${zoom})` }}
-                  />
-                )}
-
-                {/* Selected image indicator */}
-                <div className="absolute top-2 left-2 bg-blue-500 text-white rounded px-2 py-1 text-xs font-bold">
-                  {isBulkCropping ? "CROP PREVIEW" : "SELECTED"}
-                </div>
-
-                {/* Info overlay */}
-                <div className="absolute bottom-2 left-2 bg-black/70 text-white rounded px-3 py-2 text-sm">
-                  {isBulkCropping ? "Adjust crop area" : "Preview Image"}
-                </div>
-              </div>
-            ) : (
-              <div className="text-gray-400 text-center">
-                <Images className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <p>No image selected</p>
-              </div>
-            )}
-          </div>
-
-          {/* Other Images - Improved layout with crop preview */}
-          {otherImages.map((image, index) => {
-            const position = getGridPosition(index);
-
-            return (
-              <div
-                key={image.id}
-                className={`relative rounded-lg overflow-hidden border-2 transition-all duration-200 ${
-                  isBulkCropping
-                    ? "border-orange-500 bg-orange-100/10"
-                    : "border-gray-600"
-                } aspect-square min-h-[120px]`}
-                style={{
-                  gridColumn: position.gridColumn,
-                  gridRow: position.gridRow,
-                }}
-                title={
-                  isBulkCropping
-                    ? `Crop preview for image ${index + 1}`
-                    : `Image ${index + 1}`
-                }
-              >
-                <div className="relative w-full h-full overflow-hidden">
-                  {isBulkCropping && completedCrop ? (
-                    // Improved crop preview that shows the actual cropped area
-                    <div className="w-full h-full relative bg-gray-800 flex items-center justify-center overflow-hidden">
-                      <div className="relative w-full h-full overflow-hidden">
-                        <img
-                          src={image.url}
-                          alt={`Image ${index + 1} crop preview`}
-                          className="absolute min-w-full min-h-full object-cover"
-                          style={{
-                            // Calculate the clip-path based on crop percentages
-                            clipPath: `inset(${crop.y}% ${
-                              100 - crop.x - crop.width
-                            }% ${100 - crop.y - crop.height}% ${crop.x}%)`,
-                            transform: `scale(${100 / crop.width}%, ${
-                              100 / crop.height
-                            }%)`,
-                            transformOrigin: `${crop.x + crop.width / 2}% ${
-                              crop.y + crop.height / 2
-                            }%`,
-                          }}
-                        />
-                      </div>
-
-                      {/* Crop preview label */}
-                      <div className="absolute bottom-1 right-1 bg-orange-500 text-white rounded px-1 py-0.5 text-xs">
-                        CROP
-                      </div>
-                    </div>
-                  ) : (
-                    <img
-                      src={image.url}
-                      alt={`Image ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                </div>
-
-                {/* Image Number */}
-                <div className="absolute bottom-1 left-1 bg-black/70 text-white rounded px-1 py-0.5 text-xs">
-                  {otherImages.findIndex((img) => img.id === image.id) + 2}
-                </div>
-
-                {/* Crop indicator */}
-                {isBulkCropping && (
-                  <div className="absolute top-1 right-1 bg-orange-500 text-white rounded px-1 py-0.5 text-xs">
-                    WILL CROP
-                  </div>
-                )}
-
-                {/* Overlay for crop mode */}
-                {isBulkCropping && (
-                  <div className="absolute inset-0 bg-orange-500/10 border border-orange-500/30 rounded" />
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Information Panel - Below the grid */}
-        <div
-          className={`mt-6 p-4 rounded-lg border ${
-            isBulkCropping
-              ? "bg-orange-900/30 border-orange-500/50"
-              : "bg-blue-900/30 border-blue-500/50"
-          }`}
-        >
-          <h4
-            className={`font-medium mb-2 ${
-              isBulkCropping ? "text-orange-300" : "text-blue-300"
-            }`}
+      <div className="flex items-center justify-between p-2 bg-gray-700 rounded-lg">
+        <div className="flex items-center gap-2">
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={handleZoomOut}
+            title="Zoom Out"
           >
-            {isBulkCropping ? "Bulk Crop Mode" : "Bulk Edit Mode"}
-          </h4>
+            <Minus className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={handleZoomIn}
+            title="Zoom In"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
 
-          {isBulkCropping ? (
+        <div className="flex items-center gap-2">
+          {!isBulkCropping ? (
             <>
-              <p className="text-orange-200 text-sm mb-2">
-                Cropping {images.length} images with the same crop area.
-              </p>
-              <p className="text-orange-200 text-sm">
-                • Adjust the crop area on the main image
-                <br />• The same crop will be applied to all {
-                  images.length
-                }{" "}
-                images
-                <br />• Preview shows how each image will be cropped
-                <br />• Click "Apply Bulk Crop" when ready
-              </p>
+              <Button onClick={enterCrop} variant="outline">
+                <CropIcon className="mr-1 h-4 w-4" /> Bulk Crop
+              </Button>
+              <Button
+                onClick={() =>
+                  toast({ title: "Coming soon", variant: "default" })
+                }
+                variant="outline"
+                disabled
+              >
+                <Type className="mr-1 h-4 w-4" /> Bulk Text
+              </Button>
+              {hasApplied && (
+                <Button
+                  onClick={downloadAll}
+                  variant="default"
+                  className="border-black text-black hover:bg-black/10"
+                >
+                  <Download className="mr-1 h-4 w-4" /> Download All
+                </Button>
+              )}
             </>
           ) : (
             <>
-              <p className="text-blue-200 text-sm mb-2">
-                You're in bulk edit mode with {images.length} images loaded.
-              </p>
-              <p className="text-blue-200 text-sm">
-                • Use "Bulk Crop" to apply the same crop area to all images
-                <br />• Use "Bulk Text Editor" to add text to all images (coming
-                soon)
-                <br />• All changes will be applied to every image
-                simultaneously
-              </p>
+              <Button
+                onClick={applyCrop}
+                variant="default"
+                disabled={!completedCrop || processingProgress !== null}
+              >
+                {processingProgress !== null ? (
+                  `${processingStage} ${processingProgress}%`
+                ) : (
+                  <>
+                    <Check className="mr-1 h-4 w-4" />
+                    Apply Crop
+                  </>
+                )}
+              </Button>
+              <Button onClick={cancelCrop} variant="outline">
+                <X className="mr-1 h-4 w-4" /> Cancel
+              </Button>
             </>
           )}
         </div>
+
+        {!isBulkCropping && (
+          <Button
+            onClick={() => onStateChange("resizeAndOptimize")}
+            variant="outline"
+          >
+            <X className="mr-1 h-4 w-4" /> Exit Bulk Edit Mode
+          </Button>
+        )}
       </div>
+
+      {/* Main grid */}
+      <div className="grid grid-cols-6 gap-2">
+        <div className="col-span-3 row-span-3 border bg-gray-900 flex items-center justify-center">
+          {isBulkCropping ? (
+            <ReactCrop
+              crop={crop}
+              onChange={setCrop}
+              onComplete={setCompletedCrop}
+            >
+              <img src={selected.url} style={{ transform: `scale(${zoom})` }} />
+            </ReactCrop>
+          ) : (
+            <img src={selected.url} style={{ transform: `scale(${zoom})` }} />
+          )}
+        </div>
+
+        {others.map((o, i) => {
+          const pos = getGridPos(i);
+          return (
+            <div key={o.id} className="aspect-square border" style={pos}>
+              <CropPreview url={o.url} crop={crop} isMask={isBulkCropping} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// CropPreview: shows a shaded mask outside `crop` when `isMask` is true
+function CropPreview({
+  url,
+  crop,
+  isMask,
+}: {
+  url: string;
+  crop: Crop;
+  isMask: boolean;
+}) {
+  return (
+    <div className="relative w-full h-full overflow-hidden bg-gray-800">
+      <img src={url} className="w-full h-full object-cover" />
+      {isMask && (
+        <>
+          <div
+            className="absolute inset-x-0 top-0 bg-black/50"
+            style={{ height: `${crop.y}%` }}
+          />
+          <div
+            className="absolute inset-x-0 bottom-0 bg-black/50"
+            style={{ height: `${100 - crop.y - crop.height}%` }}
+          />
+          <div
+            className="absolute left-0"
+            style={{
+              top: `${crop.y}%`,
+              height: `${crop.height}%`,
+              width: `${crop.x}%`,
+              backgroundColor: "rgba(0,0,0,0.5)",
+            }}
+          />
+          <div
+            className="absolute right-0"
+            style={{
+              top: `${crop.y}%`,
+              height: `${crop.height}%`,
+              width: `${100 - crop.x - crop.width}%`,
+              backgroundColor: "rgba(0,0,0,0.5)",
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }
