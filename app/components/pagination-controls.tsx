@@ -2,28 +2,13 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { SimplePaginationProps } from "../../types/types";
 import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
-import { NavigationDirection } from "@/types/types";
-
-interface SimplePaginationProps {
-  currentPage: number;
-  totalPages: number;
-  totalImages?: number; // New prop for total images count
-  onBackTen?: () => void;
-  onPrevious?: () => void;
-  onNext?: () => void;
-  onForwardTen?: () => void;
-  onNavigate?: (direction: NavigationDirection) => void; // Added for compatibility
-  isDisabled?: boolean;
-  className?: string;
-  currentImageId?: string;
-  allImages?: { id: string }[];
-}
 
 function SimplePagination({
   currentPage,

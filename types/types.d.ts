@@ -1,7 +1,12 @@
-// types/types.d.ts - Complete updated types with bulk editor support
-export type EditorMode = "view" | "edit" | "crop" | "blur" | "paint" | "text";
+// Auto-generated types file managed by Types Cleanup 🧹
+// This file is automatically updated when you save TypeScript files
 
-// Define editor states matching the component implementation
+export type CoreWebVitalsScore =
+  | "poor"
+  | "needs-improvement"
+  | "almost-there"
+  | "good";
+
 export type EditorState =
   | "resizeAndOptimize"
   | "editImage"
@@ -15,236 +20,53 @@ export type EditorState =
 
 export type ImageFormat = "jpeg" | "png" | "webp";
 
-export type CoreWebVitalsScore =
-  | "poor"
-  | "needs-improvement"
-  | "almost-there"
-  | "good";
-
 export type NavigationDirection = "next" | "prev" | "next10" | "prev10";
 
-export interface MousePosition {
-  x: number;
-  y: number;
-}
-
-export interface ImageFile {
-  id: string;
-  file: File;
-  url: string;
-  width?: number;
-  height?: number;
-  metadata?: Record<string, any>;
-}
-
-export interface ImageInfo {
-  id: string;
-  width: number;
-  height: number;
-  size: number;
-  format: string;
-  url: string;
-}
-
-export interface ImageStats {
-  width: number;
-  height: number;
-  size: number;
-  format: string;
-}
-
-export interface EditorStateInfo {
-  history: string[];
-  historyIndex: number;
-  hasEdited: boolean;
-  zoom: number;
-}
-
-export interface ImageDataItem {
-  id: string;
-  url: string;
-  file?: File;
-}
-
-export interface PaintStroke {
-  points: { x: number; y: number }[];
-  color: string;
-  width: number;
-}
-
-export interface TextOverlay {
-  text: string;
-  x: number;
-  y: number;
-  fontSize: number;
-  color: string;
-  bold?: boolean;
-  italic?: boolean;
-}
-
-// Bulk Editor Interface
-export interface BulkImageEditorProps {
-  images: ImageFile[];
-  selectedImageId: string;
-  onSelectImage: (imageId: string) => void;
-  onStateChange: (state: EditorState) => void;
-  onNavigateImage?: (direction: NavigationDirection) => void;
-  onClose?: () => void;
-  onRemoveAll?: () => void;
-  onUploadNew?: () => void;
-  currentPage?: number;
-  totalPages?: number;
-  className?: string;
-}
-
-// Pagination Interfaces
-export interface PaginationControlsProps {
-  currentPage: number;
-  totalPages: number;
-  onNavigateImage: (direction: NavigationDirection) => void;
-  isDisabled?: boolean;
-  className?: string;
-  compact?: boolean;
-}
-
-export interface PaginationWithPreviewProps extends PaginationControlsProps {
-  currentImageUrl?: string;
-  nextImageUrl?: string;
-  prevImageUrl?: string;
-}
-
-export interface ImageListPaginationProps {
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-  className?: string;
-}
-
-export interface SimplePaginationProps {
-  currentPage: number;
-  totalPages: number;
-  onBackTen?: () => void;
-  onPrevious?: () => void;
-  onNext?: () => void;
-  onForwardTen?: () => void;
-  onNavigate?: (direction: NavigationDirection) => void;
-  isDisabled?: boolean;
-  className?: string;
-}
-
-// Thumbnail and Gallery Interfaces
-export interface ThumbnailStripProps {
-  images: ImageInfo[];
-  currentImageId?: string;
-  onSelectImage: (id: string) => void;
-  onRemoveImage?: (id: string) => void;
-  className?: string;
-  visibleCount?: number;
-}
-
-export interface ImagePaginationControlsProps {
-  currentPage: number;
-  totalPages: number;
-  onNavigateImage: (direction: NavigationDirection) => void;
-  isDisabled?: boolean;
-  className?: string;
-}
-
-export interface ImageGalleryProps {
-  images: ImageFile[];
-  onUploadNew: () => void;
-  onRemoveAll: () => void;
-  onClose?: () => void;
-  onSelectImage?: (image: ImageFile) => void;
-  onRemoveImage?: (id: string) => void;
-  onNavigateImage?: (direction: NavigationDirection) => void;
-  className?: string;
-  currentPage?: number;
-  totalPages?: number;
-  currentImageId?: string;
-}
-
-// Main Editor Interfaces
-export interface ImageEditorProps {
+export interface BlurBrushCanvasProps {
   imageUrl: string;
-  onImageChange?: (url: string) => void;
-  onDownload?: () => void;
-  onClose?: () => void;
-  className?: string;
-  fileName?: string;
-  fileType?: string;
-  fileSize?: number;
-  currentPage?: number;
-  totalPages?: number;
-  onNavigateImage?: (direction: NavigationDirection) => void;
-  onRemoveAll?: () => void;
-  onUploadNew?: () => void;
-  allImages?: ImageFile[];
-  currentImageId?: string;
-  onSelectImage?: (image: ImageFile) => void;
-  onEditModeChange?: (isEditMode: boolean) => void;
-}
-
-export interface ExtendedImageEditorProps extends ImageEditorProps {
-  onEditModeChange?: (isEditMode: boolean) => void;
-}
-
-export interface ImageCropperProps {
-  image: ImageFile | null;
-  onUploadNew: () => void;
-  onRemoveAll: () => void;
-  onBackToGallery?: () => void;
-  isStandalone?: boolean;
-  onEditModeChange?: (isEditMode: boolean) => void;
-  onCompressionStateChange?: (isCompressing: boolean) => void;
-  currentPage?: number;
-  totalPages?: number;
-  onPageChange?: (page: number) => void;
-  onNavigateImage?: (direction: NavigationDirection) => void;
-  allImages?: ImageInfo[];
-  currentImageId?: string;
-  onSelectImage?: (id: string) => void;
-}
-
-// Toolbar Interface
-export interface ImageEditorToolbarProps {
-  editorState: EditorState;
-  isCompressing: boolean;
-  zoom: number;
-  historyIndex: number;
-  historyLength: number;
-  currentPage?: number;
-  totalPages?: number;
-  padlockAnimation: boolean;
-  bulkCropData: any;
   blurAmount: number;
   blurRadius: number;
-  allImages?: any[];
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onUndo: () => void;
-  onRedo: () => void;
-  onRotateLeft: () => void;
-  onRotateRight: () => void;
-  onReset: () => void;
-  onClose?: () => void;
-  onRemoveAll?: () => void;
-  onUploadNew?: () => void;
-  onNavigateImage?: (direction: NavigationDirection) => void;
-  onStateChange: (state: EditorState) => void;
-  onApplyCrop: () => void;
-  onApplyBlur: () => void;
-  onApplyPaint: () => void;
-  onApplyText: () => void;
-  onBlurAmountChange: (amount: number) => void;
-  onBlurRadiusChange: (radius: number) => void;
-  onBulkCropApply: () => void;
-  onExitEditMode: () => void;
-  onFlipHorizontal?: () => void;
-  onFlipVertical?: () => void;
+  zoom?: number;
+  onApply: (blurredImageUrl: string) => void;
+  onCancel: () => void;
+  onBlurAmountChange?: (amount: number) => void;
+  onBlurRadiusChange?: (radius: number) => void;
 }
 
-// Canvas and Editor Components
+export interface BlurBrushCanvasRef {
+  getCanvasDataUrl: () => string | null;
+  clear: () => void;
+}
+
+export interface BulkImageEditorProps {
+  className?: string;
+  currentPage?: number;
+  images: ImageFile[];
+  onClose?: () => void;
+  onNavigateImage?: (direction: NavigationDirection) => void;
+  onRemoveAll?: () => void;
+  onSelectImage: (imageId: string) => void;
+  onStateChange: (state: EditorState) => void;
+  onUploadNew?: () => void;
+  selectedImageId: string;
+  totalPages?: number;
+}
+
+export interface CroppingToolProps {
+  imageUrl: string;
+  onApply: (croppedImageUrl: string) => void;
+  onCancel: () => void;
+  className?: string;
+  aspectRatio?: number;
+}
+
+export interface CroppingToolRef {
+  getCanvasDataUrl: () => string | null;
+  getCrop: () => any | null;
+  getImageRef: () => HTMLImageElement | null;
+  applyCrop: () => void;
+}
+
 export interface EditorCanvasProps {
   editorState: EditorState;
   imageUrl: string;
@@ -292,7 +114,82 @@ export interface EditorCanvasProps {
   onSelectImage?: (image: ImageFile) => void;
 }
 
-// Tool Interfaces
+export interface ExtendedImageEditorProps extends ImageEditorProps {
+  onEditModeChange?: (isEditMode: boolean) => void;
+}
+
+export interface ImageDataItem {
+  id: string;
+  url: string;
+  file?: File;
+}
+
+export interface ImageEditorProps {
+  imageUrl: string;
+  onImageChange?: (url: string) => void;
+  onDownload?: () => void;
+  onClose?: () => void;
+  className?: string;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
+  currentPage?: number;
+  totalPages?: number;
+  onNavigateImage?: (direction: NavigationDirection) => void;
+  onRemoveAll?: () => void;
+  onUploadNew?: () => void;
+  allImages?: ImageFile[];
+  currentImageId?: string;
+  onSelectImage?: (image: ImageFile) => void;
+  onEditModeChange?: (isEditMode: boolean) => void;
+}
+
+export interface ImageEditorToolbarProps {
+  editorState: EditorState;
+  isCompressing: boolean;
+  zoom: number;
+  historyIndex: number;
+  historyLength: number;
+  currentPage?: number;
+  totalPages?: number;
+  padlockAnimation: boolean;
+  bulkCropData: any;
+  blurAmount: number;
+  blurRadius: number;
+  allImages?: any[];
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  onRotateLeft: () => void;
+  onRotateRight: () => void;
+  onReset: () => void;
+  onClose?: () => void;
+  onRemoveAll?: () => void;
+  onUploadNew?: () => void;
+  onNavigateImage?: (direction: NavigationDirection) => void;
+  onStateChange: (state: EditorState) => void;
+  onApplyCrop: () => void;
+  onApplyBlur: () => void;
+  onApplyPaint: () => void;
+  onApplyText: () => void;
+  onBlurAmountChange: (amount: number) => void;
+  onBlurRadiusChange: (radius: number) => void;
+  onBulkCropApply: () => void;
+  onExitEditMode: () => void;
+  onFlipHorizontal?: () => void;
+  onFlipVertical?: () => void;
+}
+
+export interface ImageFile {
+  id: string;
+  file: File;
+  url: string;
+  width?: number;
+  height?: number;
+  metadata?: Record<string, any>;
+}
+
 export interface ImageResizerProps {
   width: number;
   height: number;
@@ -312,6 +209,13 @@ export interface ImageResizerProps {
   onQualityChange?: (quality: number) => void;
 }
 
+export interface ImageStats {
+  width: number;
+  height: number;
+  size: number;
+  format: string;
+}
+
 export interface ImageStatsProps {
   originalStats: ImageStats | null;
   newStats: ImageStats | null;
@@ -326,70 +230,15 @@ export interface ImageZoomViewProps {
   imageUrl: string;
 }
 
-export interface RotationControlsProps {
-  onRotate: (degrees: number) => void;
-  onFlipHorizontal: () => void;
-  onFlipVertical: () => void;
-  onReset: () => void;
-  currentRotation?: number;
+export interface MousePosition {
+  x: number;
+  y: number;
 }
 
-// Editing Tool Interfaces
-export interface BlurControlsProps {
-  blurAmount: number;
-  blurRadius: number;
-  onBlurAmountChange: (amount: number) => void;
-  onBlurRadiusChange: (radius: number) => void;
-}
-
-export interface PaintControlsProps {
-  brushSize: number;
-  brushColor: string;
-  onBrushSizeChange: (size: number) => void;
-  onBrushColorChange: (color: string) => void;
-}
-
-// Tool Ref Interfaces
-export interface BlurBrushCanvasRef {
-  getCanvasDataUrl: () => string | null;
-  clear: () => void;
-}
-
-export interface PaintToolRef {
-  getCanvasDataUrl: () => string | null;
-  clear: () => void;
-}
-
-export interface TextToolRef {
-  applyText: () => void;
-  getCanvasDataUrl: () => string | null;
-}
-
-export interface CroppingToolRef {
-  getCanvasDataUrl: () => string | null;
-  getCrop: () => any | null;
-  getImageRef: () => HTMLImageElement | null;
-  applyCrop: () => void;
-}
-
-// Tool Props Interfaces
-export interface CroppingToolProps {
-  imageUrl: string;
-  onApply: (croppedImageUrl: string) => void;
-  onCancel: () => void;
-  className?: string;
-  aspectRatio?: number;
-}
-
-export interface BlurBrushCanvasProps {
-  imageUrl: string;
-  blurAmount: number;
-  blurRadius: number;
-  zoom?: number;
-  onApply: (blurredImageUrl: string) => void;
-  onCancel: () => void;
-  onBlurAmountChange?: (amount: number) => void;
-  onBlurRadiusChange?: (radius: number) => void;
+export interface PaintStroke {
+  points: { x: number; y: number }[];
+  color: string;
+  width: number;
 }
 
 export interface PaintToolProps {
@@ -404,6 +253,45 @@ export interface PaintToolProps {
   onBrushColorChange?: (color: string) => void;
 }
 
+export interface PaintToolRef {
+  getCanvasDataUrl: () => string | null;
+  clear: () => void;
+}
+
+export interface RotationControlsProps {
+  onRotate: (degrees: number) => void;
+  onFlipHorizontal: () => void;
+  onFlipVertical: () => void;
+  onReset: () => void;
+  currentRotation?: number;
+}
+
+export interface SimplePaginationProps {
+  allImages?: { id: string }[];
+  className?: string;
+  currentImageId?: string;
+  currentPage: number;
+  isDisabled?: boolean;
+  onBackTen?: () => void;
+  onForwardTen?: () => void;
+  onNavigate?: (direction: NavigationDirection) => void;
+  onNavigate?: (direction: NavigationDirection) => void; // Added for compatibility
+  onNext?: () => void;
+  onPrevious?: () => void;
+  totalImages?: number; // New prop for total images count
+  totalPages: number;
+}
+
+export interface TextOverlay {
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+  bold?: boolean;
+  italic?: boolean;
+}
+
 export interface TextToolProps {
   imageUrl: string;
   onApplyText: (dataUrl: string) => void;
@@ -413,44 +301,11 @@ export interface TextToolProps {
   setItalic: (isItalic: boolean) => void;
 }
 
-// Legacy Toolbar Interface (for compatibility)
-export interface ToolbarProps {
-  isEditMode: boolean;
-  isCropping: boolean;
-  isBlurring: boolean;
-  isPainting: boolean;
-  isEraser: boolean;
-  isCompressing?: boolean;
-  format: string;
-  onFormatChange: (format: string) => void;
-  onToggleEditMode: () => void;
-  onToggleCropping: () => void;
-  onToggleBlurring: () => void;
-  onTogglePainting: () => void;
-  onToggleEraser: () => void;
-  onApplyCrop?: () => void;
-  onApplyBlur?: (url: string) => void;
-  onApplyPaint?: (url: string) => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onReset?: () => void;
-  onDownload?: () => void;
-  onUploadNew?: () => void;
-  onRemoveAll?: () => void;
-  onCancelBlur?: () => void;
-  onCancelCrop?: () => void;
-  onCancelPaint?: () => void;
-  onBackToGallery?: () => void;
-  onExitEditMode?: () => void;
-  currentPage?: number;
-  totalPages?: number;
-  onPageChange?: (page: number) => void;
-  onNavigateImage?: (direction: NavigationDirection) => void;
-  isStandalone?: boolean;
-  className?: string;
+export interface TextToolRef {
+  applyText: () => void;
+  getCanvasDataUrl: () => string | null;
 }
 
-// Hook Interface
 export interface UseImageEditorProps {
   imageUrl: string;
   fileSize: number;

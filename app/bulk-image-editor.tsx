@@ -3,41 +3,25 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
+import { BulkImageEditorProps } from "../types/types";
 import {
   Minus,
   Plus,
   Images,
-  Crop,
+  Crop as CropIcon,
   Type,
   X,
   Check,
   Download,
 } from "lucide-react";
 import Image from "next/image";
-import ReactCrop, {
-  type Crop as CropType,
-  type PixelCrop,
-} from "react-image-crop";
+import ReactCrop, { type Crop, type PixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import type {
   ImageFile,
   EditorState,
   NavigationDirection,
 } from "@/types/types";
-
-interface BulkImageEditorProps {
-  images: ImageFile[];
-  selectedImageId: string;
-  onSelectImage: (imageId: string) => void;
-  onStateChange: (state: EditorState) => void;
-  onNavigateImage?: (direction: NavigationDirection) => void;
-  onClose?: () => void;
-  onRemoveAll?: () => void;
-  onUploadNew?: () => void;
-  currentPage?: number;
-  totalPages?: number;
-  className?: string;
-}
 
 export default function BulkImageEditor({
   images,
@@ -56,7 +40,7 @@ export default function BulkImageEditor({
   const [zoom, setZoom] = useState<number>(1);
   const [padlockAnimation, setPadlockAnimation] = useState<boolean>(false);
   const [isBulkCropping, setIsBulkCropping] = useState<boolean>(false);
-  const [crop, setCrop] = useState<CropType>({
+  const [crop, setCrop] = useState<Crop>({
     unit: "%",
     width: 50,
     height: 50,
@@ -238,6 +222,36 @@ export default function BulkImageEditor({
     }
   };
 
+  // Helper function to calculate crop preview for other images
+  const getCropPreviewStyle = (imageElement: HTMLImageElement | null) => {
+    if (!completedCrop || !imageElement) return {};
+
+    // Convert percentage crop to pixel values for the preview
+    const cropX = (completedCrop.x / 100) * imageElement.naturalWidth;
+    const cropY = (completedCrop.y / 100) * imageElement.naturalHeight;
+    const cropWidth = (completedCrop.width / 100) * imageElement.naturalWidth;
+    const cropHeight =
+      (completedCrop.height / 100) * imageElement.naturalHeight;
+
+    // Calculate the scale factor for the preview
+    const scaleX = 1 / (completedCrop.width / 100);
+    const scaleY = 1 / (completedCrop.height / 100);
+
+    // Calculate the offset to center the cropped area
+    const offsetX = (-cropX / cropWidth) * 100;
+    const offsetY = (-cropY / cropHeight) * 100;
+
+    return {
+      transform: `scale(${scaleX}, ${scaleY})`,
+      transformOrigin: "top left",
+      left: `${offsetX}%`,
+      top: `${offsetY}%`,
+      position: "absolute" as const,
+      width: "100%",
+      height: "100%",
+    };
+  };
+
   return (
     <div className={`flex flex-col gap-6 w-full h-full ${className}`}>
       {/* Padlock Indicator */}
@@ -291,7 +305,7 @@ export default function BulkImageEditor({
                   className="h-9"
                   title="Bulk Crop"
                 >
-                  <Crop className="mr-2 h-4 w-4" />
+                  <CropIcon className="mr-2 h-4 w-4" />
                   Bulk Crop
                 </Button>
 
@@ -408,7 +422,7 @@ export default function BulkImageEditor({
             )}
           </div>
 
-          {/* Other Images - Improved layout with larger previews */}
+          {/* Other Images - Improved layout with crop preview */}
           {otherImages.map((image, index) => {
             const position = getGridPosition(index);
 
@@ -432,34 +446,24 @@ export default function BulkImageEditor({
               >
                 <div className="relative w-full h-full overflow-hidden">
                   {isBulkCropping && completedCrop ? (
-                    // Enhanced crop preview that better shows the result
-                    <div className="w-full h-full relative bg-gray-800 flex items-center justify-center">
-                      <div
-                        className="relative overflow-hidden rounded"
-                        style={{
-                          // Make the preview larger and more visible
-                          width: "90%",
-                          height: "90%",
-                          aspectRatio: `${completedCrop.width} / ${completedCrop.height}`,
-                        }}
-                      >
+                    // Improved crop preview that shows the actual cropped area
+                    <div className="w-full h-full relative bg-gray-800 flex items-center justify-center overflow-hidden">
+                      <div className="relative w-full h-full overflow-hidden">
                         <img
                           src={image.url}
                           alt={`Image ${index + 1} crop preview`}
-                          className="w-full h-full object-cover"
+                          className="absolute min-w-full min-h-full object-cover"
                           style={{
-                            // Position the image to show the cropped area
-                            objectPosition: `${-completedCrop.x}% ${-completedCrop.y}%`,
-                            transform: `scale(${
-                              100 /
-                              Math.min(
-                                completedCrop.width,
-                                completedCrop.height
-                              )
-                            })`,
-                            transformOrigin: `${
-                              completedCrop.x + completedCrop.width / 2
-                            }% ${completedCrop.y + completedCrop.height / 2}%`,
+                            // Calculate the clip-path based on crop percentages
+                            clipPath: `inset(${crop.y}% ${
+                              100 - crop.x - crop.width
+                            }% ${100 - crop.y - crop.height}% ${crop.x}%)`,
+                            transform: `scale(${100 / crop.width}%, ${
+                              100 / crop.height
+                            }%)`,
+                            transformOrigin: `${crop.x + crop.width / 2}% ${
+                              crop.y + crop.height / 2
+                            }%`,
                           }}
                         />
                       </div>
