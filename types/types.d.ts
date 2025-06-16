@@ -78,61 +78,8 @@ export interface CroppingToolRef {
   applyCrop: () => void;
 }
 
-export interface EditorCanvasProps {
-  editorState: EditorState;
-  imageUrl: string;
-  zoom?: number;
-  width?: number;
-  height?: number;
-  allImages?: ImageDataItem[];
-  currentImageId?: string;
-  crop?: { x: number; y: number; width: number; height: number };
-  aspect?: number;
-  rotation?: number;
-  showCrop?: boolean;
-  onCropChange?: (crop: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }) => void;
-  onZoomChange?: (zoom: number) => void;
-  onCropComplete?: () => void;
-  showPaint?: boolean;
-  paintStrokes?: PaintStroke[];
-  isBlurring?: boolean;
-  blurAmount?: number;
-  blurRadius?: number;
-  blurData?: any;
-  textOverlays?: TextOverlay[];
-  imgRef?: React.RefObject<HTMLImageElement | null>;
-  cropToolRef?: React.Ref<any>;
-  blurCanvasRef?: React.Ref<any>;
-  paintToolRef?: React.Ref<any>;
-  textToolRef?: React.Ref<any>;
-  onCropResult?: (result: any) => void;
-  onBlurResult?: (result: any) => void;
-  onPaintResult?: (result: any) => void;
-  onTextResult?: (result: any) => void;
-  onStateChange?: (state: EditorState) => void;
-  setMultiCropData?: (cropData: any) => void;
-  setBold?: (bold: boolean) => void;
-  setItalic?: (italic: boolean) => void;
-  setIsEraser?: (value: boolean) => void;
-  isEraser?: boolean;
-  isBulkMode: boolean;
-  bulkCropData?: any;
-  onSelectImage?: (image: ImageFile) => void;
-}
-
 export interface ExtendedImageEditorProps extends ImageEditorProps {
   onEditModeChange?: (isEditMode: boolean) => void;
-}
-
-export interface ImageDataItem {
-  id: string;
-  url: string;
-  file?: File;
 }
 
 export interface ImageEditorProps {
@@ -218,6 +165,8 @@ export interface ImageResizerProps {
   onNavigateImage?: (direction: NavigationDirection) => void;
   quality?: number;
   onQualityChange?: (quality: number) => void;
+  compressionLevel: string;
+  onCompressionLevelChange?: (level: string) => void;
 }
 
 export interface ImageStats {
@@ -244,12 +193,6 @@ export interface ImageZoomViewProps {
 export interface MousePosition {
   x: number;
   y: number;
-}
-
-export interface PaintStroke {
-  points: { x: number; y: number }[];
-  color: string;
-  width: number;
 }
 
 export interface PaintToolProps {
@@ -293,16 +236,6 @@ export interface SimplePaginationProps {
   totalPages: number;
 }
 
-export interface TextOverlay {
-  text: string;
-  x: number;
-  y: number;
-  fontSize: number;
-  color: string;
-  bold?: boolean;
-  italic?: boolean;
-}
-
 export interface TextToolProps {
   imageUrl: string;
   onApplyText: (dataUrl: string) => void;
@@ -324,4 +257,73 @@ export interface UseImageEditorProps {
   format: string;
   onImageChange?: (url: string) => void;
   onEditModeChange?: (isEditMode: boolean) => void;
+}
+
+export interface PaintStroke {
+  points: { x: number; y: number }[];
+  color: string;
+  width: number;
+}
+
+export interface TextOverlay {
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+  bold?: boolean;
+  italic?: boolean;
+}
+
+export interface EditorCanvasProps {
+  editorState: EditorState;
+  imageUrl: string;
+  zoom?: number;
+  width?: number;
+  height?: number;
+  allImages?: ImageDataItem[];
+  currentImageId?: string;
+  crop?: { x: number; y: number; width: number; height: number };
+  aspect?: number;
+  rotation?: number;
+  showCrop?: boolean;
+  onCropChange?: (crop: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }) => void;
+  onZoomChange?: (zoom: number) => void;
+  onCropComplete?: () => void;
+  showPaint?: boolean;
+  paintStrokes?: PaintStroke[];
+  isBlurring?: boolean;
+  blurAmount?: number;
+  blurRadius?: number;
+  blurData?: any;
+  textOverlays?: TextOverlay[];
+  imgRef?: React.RefObject<HTMLImageElement | null>;
+  cropToolRef?: React.Ref<any>;
+  blurCanvasRef?: React.Ref<any>;
+  paintToolRef?: React.Ref<any>;
+  textToolRef?: React.Ref<any>;
+  onCropResult?: (result: any) => void;
+  onBlurResult?: (result: any) => void;
+  onPaintResult?: (result: any) => void;
+  onTextResult?: (result: any) => void;
+  onStateChange?: (state: EditorState) => void;
+  setMultiCropData?: (cropData: any) => void;
+  setBold?: (bold: boolean) => void;
+  setItalic?: (italic: boolean) => void;
+  setIsEraser?: (value: boolean) => void;
+  isEraser?: boolean;
+  isBulkMode: boolean;
+  bulkCropData?: any;
+  onSelectImage?: (image: ImageFile) => void;
+}
+
+export interface ImageDataItem {
+  id: string;
+  url: string;
+  file?: File;
 }

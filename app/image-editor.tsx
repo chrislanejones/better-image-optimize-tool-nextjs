@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { useImageEditor } from "./hooks/useImageEditor";
 import { ImageEditorToolbar } from "./components/image-editor-toolbar";
-import { ImageEditorCanvas } from "./components/image-editor-canvas";
+import ImageEditorCanvas from "./components/image-editor-canvas";
 import { RotationControls } from "./components/rotation-controls";
 import BulkImageEditor from "./bulk-image-editor";
 import ImageResizer from "./components/image-resizer";
@@ -560,11 +560,13 @@ export default function ImageEditor({
                 onFormatChange={editor.handleFormatChange}
                 onDownload={handleDownload}
                 isCompressing={editor.isCompressing}
+                quality={editor.quality}
+                onQualityChange={editor.handleQualityChange}
+                compressionLevel={editor.compressionLevel}
+                onCompressionLevelChange={editor.setCompressionLevel}
                 currentPage={currentPage}
                 totalPages={totalPages}
                 onNavigateImage={onNavigateImage}
-                quality={editor.quality}
-                onQualityChange={editor.handleQualityChange}
               />
 
               {editor.hasEdited && <ImageZoomView imageUrl={imageUrl} />}

@@ -1,6 +1,7 @@
+// app/bulk-image-editor.tsx
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +16,7 @@ import {
 } from "lucide-react";
 import ReactCrop, { type Crop, type PixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
-import { downloadBulkCroppedImages } from "@/app/utils/image-utils";
+import { bulkProcessAndZip } from "@/app/utils/bulk-zip";
 import type { BulkImageEditorProps } from "@/types/types";
 
 export default function BulkImageEditor({
@@ -38,10 +39,12 @@ export default function BulkImageEditor({
   });
   const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
   const [hasApplied, setHasApplied] = useState(false);
-  const [processingStage, setProcessingStage] = useState<string>("");
+  const [processingStage, setProcessingStage] = useState("");
   const [processingProgress, setProcessingProgress] = useState<number | null>(
     null
   );
+
+  const mainImgRef = useRef<HTMLImageElement>(null!);
 
   const selected = images.find((i) => i.id === selectedImageId);
   if (!selected) {
@@ -77,21 +80,22 @@ export default function BulkImageEditor({
 
   const applyCrop = async () => {
     if (!completedCrop) {
-      toast({ title: "No crop area", variant: "destructive" });
+      toast({ title: "Draw a crop first", variant: "destructive" });
       return;
     }
-
     setProcessingStage("Cropping images…");
     setProcessingProgress(0);
 
-    await downloadBulkCroppedImages(
+    await bulkProcessAndZip(
       images.map((i) => i.url),
-      crop,
+      completedCrop,
       "jpeg",
       0.9,
-      `bulk-${Date.now()}.zip`,
-      (pct, cur, tot, stage) => {
-        setProcessingStage(stage);
+      `bulk-${new Date().toISOString().slice(0, 10)}.zip`,
+      (stage, pct) => {
+        setProcessingStage(
+          stage === "cropping" ? "Cropping images…" : "Zipping images…"
+        );
         setProcessingProgress(pct);
       }
     );
@@ -184,15 +188,13 @@ export default function BulkImageEditor({
             <>
               <Button
                 onClick={applyCrop}
-                variant="default"
                 disabled={!completedCrop || processingProgress !== null}
               >
-                {processingProgress !== null ? (
+                {processingProgress != null ? (
                   `${processingStage} ${processingProgress}%`
                 ) : (
                   <>
-                    <Check className="mr-1 h-4 w-4" />
-                    Apply Crop
+                    <Check className="mr-1 h-4 w-4" /> Apply Crop
                   </>
                 )}
               </Button>
@@ -222,7 +224,12 @@ export default function BulkImageEditor({
               onChange={setCrop}
               onComplete={setCompletedCrop}
             >
-              <img src={selected.url} style={{ transform: `scale(${zoom})` }} />
+              <img
+                ref={mainImgRef}
+                src={selected.url}
+                style={{ transform: `scale(${zoom})` }}
+                className="max-w-full"
+              />
             </ReactCrop>
           ) : (
             <img src={selected.url} style={{ transform: `scale(${zoom})` }} />
@@ -233,7 +240,12 @@ export default function BulkImageEditor({
           const pos = getGridPos(i);
           return (
             <div key={o.id} className="aspect-square border" style={pos}>
-              <CropPreview url={o.url} crop={crop} isMask={isBulkCropping} />
+              <CropPreview
+                url={o.url}
+                pixelCrop={completedCrop}
+                zoom={zoom}
+                refImg={mainImgRef}
+              />
             </div>
           );
         })}
@@ -242,49 +254,53 @@ export default function BulkImageEditor({
   );
 }
 
-// CropPreview: shows a shaded mask outside `crop` when `isMask` is true
+// CropPreview: shades outside the pixelCrop area, scaled by zoom & refImg dimensions
 function CropPreview({
   url,
-  crop,
-  isMask,
+  pixelCrop,
+  zoom,
+  refImg,
 }: {
   url: string;
-  crop: Crop;
-  isMask: boolean;
+  pixelCrop: PixelCrop | null;
+  zoom: number;
+  refImg: React.RefObject<HTMLImageElement>;
 }) {
+  if (!pixelCrop || !refImg.current) {
+    return <img src={url} className="w-full h-full object-cover" />;
+  }
+  const img = refImg.current;
+  const sw = img.naturalWidth,
+    sh = img.naturalHeight;
+  const dw = img.width * zoom,
+    dh = img.height * zoom;
+  const scaleX = dw / sw,
+    scaleY = dh / sh;
+  const top = pixelCrop.y * scaleY;
+  const left = pixelCrop.x * scaleX;
+  const w = pixelCrop.width * scaleX;
+  const h = pixelCrop.height * scaleY;
+
   return (
     <div className="relative w-full h-full overflow-hidden bg-gray-800">
       <img src={url} className="w-full h-full object-cover" />
-      {isMask && (
-        <>
-          <div
-            className="absolute inset-x-0 top-0 bg-black/50"
-            style={{ height: `${crop.y}%` }}
-          />
-          <div
-            className="absolute inset-x-0 bottom-0 bg-black/50"
-            style={{ height: `${100 - crop.y - crop.height}%` }}
-          />
-          <div
-            className="absolute left-0"
-            style={{
-              top: `${crop.y}%`,
-              height: `${crop.height}%`,
-              width: `${crop.x}%`,
-              backgroundColor: "rgba(0,0,0,0.5)",
-            }}
-          />
-          <div
-            className="absolute right-0"
-            style={{
-              top: `${crop.y}%`,
-              height: `${crop.height}%`,
-              width: `${100 - crop.x - crop.width}%`,
-              backgroundColor: "rgba(0,0,0,0.5)",
-            }}
-          />
-        </>
-      )}
+      {/* top */}
+      <div className="absolute inset-x-0 bg-black/50" style={{ height: top }} />
+      {/* bottom */}
+      <div
+        className="absolute inset-x-0 bg-black/50"
+        style={{ top: top + h, bottom: 0 }}
+      />
+      {/* left */}
+      <div
+        className="absolute bg-black/50"
+        style={{ top, height: h, width: left }}
+      />
+      {/* right */}
+      <div
+        className="absolute bg-black/50"
+        style={{ top, height: h, left: left + w, right: 0 }}
+      />
     </div>
   );
 }
